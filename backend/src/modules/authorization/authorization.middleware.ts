@@ -44,6 +44,42 @@ export function createRequireAuthentication(
   });
 }
 
+export function createOptionalAuthentication(
+  tokenService: AccessTokenService,
+  repository: AuthorizationRepository,
+): RequestHandler {
+  return asyncHandler(async (request, _response, next) => {
+    const authorizationHeader = request.header('authorization');
+
+    if (!authorizationHeader) {
+      next();
+      return;
+    }
+
+    const [scheme, token, extra] = authorizationHeader.trim().split(/\s+/);
+
+    if (scheme?.toLowerCase() !== 'bearer' || !token || extra) {
+      throw new AppError('Kirish tokeni noto‘g‘ri.', 401, 'INVALID_ACCESS_TOKEN');
+    }
+
+    const claims = tokenService.verify(token);
+    const now = new Date();
+    const principal = await repository.findActivePrincipal(claims.sub, claims.sessionId, now);
+
+    if (!principal) {
+      throw new AppError(
+        'Kirish sessiyasi yaroqsiz yoki muddati tugagan.',
+        401,
+        'INVALID_ACCESS_TOKEN',
+      );
+    }
+
+    (request as typeof request & { auth?: typeof principal }).auth = principal;
+    await repository.touchSession(principal.sessionId, now);
+    next();
+  });
+}
+
 export function requireRole(...allowedRoles: RoleCode[]): RequestHandler {
   return (request, _response, next) => {
     const principal = (request as typeof request & { auth?: AuthenticatedPrincipal }).auth;
@@ -95,6 +131,10 @@ export function requirePermission(...requiredPermissions: string[]): RequestHand
 const authorizationRepository = new PrismaAuthorizationRepository();
 
 export const requireAuthentication = createRequireAuthentication(
+  accessTokenService,
+  authorizationRepository,
+);
+export const optionalAuthentication = createOptionalAuthentication(
   accessTokenService,
   authorizationRepository,
 );

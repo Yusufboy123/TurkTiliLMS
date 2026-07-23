@@ -56,26 +56,50 @@ enum CourseStatus {
   @@map("course_status")
 }
 
+enum LessonType {
+  TEXT
+  VIDEO
+  AUDIO
+  PDF
+  QUIZ
+  ASSIGNMENT
+  LIVE
+
+  @@map("lesson_type")
+}
+
+enum LessonStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+
+  @@map("lesson_status")
+}
+
 model User {
-  id                   String           @id @default(uuid(7)) @db.Uuid
-  email                String           @unique(map: "users_email_key") @db.Citext
-  firstName            String?          @map("first_name") @db.VarChar(100)
-  lastName             String?          @map("last_name") @db.VarChar(100)
-  displayName          String?          @map("display_name") @db.VarChar(160)
-  status               UserStatus       @default(ACTIVE)
-  emailVerifiedAt      DateTime?        @map("email_verified_at") @db.Timestamptz(3)
-  lastLoginAt          DateTime?        @map("last_login_at") @db.Timestamptz(3)
-  deletedAt            DateTime?        @map("deleted_at") @db.Timestamptz(3)
-  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
-  credential           UserCredential?
-  sessions             UserSession[]
-  roles                UserRole[]       @relation("UserRoleUser")
-  roleAssignmentsMade  UserRole[]       @relation("UserRoleAssigner")
-  permissionGrantsMade RolePermission[] @relation("RolePermissionGranter")
-  auditLogs            AuditLog[]       @relation("AuditLogActor")
-  coursesCreated       Course[]         @relation("CourseCreator")
-  coursesTaught        Course[]         @relation("CourseTeacher")
+  id                    String           @id @default(uuid(7)) @db.Uuid
+  email                 String           @unique(map: "users_email_key") @db.Citext
+  firstName             String?          @map("first_name") @db.VarChar(100)
+  lastName              String?          @map("last_name") @db.VarChar(100)
+  displayName           String?          @map("display_name") @db.VarChar(160)
+  status                UserStatus       @default(ACTIVE)
+  emailVerifiedAt       DateTime?        @map("email_verified_at") @db.Timestamptz(3)
+  lastLoginAt           DateTime?        @map("last_login_at") @db.Timestamptz(3)
+  deletedAt             DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  credential            UserCredential?
+  sessions              UserSession[]
+  roles                 UserRole[]       @relation("UserRoleUser")
+  roleAssignmentsMade   UserRole[]       @relation("UserRoleAssigner")
+  permissionGrantsMade  RolePermission[] @relation("RolePermissionGranter")
+  auditLogs             AuditLog[]       @relation("AuditLogActor")
+  coursesCreated        Course[]         @relation("CourseCreator")
+  coursesTaught         Course[]         @relation("CourseTeacher")
+  courseSectionsCreated CourseSection[]  @relation("CourseSectionCreator")
+  lessonsCreated        Lesson[]         @relation("LessonCreator")
+  lessonsTaught         Lesson[]         @relation("LessonTeacher")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -222,27 +246,29 @@ model AuditLog {
 /// `contentLanguage` uses a BCP 47-compatible code so future languages are not
 /// coupled to the initial Turkish catalog.
 model Course {
-  id                       String       @id @default(uuid(7)) @db.Uuid
-  title                    String       @db.VarChar(200)
-  slug                     String       @unique(map: "courses_slug_key") @db.VarChar(180)
-  shortDescription         String?      @map("short_description") @db.VarChar(500)
-  description              String?      @db.Text
-  coverImageUrl            String?      @map("cover_image_url") @db.Text
-  contentLanguage          String       @default("tr") @map("content_language") @db.VarChar(35)
+  id                       String          @id @default(uuid(7)) @db.Uuid
+  title                    String          @db.VarChar(200)
+  slug                     String          @unique(map: "courses_slug_key") @db.VarChar(180)
+  shortDescription         String?         @map("short_description") @db.VarChar(500)
+  description              String?         @db.Text
+  coverImageUrl            String?         @map("cover_image_url") @db.Text
+  contentLanguage          String          @default("tr") @map("content_language") @db.VarChar(35)
   level                    CourseLevel?
-  status                   CourseStatus @default(DRAFT)
-  createdByUserId          String       @map("created_by_user_id") @db.Uuid
-  teacherId                String?      @map("teacher_id") @db.Uuid
-  estimatedDurationMinutes Int?         @map("estimated_duration_minutes")
-  sortOrder                Int          @default(0) @map("sort_order")
-  isFeatured               Boolean      @default(false) @map("is_featured")
-  publishedAt              DateTime?    @map("published_at") @db.Timestamptz(3)
-  archivedAt               DateTime?    @map("archived_at") @db.Timestamptz(3)
-  createdAt                DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt                DateTime?    @map("deleted_at") @db.Timestamptz(3)
-  createdBy                User         @relation("CourseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  teacher                  User?        @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  status                   CourseStatus    @default(DRAFT)
+  createdByUserId          String          @map("created_by_user_id") @db.Uuid
+  teacherId                String?         @map("teacher_id") @db.Uuid
+  estimatedDurationMinutes Int?            @map("estimated_duration_minutes")
+  sortOrder                Int             @default(0) @map("sort_order")
+  isFeatured               Boolean         @default(false) @map("is_featured")
+  publishedAt              DateTime?       @map("published_at") @db.Timestamptz(3)
+  archivedAt               DateTime?       @map("archived_at") @db.Timestamptz(3)
+  createdAt                DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  createdBy                User            @relation("CourseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher                  User?           @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sections                 CourseSection[]
+  lessons                  Lesson[]
 
   @@index([status, deletedAt, sortOrder], map: "courses_status_deleted_at_sort_order_idx")
   @@index([teacherId, status, deletedAt], map: "courses_teacher_id_status_deleted_at_idx")
@@ -253,4 +279,66 @@ model Course {
   @@index([publishedAt], map: "courses_published_at_idx")
   @@index([deletedAt], map: "courses_deleted_at_idx")
   @@map("courses")
+}
+
+model CourseSection {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  courseId    String    @map("course_id") @db.Uuid
+  title       String    @db.VarChar(200)
+  description String?   @db.Text
+  /// Active sibling uniqueness is enforced by a PostgreSQL partial index in
+  /// the migration so soft-deleted rows can retain their historical position.
+  position    Int
+  isPublished Boolean   @default(false) @map("is_published")
+  createdById String    @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User      @relation("CourseSectionCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lessons     Lesson[]
+
+  @@unique([id, courseId], map: "course_sections_id_course_id_key")
+  @@index([courseId, deletedAt, position], map: "course_sections_course_id_deleted_at_position_idx")
+  @@index([courseId, isPublished, deletedAt], map: "course_sections_course_id_is_published_deleted_at_idx")
+  @@index([createdById], map: "course_sections_created_by_id_idx")
+  @@index([deletedAt], map: "course_sections_deleted_at_idx")
+  @@map("course_sections")
+}
+
+model Lesson {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  courseId        String        @map("course_id") @db.Uuid
+  sectionId       String        @map("section_id") @db.Uuid
+  title           String        @db.VarChar(200)
+  slug            String        @db.VarChar(180)
+  summary         String?       @db.Text
+  content         String?       @db.Text
+  lessonType      LessonType    @map("lesson_type")
+  /// Active sibling uniqueness is enforced by a PostgreSQL partial index in
+  /// the migration so soft-deleted rows can retain their historical position.
+  position        Int
+  durationMinutes Int?          @map("duration_minutes")
+  isPreview       Boolean       @default(false) @map("is_preview")
+  status          LessonStatus  @default(DRAFT)
+  createdById     String        @map("created_by_id") @db.Uuid
+  teacherId       String?       @map("teacher_id") @db.Uuid
+  publishedAt     DateTime?     @map("published_at") @db.Timestamptz(3)
+  archivedAt      DateTime?     @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  course          Course        @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  section         CourseSection @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy       User          @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher         User?         @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([courseId, slug], map: "lessons_course_id_slug_key")
+  @@index([courseId, status, deletedAt], map: "lessons_course_id_status_deleted_at_idx")
+  @@index([sectionId, deletedAt, position], map: "lessons_section_id_deleted_at_position_idx")
+  @@index([teacherId, status, deletedAt], map: "lessons_teacher_id_status_deleted_at_idx")
+  @@index([lessonType, status, deletedAt], map: "lessons_lesson_type_status_deleted_at_idx")
+  @@index([createdById], map: "lessons_created_by_id_idx")
+  @@index([deletedAt], map: "lessons_deleted_at_idx")
+  @@map("lessons")
 }
