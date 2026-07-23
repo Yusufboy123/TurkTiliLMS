@@ -39,6 +39,8 @@ enum SessionClientType {
 model User {
   id                   String           @id @default(uuid(7)) @db.Uuid
   email                String           @unique(map: "users_email_key") @db.Citext
+  firstName            String?          @map("first_name") @db.VarChar(100)
+  lastName             String?          @map("last_name") @db.VarChar(100)
   displayName          String?          @map("display_name") @db.VarChar(160)
   status               UserStatus       @default(ACTIVE)
   emailVerifiedAt      DateTime?        @map("email_verified_at") @db.Timestamptz(3)
@@ -54,6 +56,7 @@ model User {
   auditLogs            AuditLog[]       @relation("AuditLogActor")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
+  @@index([lastName, firstName], map: "users_last_name_first_name_idx")
   @@index([deletedAt], map: "users_deleted_at_idx")
   @@map("users")
 }

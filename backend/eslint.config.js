@@ -6,12 +6,12 @@ export default tseslint.config(
   { ignores: ['dist'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'prisma/**/*.ts', 'tests/**/*.ts', 'vitest.config.ts'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.json', './tsconfig.tools.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
