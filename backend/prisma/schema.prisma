@@ -36,6 +36,26 @@ enum SessionClientType {
   @@map("session_client_type")
 }
 
+enum CourseLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+
+  @@map("course_level")
+}
+
+enum CourseStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+
+  @@map("course_status")
+}
+
 model User {
   id                   String           @id @default(uuid(7)) @db.Uuid
   email                String           @unique(map: "users_email_key") @db.Citext
@@ -54,6 +74,8 @@ model User {
   roleAssignmentsMade  UserRole[]       @relation("UserRoleAssigner")
   permissionGrantsMade RolePermission[] @relation("RolePermissionGranter")
   auditLogs            AuditLog[]       @relation("AuditLogActor")
+  coursesCreated       Course[]         @relation("CourseCreator")
+  coursesTaught        Course[]         @relation("CourseTeacher")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -194,4 +216,41 @@ model AuditLog {
   @@index([requestCorrelationId], map: "audit_logs_request_correlation_id_idx")
   @@index([occurredAt], map: "audit_logs_occurred_at_idx")
   @@map("audit_logs")
+}
+
+/// Course content fields represent the course's current primary content language.
+/// `contentLanguage` uses a BCP 47-compatible code so future languages are not
+/// coupled to the initial Turkish catalog.
+model Course {
+  id                       String       @id @default(uuid(7)) @db.Uuid
+  title                    String       @db.VarChar(200)
+  slug                     String       @unique(map: "courses_slug_key") @db.VarChar(180)
+  shortDescription         String?      @map("short_description") @db.VarChar(500)
+  description              String?      @db.Text
+  coverImageUrl            String?      @map("cover_image_url") @db.Text
+  contentLanguage          String       @default("tr") @map("content_language") @db.VarChar(35)
+  level                    CourseLevel?
+  status                   CourseStatus @default(DRAFT)
+  createdByUserId          String       @map("created_by_user_id") @db.Uuid
+  teacherId                String?      @map("teacher_id") @db.Uuid
+  estimatedDurationMinutes Int?         @map("estimated_duration_minutes")
+  sortOrder                Int          @default(0) @map("sort_order")
+  isFeatured               Boolean      @default(false) @map("is_featured")
+  publishedAt              DateTime?    @map("published_at") @db.Timestamptz(3)
+  archivedAt               DateTime?    @map("archived_at") @db.Timestamptz(3)
+  createdAt                DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  createdBy                User         @relation("CourseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher                  User?        @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([status, deletedAt, sortOrder], map: "courses_status_deleted_at_sort_order_idx")
+  @@index([teacherId, status, deletedAt], map: "courses_teacher_id_status_deleted_at_idx")
+  @@index([createdByUserId], map: "courses_created_by_user_id_idx")
+  @@index([level, status, deletedAt], map: "courses_level_status_deleted_at_idx")
+  @@index([isFeatured, status, deletedAt], map: "courses_is_featured_status_deleted_at_idx")
+  @@index([contentLanguage, status, deletedAt], map: "courses_content_language_status_deleted_at_idx")
+  @@index([publishedAt], map: "courses_published_at_idx")
+  @@index([deletedAt], map: "courses_deleted_at_idx")
+  @@map("courses")
 }

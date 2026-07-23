@@ -105,6 +105,69 @@ const permissionDefinitions = [
     action: 'read',
     description: 'View permitted identity and access audit records.',
   },
+  {
+    code: 'courses.read',
+    resource: 'courses',
+    action: 'read',
+    description: 'View permitted course administration records.',
+  },
+  {
+    code: 'courses.create',
+    resource: 'courses',
+    action: 'create',
+    description: 'Create courses within the permitted scope.',
+  },
+  {
+    code: 'courses.update',
+    resource: 'courses',
+    action: 'update',
+    description: 'Update courses within the permitted scope.',
+  },
+  {
+    code: 'courses.delete',
+    resource: 'courses',
+    action: 'delete',
+    description: 'Soft-delete courses within the permitted scope.',
+  },
+  {
+    code: 'courses.restore',
+    resource: 'courses',
+    action: 'restore',
+    description: 'Restore soft-deleted courses within the permitted scope.',
+  },
+  {
+    code: 'courses.submit_review',
+    resource: 'courses',
+    action: 'submit_review',
+    description: 'Submit an assigned course for editorial review.',
+  },
+  {
+    code: 'courses.publish',
+    resource: 'courses',
+    action: 'publish',
+    description: 'Publish and archive courses.',
+  },
+  {
+    code: 'courses.assign_teacher',
+    resource: 'courses',
+    action: 'assign_teacher',
+    description: 'Assign or remove a course teacher.',
+  },
+  {
+    code: 'courses.view_statistics',
+    resource: 'courses',
+    action: 'view_statistics',
+    description: 'View platform-wide course statistics.',
+  },
+] as const;
+
+const teacherPermissionCodes = [
+  'courses.read',
+  'courses.create',
+  'courses.update',
+  'courses.delete',
+  'courses.restore',
+  'courses.submit_review',
 ] as const;
 
 async function seedIdentityAndAccess(): Promise<void> {
@@ -140,28 +203,48 @@ async function seedIdentityAndAccess(): Promise<void> {
   );
 
   const adminRole = roles.find((role) => role.code === RoleCode.ADMIN);
+  const teacherRole = roles.find((role) => role.code === RoleCode.TEACHER);
 
-  if (!adminRole) {
-    throw new Error('The ADMIN role could not be created.');
+  if (!adminRole || !teacherRole) {
+    throw new Error('The ADMIN or TEACHER role could not be created.');
   }
 
-  await prisma.$transaction(
-    permissions.map((permission) =>
+  const adminAssignments = permissions.map((permission) =>
+    prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: adminRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: adminRole.id,
+        permissionId: permission.id,
+      },
+    }),
+  );
+  const teacherAssignments = permissions
+    .filter((permission) =>
+      teacherPermissionCodes.includes(permission.code as (typeof teacherPermissionCodes)[number]),
+    )
+    .map((permission) =>
       prisma.rolePermission.upsert({
         where: {
           roleId_permissionId: {
-            roleId: adminRole.id,
+            roleId: teacherRole.id,
             permissionId: permission.id,
           },
         },
         update: {},
         create: {
-          roleId: adminRole.id,
+          roleId: teacherRole.id,
           permissionId: permission.id,
         },
       }),
-    ),
-  );
+    );
+
+  await prisma.$transaction([...adminAssignments, ...teacherAssignments]);
 }
 
 try {
