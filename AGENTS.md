@@ -54,6 +54,11 @@ Uzbek UI copy should be natural, respectful, concise, and consistent. The
 system MUST be designed from the beginning to support additional interface and
 content languages without redesigning domain models or client architecture.
 
+The final platform owner is not a programmer. After deployment and handoff, the
+owner MUST be able to perform all normal content, user, course, design, and
+operational management through a secure graphical admin panel without editing
+source code, running database commands, or using server credentials.
+
 The architecture should support growth without premature distribution.
 A well-structured modular monolith is preferred until independent scaling,
 ownership, reliability, or compliance requirements justify extracting a
@@ -84,6 +89,13 @@ service.
 - Make invalid states difficult to represent and impossible to persist when
   practical.
 - Default to least privilege, deny by default, and fail safely.
+- Treat graphical admin management as a required part of every owner-managed
+  user-facing feature, not as optional follow-up work.
+- Keep owner-editable business content and safe settings database-driven.
+- Keep core security policy, validation boundaries, domain invariants,
+  infrastructure configuration, and executable behavior in reviewed code.
+- Never expose a general-purpose code, SQL, CSS, JavaScript, template, or query
+  editor through the admin panel.
 - Optimize for readability and predictable behavior before cleverness.
 - Delete obsolete code when a replacement is complete and verified.
 - Do not expand the task into speculative functionality.
@@ -513,6 +525,24 @@ The exact order may vary only when its security and behavior are understood.
 - Use correlation IDs in responses and logs.
 - Rate-limit by route sensitivity, identity, and network source as appropriate.
 
+### 9.6 Admin API contracts
+
+- The admin panel MUST use authenticated, versioned REST APIs; it must never
+  connect directly to PostgreSQL, object storage, queues, or infrastructure
+  providers.
+- Admin endpoints MUST use the same domain services and invariants as all other
+  clients.
+- Owner-manageable resources MUST expose explicit list, detail, create, update,
+  lifecycle, restore, and permitted export operations as applicable.
+- Bulk operations MUST be bounded, previewable, idempotent where possible, and
+  individually auditable.
+- Destructive operations MUST communicate affected resources and require an
+  explicit confirmation flow.
+- Admin responses MUST omit secrets and fields the authenticated administrator
+  is not permitted to view.
+- Export endpoints MUST enforce the same authorization and field-level privacy
+  rules as interactive views.
+
 ---
 
 ## 10. Prisma Standards
@@ -698,6 +728,11 @@ client.
 Audit role changes, permission changes, content publication, grading overrides,
 student-data access by privileged users, account suspension, certificate
 revocation, and data exports.
+
+Admin access is not a universal bypass. High-risk permissions MUST be separate,
+least-privilege grants. A user who can edit content does not automatically gain
+permission to manage accounts, view private reports, change settings, or issue
+certificates.
 
 ---
 
@@ -1069,6 +1104,20 @@ Tool adoption requires normal dependency review.
 - Include accessibility checks in reusable component coverage.
 - Coverage percentage never substitutes for meaningful assertions.
 
+### 22.5 Admin-management coverage
+
+- Every owner-manageable feature requires tests for its admin list, detail,
+  create, update, lifecycle, and restore workflows as applicable.
+- Test every admin permission boundary with allowed and denied roles.
+- Test validation, optimistic concurrency or stale edits, destructive
+  confirmation, soft deletion, restoration, audit creation, and export scope.
+- File-management tests must cover type, size, signature, ownership, scanning,
+  replacement, and failure states.
+- Admin UI tests must cover loading, empty, validation, error, success,
+  permission-denied, and keyboard interaction states.
+- A public or student-facing capability is not complete when its content can be
+  changed only through fixtures, migrations, scripts, or direct database edits.
+
 ### 22.5 Required quality commands
 
 Run the relevant commands after implementation:
@@ -1380,11 +1429,278 @@ language must remain separate preferences.
 
 ---
 
-## 30. Implementation Workflow
+## 30. Admin-Managed Platform Standards
+
+### 30.1 Product ownership requirement
+
+The deployed platform MUST be operable by a non-programmer owner through a
+secure graphical admin panel. Normal business operation must not depend on a
+developer editing code, modifying environment files, running Prisma, executing
+SQL, or accessing a server shell.
+
+Every future user-facing feature must classify its controls into:
+
+- **Owner-managed:** safe routine operations exposed through the admin panel.
+- **Developer-managed:** structural, infrastructure, integration, migration, or
+  security-sensitive changes that require reviewed code and deployment.
+
+If a task creates owner-visible content or behavior without the corresponding
+admin management workflow, the task is incomplete unless the requirement
+explicitly states that the data is intentionally developer-managed.
+
+### 30.2 Admin architecture
+
+- The admin panel is a protected React feature area using the same versioned
+  REST API as other clients.
+- Admin UI code follows feature-based architecture and reuses shared forms,
+  tables, filters, status badges, upload controls, confirmation dialogs, and
+  accessibility primitives.
+- The backend exposes admin capabilities through normal controllers, domain
+  services, repositories, validation, and authorization policies.
+- Admin APIs never bypass domain invariants or write directly across module
+  boundaries.
+- Editable content and safe business configuration are stored as validated,
+  versioned database records.
+- Secrets, infrastructure values, and executable code remain outside the admin
+  data model.
+- Long-running imports, exports, media processing, report generation, and bulk
+  notifications run as observable background jobs.
+
+### 30.3 User management
+
+The admin panel MUST support, subject to granular permissions:
+
+- Create users and send a safe account activation or password-setup flow.
+- Edit permitted profile and locale fields.
+- Deactivate, suspend, restore, and delete or anonymize accounts according to
+  retention policy.
+- Assign and revoke Admin, Teacher, and Student roles.
+- Start a secure password reset without displaying or setting a plaintext
+  password.
+- Revoke sessions when an account is suspended or compromised.
+- View safe account activity, session history, role changes, and administrative
+  actions.
+
+User deletion must identify retained academic, certificate, audit, or legal
+history. Role assignment, suspension, restoration, session revocation, and
+deletion require audit records.
+
+### 30.4 Course and lesson management
+
+The admin panel MUST support:
+
+- Create, edit, reorder, publish, unpublish, archive, restore, and delete
+  courses.
+- Create, edit, reorder, and manage modules and lessons.
+- Assign instructors and manage course visibility and enrollment policy.
+- Upload, replace, reorder, and remove videos, PDFs, audio, images, captions,
+  transcripts, and attachments.
+- Preview draft content before publication.
+- Use the lifecycle states `draft`, `review`, `approved`, `published`, and
+  `archived` where editorial review applies.
+- Manage translations independently by locale and display missing or stale
+  translation status.
+
+Published content must not be overwritten in a way that changes historical
+test attempts or certificate evidence. Reordering must be transactional and
+must preserve stable identifiers.
+
+### 30.5 Test management
+
+The admin panel MUST support:
+
+- Create, edit, duplicate, archive, and publish tests.
+- Create question-bank entries and manage localized prompts.
+- Manage answer options, correct-answer policy, score weights, and explanations.
+- Configure passing score, attempt limit, time limit, availability window,
+  randomization, and feedback policy.
+- Preview a test without exposing answer keys to unauthorized users.
+- View, filter, and export permitted attempt and result data.
+- Route manual-grading work to authorized teachers or administrators.
+
+Published questions used by existing attempts require versioning or immutable
+attempt snapshots. Correct answers are sensitive assessment data and require
+specific permissions.
+
+### 30.6 Dictionary management
+
+The admin panel MUST support:
+
+- Create, edit, reorder, archive, restore, and delete dictionary categories.
+- Create and edit words, meanings, translations, examples, grammatical
+  metadata, pronunciation audio, and images.
+- Manage draft, review, approved, published, and archived editorial states.
+- Preview Turkish-aware normalized search behavior.
+- Import and export dictionary data through validated, documented formats.
+- Show row-level import errors before committing data.
+
+Imports must be bounded, resumable or safely retryable, and transactional in
+manageable batches. Export permissions and personal favorite data remain
+separate.
+
+### 30.7 Website content management
+
+The admin panel MUST provide a bounded content-management capability for:
+
+- Homepage sections and their order
+- Banners and announcements
+- Navigation links
+- Footer content
+- Contact details
+- Social links
+- Appropriate visible Uzbek interface or marketing content
+- Localized variants and publication scheduling where required
+
+Content records must use typed component or section schemas. Administrators may
+edit content and select approved presentation variants, but may not provide
+arbitrary markup, scripts, database queries, or executable templates.
+
+Stable interface labels tied to application behavior remain translation
+resources managed through a controlled localization workflow, not unrestricted
+content fields.
+
+### 30.8 Design settings
+
+The admin panel MAY expose a curated design-settings schema for:
+
+- Logo and favicon assets
+- Primary and accent colors selected through validated color controls
+- Approved banner assets and presentation variants
+- Supported light, dark, or system theme modes
+- Other reviewed design tokens with safe bounds
+
+Design settings must use allowlisted tokens and validated asset references.
+Never permit arbitrary CSS, HTML, JavaScript, remote script URLs, font
+injection, or unsanitized style values.
+
+### 30.9 Certificate management
+
+The admin panel MUST support:
+
+- Create, preview, version, activate, and archive certificate templates.
+- Configure approved signature and seal assets.
+- Configure displayed issuer names and titles.
+- Configure course completion and assessment eligibility rules using typed
+  fields.
+- Configure certificate numbering through a bounded pattern system.
+- Issue, reissue, revoke, and verify certificates subject to separate
+  permissions.
+
+Template and eligibility changes must not silently alter already issued
+certificates. Issuance and revocation are audited.
+
+### 30.10 Notification management
+
+The admin panel MUST support:
+
+- Create and schedule announcements.
+- Create, preview, version, activate, and archive localized templates.
+- Target selected roles, courses, groups, or individual users.
+- Display an estimated recipient count before sending.
+- Require confirmation for large or irreversible sends.
+- Track queued, delivered, failed, read, and canceled states.
+
+Target resolution and delivery happen on the backend. Administrators must not
+upload executable templates or provider credentials.
+
+### 30.11 Statistics and reports
+
+The admin panel MUST provide permission-scoped views for:
+
+- Student learning progress
+- Test results and grading status
+- Course completion
+- Active users
+- Recent activity
+- Operational media, notification, and background-job status where appropriate
+
+Permitted reports may be exported through asynchronous, access-controlled jobs.
+Exports must apply field-level privacy, audit the actor and scope, expire after
+a bounded period, and avoid exposing data outside the administrator's
+permissions.
+
+### 30.12 System settings
+
+- Safe business settings are edited through typed, labeled, validated forms.
+- Every setting has a documented type, default, constraints, owner, visibility,
+  and effect.
+- High-impact settings require confirmation, audit, and possibly recent
+  authentication.
+- Secrets and infrastructure settings are never returned to or editable from
+  the admin panel.
+- Database passwords, JWT signing material, API keys, object-storage
+  credentials, SMTP credentials, server credentials, deployment configuration,
+  and raw environment variables remain in the deployment secrets system.
+- The admin panel must not become a generic key-value editor.
+
+### 30.13 Audit and destructive-action safety
+
+- Record important admin actions with actor, action, target, timestamp, request
+  correlation ID, and safe before/after summaries.
+- Require explicit confirmation for deletion, suspension, unpublishing,
+  certificate revocation, bulk changes, role changes, and broad notifications.
+- Prefer soft deletion and restoration when historical references or recovery
+  justify it.
+- Clearly label destructive and irreversible operations.
+- Use optimistic concurrency or version checks to prevent silent stale updates.
+- Validate every admin input on both client and server.
+- Enforce RBAC and object-level policy on every admin API.
+- Protect uploads with allowlists, size limits, signature validation,
+  quarantine, scanning, and authorized delivery.
+- Never execute administrator-provided code, queries, scripts, or commands.
+
+### 30.14 Owner-managed versus developer-managed work
+
+The owner can perform without code:
+
+- Routine user lifecycle and role management
+- Course, module, lesson, test, dictionary, and media management
+- Website content, approved theme settings, and localized business content
+- Certificate templates and issuance operations
+- Announcements, notification templates, targeting, and delivery review
+- Safe application settings
+- Statistics review and permitted report exports
+- Audit and recent operational activity review
+
+A developer is still required for:
+
+- Entirely new product modules or workflows
+- New database entities, fields, constraints, or migrations
+- Infrastructure, deployment, backup, scaling, or network changes
+- New external integrations or provider credentials
+- Changes to authentication, RBAC semantics, cryptography, or core security
+  policy
+- New executable behavior, algorithms, content-component types, or design-token
+  capabilities
+- Dependency upgrades and source-code changes
+- Incident response requiring privileged infrastructure access
+
+The admin panel is a bounded product-management system, not a general-purpose
+no-code application builder or code editor.
+
+### 30.15 Module completion contract
+
+Every future owner-manageable module MUST ship with:
+
+1. A secure graphical admin workflow.
+2. Versioned admin API operations.
+3. Granular permissions and object-level authorization.
+4. Client and server validation.
+5. Audit events for sensitive or lifecycle-changing actions.
+6. Safe destructive confirmation, soft deletion, and restoration where
+   applicable.
+7. Loading, empty, success, error, conflict, and permission-denied states.
+8. Uzbek Latin copy and multilingual content support.
+9. Automated tests for permitted and denied operations.
+10. Documentation of owner-managed and developer-managed boundaries.
+
+---
+
+## 31. Implementation Workflow
 
 Every future task should follow this workflow.
 
-### 30.1 Discovery
+### 31.1 Discovery
 
 1. Read the request, this guide, and relevant architecture documents.
 2. Inspect the affected feature and all call sites.
@@ -1392,8 +1708,11 @@ Every future task should follow this workflow.
    compatibility impacts.
 4. Check for reusable components and existing patterns before adding new ones.
 5. Confirm that no unrelated user changes will be overwritten.
+6. Classify each new capability as owner-managed or developer-managed.
+7. Identify the admin workflows, permissions, audit events, validation, and
+   destructive-action behavior required by the capability.
 
-### 30.2 Design
+### 31.2 Design
 
 1. Define the feature boundary and owning module.
 2. Define or update the API contract before coupling clients to behavior.
@@ -1401,8 +1720,13 @@ Every future task should follow this workflow.
 4. Define data invariants and migration strategy.
 5. Define loading, empty, error, offline, responsive, and accessible states.
 6. Use an ADR when the decision affects long-term architecture.
+7. Define the complete graphical admin workflow for every owner-managed
+   resource, including lifecycle, preview, confirmation, restoration, and
+   permitted export behavior.
+8. Define which settings are safe business configuration and which must remain
+   developer-managed secrets or infrastructure.
 
-### 30.3 Implementation
+### 31.3 Implementation
 
 1. Implement the domain behavior independently of transport and presentation.
 2. Add persistence through repositories.
@@ -1411,8 +1735,12 @@ Every future task should follow this workflow.
 5. Add localization keys from the beginning.
 6. Add tests at the appropriate layers.
 7. Remove replaced code and avoid parallel legacy paths.
+8. Add the required admin interface using shared admin components and the same
+   domain services.
+9. Add granular permissions, audit recording, safe upload controls, and
+   destructive confirmations before considering the feature complete.
 
-### 30.4 Verification
+### 31.4 Verification
 
 1. Run focused tests during development.
 2. Run TypeScript checks.
@@ -1423,10 +1751,15 @@ Every future task should follow this workflow.
 7. Exercise the changed API or user journey.
 8. Review responsive, keyboard, locale, permission, and failure behavior.
 9. Review the final diff for secrets, duplication, and unintended changes.
+10. Exercise the corresponding admin workflow with allowed and denied roles.
+11. Verify audit output, validation, soft deletion or restoration, concurrent
+    edits, and export scope where applicable.
+12. Confirm that normal owner operation requires no source, database, or server
+    access.
 
 ---
 
-## 31. Definition of Done
+## 32. Definition of Done
 
 A task is complete only when all applicable statements are true:
 
@@ -1448,6 +1781,23 @@ A task is complete only when all applicable statements are true:
 - Documentation is updated when contracts or architecture change.
 - No secrets, temporary workarounds, dead code, or unexplained TODOs remain.
 - The final change set contains no unrelated modifications.
+- Every new owner-manageable resource has a secure graphical admin interface.
+- Admin operations use versioned APIs and the same domain invariants as other
+  clients.
+- Granular admin permissions and object-level authorization are tested for
+  allowed and denied roles.
+- Admin inputs are validated on the client and server.
+- Sensitive admin operations create safe audit records.
+- Destructive operations require confirmation and support soft deletion and
+  restoration where appropriate.
+- Admin uploads and exports enforce type, size, privacy, ownership, and
+  lifecycle rules.
+- Owner-editable content and safe business settings are database-driven rather
+  than hardcoded.
+- Secrets, infrastructure controls, executable code, arbitrary CSS, and
+  arbitrary JavaScript are not exposed through the admin panel.
+- The owner-managed and developer-managed boundary is documented for the
+  feature.
 
 Enterprise-grade does not mean adding maximum complexity. It means delivering
 the simplest complete solution with clear boundaries, safe data behavior,

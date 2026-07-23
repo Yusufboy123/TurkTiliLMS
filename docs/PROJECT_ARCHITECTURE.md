@@ -61,6 +61,9 @@ authoritative learning, authorization, or certificate rules.
 - Give teachers tools to create, organize, publish, and evaluate content.
 - Give administrators control over users, platform policy, moderation, and
   operations.
+- Enable a non-programmer platform owner to perform all normal content, user,
+  course, design, and operational management through a secure graphical admin
+  panel after handoff.
 - Provide students with consistent progress across all supported clients.
 - Support localized interfaces and content as the audience grows.
 
@@ -78,16 +81,17 @@ authoritative learning, authorization, or certificate rules.
 
 ### 2.3 Quality attributes
 
-| Attribute       | Architectural response                                                           |
-| --------------- | -------------------------------------------------------------------------------- |
-| Maintainability | Feature-oriented backend and frontend modules with explicit ownership            |
-| Scalability     | Stateless API nodes, external object storage, queues, and worker processes       |
-| Security        | Central authentication, RBAC, validation, audit trails, and least privilege      |
-| Reliability     | Health checks, retries, idempotency, backups, and graceful degradation           |
-| Performance     | CDN delivery, caching, pagination, database indexing, and precomputed statistics |
-| Portability     | Standards-based REST API and container-friendly services                         |
-| Accessibility   | Responsive, keyboard-accessible, semantic web UI with WCAG targets               |
-| Localization    | Locale-independent domain data and structured translation resources              |
+| Attribute         | Architectural response                                                           |
+| ----------------- | -------------------------------------------------------------------------------- |
+| Maintainability   | Feature-oriented backend and frontend modules with explicit ownership            |
+| Scalability       | Stateless API nodes, external object storage, queues, and worker processes       |
+| Security          | Central authentication, RBAC, validation, audit trails, and least privilege      |
+| Reliability       | Health checks, retries, idempotency, backups, and graceful degradation           |
+| Performance       | CDN delivery, caching, pagination, database indexing, and precomputed statistics |
+| Portability       | Standards-based REST API and container-friendly services                         |
+| Accessibility     | Responsive, keyboard-accessible, semantic web UI with WCAG targets               |
+| Localization      | Locale-independent domain data and structured translation resources              |
+| Owner operability | Secure graphical administration of routine business operations without code      |
 
 ### 2.4 Current non-goals
 
@@ -336,6 +340,262 @@ sharing feature is introduced.
 | View course analytics        |          Yes | Assigned courses | Own data only |
 | Issue or revoke certificates |          Yes | Permission-based |            No |
 
+### 6.5 Admin-managed platform architecture
+
+The final platform owner is not a programmer. Owner operability is therefore a
+product and architecture requirement, not an optional administrative
+convenience. After deployment and handoff, every normal business operation must
+be available through a secure graphical admin panel without source editing,
+direct database access, shell commands, or access to deployment secrets.
+
+The admin panel is a protected feature area of the React application. It uses
+versioned REST APIs and the same domain services, validation, authorization,
+transactions, and audit rules as every other client.
+
+```mermaid
+flowchart LR
+    Owner["Non-programmer platform owner"]
+    AdminUI["Secure graphical admin panel"]
+    AdminAPI["Versioned admin REST API"]
+    Policies["Authentication, RBAC, validation, and audit"]
+    Domains["Domain services"]
+    DB[("Database-driven content and safe settings")]
+    Storage[("Protected media storage")]
+    Jobs["Background jobs"]
+    Secrets["Deployment secrets and infrastructure"]
+    Code["Reviewed application code"]
+
+    Owner --> AdminUI
+    AdminUI --> AdminAPI
+    AdminAPI --> Policies
+    Policies --> Domains
+    Domains --> DB
+    Domains --> Storage
+    Domains --> Jobs
+    Secrets -. "never exposed" .-> AdminUI
+    Code -. "not editable" .-> AdminUI
+```
+
+#### 6.5.1 User management
+
+Subject to granular permissions, administrators can:
+
+- Create users and start a secure activation or password-setup flow.
+- Edit permitted profile, contact, and locale fields.
+- Deactivate, suspend, restore, delete, or anonymize users according to
+  retention policy.
+- Assign and revoke Admin, Teacher, and Student roles.
+- Start password resets without seeing or setting plaintext passwords.
+- Revoke active sessions.
+- View safe account activity, role history, security events, and recent
+  administrative actions.
+
+Suspension, restoration, role changes, session revocation, password-reset
+initiation, and deletion are audited. Deletion workflows explain which
+academic, certificate, or audit records must be retained or anonymized.
+
+#### 6.5.2 Course and lesson management
+
+Administrators can:
+
+- Create, edit, reorder, publish, unpublish, archive, restore, and delete
+  courses.
+- Create, edit, reorder, and manage modules and lessons.
+- Assign instructors and configure supported access and visibility policies.
+- Upload, replace, reorder, and remove video, PDF, audio, image, caption,
+  transcript, and attachment assets.
+- Preview unpublished content.
+- Manage translations and see missing or stale locale variants.
+- Move editorial content through `draft`, `review`, `approved`, `published`,
+  and `archived` states.
+
+Stable identifiers and content history prevent a routine edit from changing the
+meaning of completed learning, submitted tests, or issued certificates.
+Publishing and unpublishing require specific permissions and audit events.
+
+#### 6.5.3 Test management
+
+Administrators can:
+
+- Create, edit, duplicate, archive, and publish tests.
+- Create question-bank entries and localized prompts.
+- Manage answer options, correct-answer policy, points, and explanations.
+- Set passing scores, attempt limits, time limits, availability windows,
+  randomization, and feedback policy.
+- Preview tests without exposing answer keys to unauthorized users.
+- View, filter, and export permitted results.
+- Review or route manual-grading work.
+
+Published questions use versioning or immutable attempt snapshots. Correct
+answers are sensitive assessment data protected by dedicated permissions.
+Exports apply the same privacy and course scope as interactive reports.
+
+#### 6.5.4 Dictionary management
+
+Administrators can:
+
+- Create, edit, reorder, archive, restore, and delete categories.
+- Create and edit words, meanings, translations, examples, grammar metadata,
+  pronunciation audio, and images.
+- Manage editorial review and publication states.
+- Preview Turkish-aware search normalization.
+- Import and export dictionary data through validated formats.
+- Preview row-level import errors before committing a batch.
+
+Imports run as bounded, observable jobs and are safely retryable. Dictionary
+management supports multiple explanation locales without changing the core
+word identity.
+
+#### 6.5.5 Website content management
+
+A bounded content-management module controls:
+
+- Homepage sections and order
+- Banners and announcements
+- Navigation links
+- Footer content
+- Contact details
+- Social links
+- Appropriate visible Uzbek marketing and interface content
+- Localized variants and publication scheduling where required
+
+Editable page content uses typed section schemas and approved presentation
+variants. The owner can change content, assets, order, visibility, and schedule
+but cannot inject arbitrary HTML, CSS, JavaScript, database queries, or
+executable templates.
+
+Stable interface labels tied to application behavior remain in a controlled
+translation workflow. They are not turned into unrestricted content fields.
+
+#### 6.5.6 Design settings
+
+The admin panel may expose a curated and validated design-settings schema:
+
+- Logo and favicon assets
+- Primary and accent colors
+- Approved banners
+- Supported light, dark, or system theme mode
+- Additional reviewed design tokens with safe bounds
+
+Design changes are previewable and versioned where rollback is useful. Values
+are allowlisted and validated. Arbitrary CSS, JavaScript, remote scripts,
+unsanitized markup, and executable theme code are prohibited.
+
+#### 6.5.7 Certificate management
+
+Administrators can:
+
+- Create, preview, version, activate, and archive certificate templates.
+- Configure approved signature and seal assets.
+- Configure issuer names and titles.
+- Define completion and assessment eligibility through typed rules.
+- Configure certificate numbering through a bounded pattern system.
+- Issue, reissue, revoke, and verify certificates under separate permissions.
+
+Template changes do not alter previously issued artifacts. Issuance,
+reissuance, and revocation are immutable, auditable operations.
+
+#### 6.5.8 Notification management
+
+Administrators can:
+
+- Create and schedule announcements.
+- Create, preview, version, activate, and archive localized templates.
+- Target selected roles, courses, groups, or individual users.
+- Preview content and estimated recipient count.
+- Confirm large or irreversible sends.
+- Inspect queued, delivered, failed, read, and canceled states.
+
+Recipient resolution, privacy policy, localization, and provider delivery happen
+on the backend. Templates cannot contain executable code or provider
+credentials.
+
+#### 6.5.9 Statistics and reports
+
+Permission-scoped dashboards expose:
+
+- Student progress
+- Test results and grading state
+- Course completion
+- Active users
+- Recent activity
+- Relevant media, notification, and background-job health
+
+Permitted reports may be exported through asynchronous jobs. Exports use
+field-level privacy, audit the actor and scope, expire after a bounded period,
+and never expose data beyond the administrator's course or platform
+permissions.
+
+#### 6.5.10 System settings
+
+Safe business configuration is edited through typed and validated forms. Every
+editable setting has a documented type, default, constraints, owner,
+visibility, and runtime effect.
+
+The admin panel never exposes:
+
+- Database connection strings or passwords
+- JWT signing keys or refresh-token secrets
+- API keys
+- Object-storage credentials
+- Email, push, Telegram, or AI provider credentials
+- Server, network, deployment, backup, or environment credentials
+
+Secrets and infrastructure configuration remain in the deployment secrets
+system. The admin panel is not a generic key-value or environment editor.
+
+#### 6.5.11 Audit and safety
+
+- Important actions record actor, action, target, timestamp, request
+  correlation ID, and safe before-and-after summaries.
+- Deletion, suspension, unpublishing, certificate revocation, role changes,
+  bulk operations, and broad notifications require explicit confirmation.
+- Soft deletion and restoration are preferred when recovery or historical
+  references justify them.
+- Destructive and irreversible effects are clearly labeled.
+- Optimistic concurrency or version checks prevent silent stale overwrites.
+- Every admin input is validated on both client and server.
+- Every operation enforces RBAC and object-level policy.
+- Uploads use format allowlists, size limits, signature validation, quarantine,
+  malware scanning, and authorized delivery.
+- Administrator-provided code, scripts, commands, SQL, CSS, and JavaScript are
+  never executed.
+
+#### 6.5.12 Extensibility boundary
+
+Database-driven configuration is used for content and safe business settings
+the owner is expected to change. Core security rules, domain invariants,
+executable behavior, integration logic, and infrastructure remain in reviewed
+application code.
+
+**Owner-managed without code:**
+
+- Routine user lifecycle, role, course, lesson, test, dictionary, and media
+  management
+- Homepage, banner, navigation, footer, contact, social, and localized business
+  content
+- Approved logo, favicon, color, banner, and theme options
+- Certificate templates and controlled issuance operations
+- Announcements, notification templates, targeting, and delivery review
+- Safe application settings
+- Statistics review, permitted report export, audit review, and routine
+  operational monitoring
+
+**Developer-managed:**
+
+- Entirely new modules, workflows, page-section types, or algorithms
+- New database entities, fields, constraints, and migrations
+- Infrastructure, deployment, backups, scaling, and networking
+- New external integrations and provider credential setup
+- Authentication, RBAC semantics, cryptography, and core security policy
+- New executable behavior or design-token capabilities
+- Dependency upgrades and source-code changes
+- Privileged incident response
+
+The platform intentionally does not provide a general-purpose no-code code
+editor. Extensibility means well-defined schemas and new modules, not arbitrary
+runtime code execution.
+
 ---
 
 ## 7. Authentication architecture
@@ -475,6 +735,9 @@ models.
 | AI assistant     | Conversations, messages, usage limits, and safety metadata                 | Conversation, message, usage ledger      |
 | Localization     | Supported locales and translatable domain content                          | Locale, content translation              |
 | Audit            | Security-sensitive and administrative activity                             | Audit event                              |
+| Website content  | Typed sections, navigation, banners, contact details, and publication      | Content section, navigation item         |
+| Design settings  | Allowlisted brand assets and theme tokens                                  | Brand configuration, theme version       |
+| Configuration    | Typed owner-editable business settings                                     | Setting definition, setting value        |
 
 ### 9.1 Data design principles
 
@@ -577,6 +840,31 @@ The Axios layer should centralize:
 Feature modules should expose domain-specific API functions instead of calling
 Axios directly from presentation components.
 
+### 10.6 Admin panel architecture
+
+The admin panel should be a route-level feature area with reusable
+administrative primitives:
+
+- Permission-aware navigation
+- Searchable, filterable, paginated resource tables
+- Typed forms with client and server validation
+- Draft previews and status workflows
+- Media upload and processing-status controls
+- Translation and locale-completeness views
+- Confirmation dialogs for destructive or high-impact actions
+- Optimistic concurrency conflict handling
+- Soft-delete and restoration views
+- Audit history panels
+- Asynchronous job and export status
+
+Admin screens use the same design system and meet the same responsive and WCAG
+2.2 AA targets as learner screens. Permission-denied, empty, loading, partial,
+conflict, error, and successful completion states are designed explicitly.
+
+The admin panel consumes versioned admin API functions through the shared Axios
+client. It contains no Prisma access, provider credentials, secret fields,
+arbitrary code editor, or alternative business-rule implementation.
+
 ---
 
 ## 11. Backend architecture
@@ -641,6 +929,27 @@ or contracts. Candidate workloads include:
 
 Jobs require retry limits, exponential backoff, dead-letter handling,
 idempotency, and observable status.
+
+### 11.5 Admin command architecture
+
+Admin endpoints are transport adapters over the same domain services used by
+public, student, teacher, mobile, and bot clients. They do not form a privileged
+shortcut around domain rules.
+
+Each owner-manageable resource should provide:
+
+- Permission-scoped list and detail queries
+- Create and validated update commands
+- Explicit lifecycle transitions
+- Preview where publication or delivery is involved
+- Soft delete, restoration, or archival when applicable
+- Bounded import and export jobs
+- Audit recording for sensitive changes
+- Optimistic concurrency for editable records
+
+High-volume or long-running operations return a job identity and complete
+asynchronously. Every job exposes status, safe failure information, retry
+policy, and initiating administrator.
 
 ---
 
@@ -716,6 +1025,27 @@ The platform should maintain:
 
 Security-sensitive failures should return safe public messages while preserving
 correlated diagnostic detail in protected logs.
+
+### 13.4 Admin security boundary
+
+Administrative access is not a universal bypass. Permissions remain granular,
+object-level authorization remains mandatory, and high-risk operations may
+require recent authentication or multi-factor authentication.
+
+Admin security controls include:
+
+- Short session and inactivity policy appropriate to privileged access
+- CSRF protection for cookie-authenticated mutations
+- Rate limits and bounded bulk operations
+- Confirmation for destructive and broad-impact operations
+- Before-and-after audit summaries without secrets
+- Safe field-level filtering in views and exports
+- Strict upload controls
+- No arbitrary code, SQL, CSS, JavaScript, or template execution
+- No secrets or infrastructure credentials returned by any admin API
+
+Where practical, audit review permission should be separate from the permission
+to perform the audited action.
 
 ---
 
@@ -1274,13 +1604,18 @@ operational runbooks where appropriate.
 - Implement accounts, secure sessions, verification, and password recovery.
 - Implement RBAC permissions and policy checks.
 - Add audit trails for sensitive operations.
-- Build public, student, teacher, and admin route shells.
+- Build public, student, teacher, and permission-aware admin route shells.
+- Deliver graphical user lifecycle, role assignment, suspension, restoration,
+  password-reset initiation, session review, and account-activity workflows.
 - Conduct authentication and authorization threat modeling.
 
 ### Phase 3 — Core learning
 
 - Implement course, module, lesson, enrollment, and progress domains.
 - Introduce content publication workflow.
+- Deliver admin course, module, lesson, instructor, enrollment, ordering,
+  publication, archival, restoration, and translation management.
+- Introduce typed website content and safe design-setting management.
 - Add accessible lesson rendering and resumable progress.
 - Define teacher assignment and student privacy boundaries.
 
@@ -1289,6 +1624,8 @@ operational runbooks where appropriate.
 - Implement question banks, assessments, attempts, grading, and feedback.
 - Add assessment snapshots and autosave.
 - Implement dictionary editorial workflow and Turkish-aware search.
+- Deliver complete admin assessment, question, result-export, dictionary,
+  dictionary-import, and dictionary-export workflows.
 - Add student vocabulary lists and review activities.
 
 ### Phase 5 — Media and notifications
@@ -1296,6 +1633,8 @@ operational runbooks where appropriate.
 - Add direct file uploads, malware scanning, and object storage.
 - Introduce video processing, adaptive streaming, captions, and transcripts.
 - Implement in-app, email, push, and Telegram notification orchestration.
+- Deliver admin media replacement, processing review, announcements, localized
+  templates, targeting, scheduling, and delivery-status workflows.
 - Add queue operations, retries, and dead-letter handling.
 
 ### Phase 6 — Analytics and certificates
@@ -1303,6 +1642,8 @@ operational runbooks where appropriate.
 - Publish versioned learning events through a transactional outbox.
 - Build student, teacher, and admin aggregates.
 - Define certificate eligibility, generation, verification, and revocation.
+- Deliver permission-scoped admin dashboards, asynchronous report export,
+  certificate-template versioning, issuance, reissuance, and revocation.
 - Establish privacy and retention controls for analytics.
 
 ### Phase 7 — Mobile and Telegram
@@ -1343,6 +1684,9 @@ This document should be reviewed whenever a change introduces:
 - A new asynchronous workflow
 - A new deployment dependency
 - A material change to availability or recovery expectations
+- A user-facing resource without a defined graphical admin-management workflow
+- A change to the boundary between owner-managed configuration and
+  developer-managed code, secrets, infrastructure, or security policy
 
 Implementation should remain simpler than the target architecture until product
 requirements justify added infrastructure. Clear boundaries should be created
