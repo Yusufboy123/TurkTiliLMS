@@ -9,8 +9,8 @@ export interface LessonContentBlockDelivery {
 }
 
 /**
- * The current release stores validated HTTP(S) URLs and metadata only. It does
- * not receive binary uploads or fetch remote content in the API process.
+ * Lesson content blocks currently retain validated delivery references. Media
+ * upload and protected binary delivery are owned by the media module.
  */
 export class MetadataOnlyLessonContentBlockDelivery implements LessonContentBlockDelivery {
   prepare(block: PublicLessonContentBlock): Promise<PublicLessonContentBlock> {

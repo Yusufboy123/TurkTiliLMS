@@ -24,6 +24,13 @@ const environmentSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
   AUTH_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1_440).default(15),
+  MEDIA_STORAGE_ROOT: z.string().trim().min(1).default('uploads'),
+  MEDIA_MAX_UPLOAD_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(2_147_483_647)
+    .default(262_144_000),
 });
 
 const result = environmentSchema.safeParse(process.env);

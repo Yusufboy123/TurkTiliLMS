@@ -1,5 +1,6 @@
 import type { LessonContentBlockType, Prisma } from '@prisma/client';
 import type { ContentActor, ContentAuditContext } from '../lessons/lesson-management.types.js';
+import type { PublicMediaReference } from '../media/media-reference.presenter.js';
 
 export type LessonBlockActor = ContentActor;
 export interface LessonBlockAuditContext extends ContentAuditContext {
@@ -9,6 +10,8 @@ export interface LessonBlockAuditContext extends ContentAuditContext {
 export interface LessonContentBlockRecord {
   id: string;
   lessonId: string;
+  mediaFileId: string | null;
+  media: PublicMediaReference | null;
   blockType: LessonContentBlockType;
   title: string | null;
   description: string | null;
@@ -34,6 +37,8 @@ export interface LessonContentBlockRecord {
 
 export interface PublicLessonContentBlock {
   id: string;
+  mediaFileId: string | null;
+  media: PublicMediaReference | null;
   blockType: LessonContentBlockType;
   title: string | null;
   description: string | null;
@@ -71,6 +76,7 @@ export interface LessonContentBlockPage {
 
 export interface CreateLessonContentBlockData {
   blockType: LessonContentBlockType;
+  mediaFileId?: string | undefined;
   title?: string | undefined;
   description?: string | undefined;
   position?: number | undefined;
@@ -92,6 +98,7 @@ export interface CreateLessonContentBlockData {
 
 export interface UpdateLessonContentBlockData {
   blockType?: LessonContentBlockType | undefined;
+  mediaFileId?: string | null | undefined;
   title?: string | null | undefined;
   description?: string | null | undefined;
   isRequired?: boolean | undefined;

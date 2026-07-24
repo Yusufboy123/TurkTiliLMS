@@ -1,4 +1,10 @@
-import { LessonContentBlockType, LessonType, RoleCode, SessionClientType } from '@prisma/client';
+import {
+  LessonContentBlockType,
+  LessonType,
+  MediaCategory,
+  RoleCode,
+  SessionClientType,
+} from '@prisma/client';
 import { LessonBlockPositionConflictError } from '../../src/modules/lesson-content-blocks/lesson-content-block.repository.js';
 import { MetadataOnlyLessonContentBlockDelivery } from '../../src/modules/lesson-content-blocks/lesson-content-block.storage.js';
 import { LessonContentBlockService } from '../../src/modules/lesson-content-blocks/lesson-content-block.service.js';
@@ -24,6 +30,7 @@ import {
   TEST_COURSE_ID,
 } from '../helpers/course-fakes.js';
 import { FakeLessonRepository, LESSON_ID, SECTION_ID, lesson } from '../helpers/lesson-fakes.js';
+import { MEDIA_ID, publicMediaReference } from '../helpers/media-fakes.js';
 
 function setup(blocks = [contentBlock()], course = createCourseRecord()) {
   const blockRepository = new FakeLessonContentBlockRepository(blocks);
@@ -278,7 +285,7 @@ describe('LessonContentBlockService validation and authorization', () => {
     ).rejects.toSatisfy((error: unknown) => expectCode(error, 'ACCESS_DENIED'));
   });
 
-  it('revalidates required content when block type changes', async () => {
+  it('requires managed media when block type changes to PDF', async () => {
     const { service } = setup();
 
     await expect(
@@ -293,7 +300,211 @@ describe('LessonContentBlockService validation and authorization', () => {
         teacherBlockActor,
         blockAuditContext,
       ),
-    ).rejects.toMatchObject({ name: 'ZodError' });
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_REQUIRED_FOR_BLOCK'));
+  });
+
+  it('creates a block with an active compatible media relation', async () => {
+    const { blockRepository, service } = setup();
+    blockRepository.mediaReferences.set(
+      MEDIA_ID,
+      publicMediaReference({
+        category: MediaCategory.VIDEO,
+        mimeType: 'video/mp4',
+        extension: 'mp4',
+      }),
+    );
+
+    const created = await service.create(
+      TEST_COURSE_ID,
+      LESSON_ID,
+      {
+        blockType: LessonContentBlockType.VIDEO,
+        mediaFileId: MEDIA_ID,
+        isRequired: true,
+        isVisible: true,
+      },
+      teacherBlockActor,
+      blockAuditContext,
+    );
+
+    expect(created).toMatchObject({
+      blockType: LessonContentBlockType.VIDEO,
+      mediaFileId: MEDIA_ID,
+      media: { id: MEDIA_ID, category: MediaCategory.VIDEO },
+    });
+  });
+
+  it('rejects a missing, deleted, or incompatible media relation', async () => {
+    const { blockRepository, service } = setup();
+
+    await expect(
+      service.create(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        {
+          blockType: LessonContentBlockType.IMAGE,
+          mediaFileId: MEDIA_ID,
+          isRequired: true,
+          isVisible: true,
+        },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_FILE_NOT_FOUND'));
+
+    blockRepository.mediaReferences.set(
+      MEDIA_ID,
+      publicMediaReference({ deletedAt: new Date('2026-01-02T00:00:00.000Z') }),
+    );
+    await expect(
+      service.create(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        {
+          blockType: LessonContentBlockType.IMAGE,
+          mediaFileId: MEDIA_ID,
+          isRequired: true,
+          isVisible: true,
+        },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_FILE_IS_DELETED'));
+
+    blockRepository.mediaReferences.set(MEDIA_ID, publicMediaReference());
+    await expect(
+      service.create(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        {
+          blockType: LessonContentBlockType.AUDIO,
+          mediaFileId: MEDIA_ID,
+          isRequired: true,
+          isVisible: true,
+        },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_CATEGORY_MISMATCH'));
+  });
+
+  it('preserves omitted media and requires explicit clearing for a TEXT transition', async () => {
+    const media = publicMediaReference({
+      category: MediaCategory.VIDEO,
+      mimeType: 'video/mp4',
+      extension: 'mp4',
+    });
+    const { service } = setup([
+      contentBlock({
+        blockType: LessonContentBlockType.VIDEO,
+        mediaFileId: MEDIA_ID,
+        media,
+        textContent: null,
+      }),
+    ]);
+
+    await expect(
+      service.update(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        BLOCK_ONE_ID,
+        { blockType: LessonContentBlockType.TEXT, textContent: 'Yangi matn' },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_NOT_ALLOWED_FOR_BLOCK'));
+
+    await expect(
+      service.update(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        BLOCK_ONE_ID,
+        {
+          blockType: LessonContentBlockType.TEXT,
+          mediaFileId: null,
+          textContent: 'Yangi matn',
+        },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).resolves.toMatchObject({
+      blockType: LessonContentBlockType.TEXT,
+      mediaFileId: null,
+      media: null,
+    });
+  });
+
+  it('preserves an existing compatible media relation when mediaFileId is omitted', async () => {
+    const media = publicMediaReference();
+    const { service } = setup([
+      contentBlock({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: MEDIA_ID,
+        media,
+        textContent: null,
+      }),
+    ]);
+
+    await expect(
+      service.update(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        BLOCK_ONE_ID,
+        { title: 'Yangilangan rasm' },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).resolves.toMatchObject({
+      title: 'Yangilangan rasm',
+      mediaFileId: MEDIA_ID,
+      media: { id: MEDIA_ID },
+    });
+  });
+
+  it('rejects removal when the final block type still requires media', async () => {
+    const media = publicMediaReference();
+    const { service } = setup([
+      contentBlock({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: MEDIA_ID,
+        media,
+        textContent: null,
+      }),
+    ]);
+
+    await expect(
+      service.update(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        BLOCK_ONE_ID,
+        { mediaFileId: null },
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_REQUIRED_FOR_BLOCK'));
+  });
+
+  it('prevents restoring a block whose related media was soft-deleted', async () => {
+    const { service } = setup([
+      contentBlock({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: MEDIA_ID,
+        media: publicMediaReference({ deletedAt: new Date() }),
+        textContent: null,
+        deletedAt: new Date(),
+      }),
+    ]);
+
+    await expect(
+      service.restore(
+        TEST_COURSE_ID,
+        LESSON_ID,
+        BLOCK_ONE_ID,
+        undefined,
+        teacherBlockActor,
+        blockAuditContext,
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, 'MEDIA_FILE_IS_DELETED'));
   });
 
   it('updates visibility with its dedicated permission', async () => {

@@ -23,6 +23,10 @@ import type {
   PublicLessonContentBlock,
   UpdateLessonContentBlockData,
 } from './lesson-content-block.types.js';
+import {
+  assertLessonBlockMediaCompatibility,
+  mediaFileNotFound,
+} from './lesson-content-block.media-policy.js';
 
 export interface LessonContentParentAccess {
   lessonDetail(courseId: string, lessonId: string, actor: LessonBlockActor): Promise<LessonRecord>;
@@ -67,6 +71,24 @@ export class LessonContentBlockService {
     private readonly parents: LessonContentParentAccess,
     private readonly delivery: LessonContentBlockDelivery,
   ) {}
+
+  private async validateMediaReference(
+    blockType: LessonContentBlockRecord['blockType'],
+    mediaFileId: string | null,
+    currentBlock?: LessonContentBlockRecord,
+  ): Promise<void> {
+    if (!mediaFileId) {
+      assertLessonBlockMediaCompatibility(blockType, null);
+      return;
+    }
+
+    const media =
+      currentBlock?.mediaFileId === mediaFileId
+        ? currentBlock.media
+        : await this.repository.findMediaReference(mediaFileId);
+    if (!media) throw mediaFileNotFound();
+    assertLessonBlockMediaCompatibility(blockType, media);
+  }
 
   private async managedLesson(
     courseId: string,
@@ -143,11 +165,13 @@ export class LessonContentBlockService {
     assertPermission(actor, 'lesson_blocks.create');
     await this.managedLesson(courseId, lessonId, actor);
     const parsed = createLessonContentBlockSchema.parse(input);
+    await this.validateMediaReference(parsed.blockType, parsed.mediaFileId ?? null);
     try {
       return await this.repository.create(
         lessonId,
         {
           blockType: parsed.blockType,
+          ...(parsed.mediaFileId ? { mediaFileId: parsed.mediaFileId } : {}),
           ...(parsed.title ? { title: parsed.title } : {}),
           ...(parsed.description ? { description: parsed.description } : {}),
           ...(parsed.position !== undefined ? { position: parsed.position } : {}),
@@ -191,8 +215,12 @@ export class LessonContentBlockService {
       );
     }
     const parsed = updateLessonContentBlockSchema.parse(input);
+    const finalBlockType = parsed.blockType ?? block.blockType;
+    const finalMediaFileId =
+      parsed.mediaFileId !== undefined ? parsed.mediaFileId : block.mediaFileId;
+    await this.validateMediaReference(finalBlockType, finalMediaFileId, block);
     finalLessonContentBlockSchema.parse({
-      blockType: parsed.blockType ?? block.blockType,
+      blockType: finalBlockType,
       textContent: parsed.textContent !== undefined ? parsed.textContent : block.textContent,
       sourceUrl: parsed.sourceUrl !== undefined ? parsed.sourceUrl : block.sourceUrl,
       fileUrl: parsed.fileUrl !== undefined ? parsed.fileUrl : block.fileUrl,
@@ -207,9 +235,13 @@ export class LessonContentBlockService {
           ? { metadata: parsed.metadata }
           : {}),
     };
-    const updated = await this.repository.update(lessonId, blockId, data, context);
-    if (!updated) throw blockNotFound();
-    return updated;
+    try {
+      const updated = await this.repository.update(lessonId, blockId, data, context);
+      if (!updated) throw blockNotFound();
+      return updated;
+    } catch (error: unknown) {
+      return mapPositionConflict(error);
+    }
   }
 
   async reorder(
@@ -296,6 +328,7 @@ export class LessonContentBlockService {
         'LESSON_BLOCK_NOT_DELETED',
       );
     }
+    await this.validateMediaReference(block.blockType, block.mediaFileId, block);
     try {
       const restored = await this.repository.restore(lessonId, blockId, position, context);
       if (!restored) throw blockNotFound();

@@ -1,0 +1,743 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Media API
+  version: 1.1.0
+  description: >
+    Versioned contract for authenticated local media upload, metadata access,
+    protected download, soft deletion, restoration, and lesson content block
+    media integration. Management endpoints require an ADMIN or TEACHER role
+    plus the permission documented by each operation.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development
+tags:
+  - name: Media
+  - name: Lesson content blocks
+paths:
+  /courses/{courseId}/lessons/{lessonId}/blocks:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/LessonId'
+    post:
+      tags: [Lesson content blocks]
+      operationId: createLessonContentBlock
+      summary: Create a lesson content block, optionally linked to managed media
+      description: >
+        Requires lesson_blocks.create. IMAGE, VIDEO, AUDIO, PDF, DOCUMENT, and
+        DOWNLOAD blocks require a compatible active mediaFileId. TEXT and LINK
+        blocks reject mediaFileId.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLessonContentBlock'
+      responses:
+        '201':
+          description: Lesson content block created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonContentBlockSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Course, lesson, or media file not found (MEDIA_FILE_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/MediaCompatibilityConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+  /courses/{courseId}/lessons/{lessonId}/blocks/{blockId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/LessonId'
+      - $ref: '#/components/parameters/BlockId'
+    patch:
+      tags: [Lesson content blocks]
+      operationId: updateLessonContentBlock
+      summary: Update content and assign, replace, remove, or preserve managed media
+      description: >
+        Requires lesson_blocks.update. An omitted mediaFileId preserves the
+        existing relation; null removes it; a UUID assigns or replaces it. The
+        final block type and media relation must satisfy the compatibility policy.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLessonContentBlock'
+      responses:
+        '200':
+          description: Lesson content block updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonContentBlockSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Lesson content block or media file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/MediaCompatibilityConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+  /media/upload:
+    post:
+      tags: [Media]
+      operationId: uploadMediaFile
+      summary: Upload one validated media file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+            encoding:
+              file:
+                contentType: >
+                  image/jpeg, image/png, image/webp, application/pdf,
+                  application/msword,
+                  application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+                  application/vnd.ms-powerpoint,
+                  application/vnd.openxmlformats-officedocument.presentationml.presentation,
+                  audio/mpeg, audio/wav, video/mp4
+      responses:
+        '201':
+          description: Media file uploaded
+          headers:
+            Location:
+              schema:
+                type: string
+                example: /api/v1/media/019b9e23-3b3a-7909-a2c1-0948f9e15717
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/FileTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+  /media/{id}:
+    parameters:
+      - $ref: '#/components/parameters/MediaId'
+    get:
+      tags: [Media]
+      operationId: getMediaFile
+      summary: Read permitted media metadata
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Media metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+    delete:
+      tags: [Media]
+      operationId: softDeleteMediaFile
+      summary: Soft-delete a permitted media file
+      description: >
+        Requires media.delete. Returns MEDIA_IN_USE without changing database or
+        binary state when an active lesson content block references the file.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [confirmation]
+              properties:
+                confirmation:
+                  type: boolean
+                  const: true
+      responses:
+        '200':
+          description: Media file soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutationSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >
+            Active content references prevent deletion (MEDIA_IN_USE), or a
+            concurrent serializable operation must be retried
+            (MEDIA_OPERATION_CONFLICT).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+  /media/{id}/download:
+    parameters:
+      - $ref: '#/components/parameters/MediaId'
+    get:
+      tags: [Media]
+      operationId: downloadMediaFile
+      summary: Download a permitted active media file
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Binary file
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: integer
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Media file is soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Stored object or configured provider is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /media/{id}/usages:
+    parameters:
+      - $ref: '#/components/parameters/MediaId'
+    get:
+      tags: [Media]
+      operationId: listMediaUsages
+      summary: List active content references to a media file
+      description: >
+        Requires media.read. The route can inspect a soft-deleted media record,
+        returns at most 100 deterministic active usages, and never exposes
+        storage paths or provider-private keys.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active media usages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaUsageSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+  /media/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/MediaId'
+    post:
+      tags: [Media]
+      operationId: restoreMediaFile
+      summary: Restore a permitted soft-deleted media file
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Media file restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaSuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    MediaId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LessonId:
+      name: lessonId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BlockId:
+      name: blockId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    MediaReference:
+      type: [object, 'null']
+      additionalProperties: false
+      required:
+        - id
+        - originalFileName
+        - mimeType
+        - extension
+        - category
+        - sizeBytes
+        - storageProvider
+        - downloadUrl
+        - previewUrl
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalFileName:
+          type: string
+          maxLength: 255
+        mimeType:
+          type: string
+          maxLength: 160
+        extension:
+          type: string
+          maxLength: 16
+        category:
+          type: string
+          enum: [IMAGE, DOCUMENT, AUDIO, VIDEO]
+        sizeBytes:
+          type: string
+          pattern: '^[1-9][0-9]*$'
+        checksum:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        storageProvider:
+          type: string
+          enum: [LOCAL]
+        downloadUrl:
+          type: [string, 'null']
+          example: /api/v1/media/019b9e24-1147-7f4b-9726-e46482877c65/download
+        previewUrl:
+          type: [string, 'null']
+          description: >
+            Relative protected URL for IMAGE, VIDEO, AUDIO, and PDF media.
+            Other document formats and deleted media return null.
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+    CreateLessonContentBlock:
+      type: object
+      additionalProperties: false
+      required: [blockType]
+      properties:
+        blockType:
+          $ref: '#/components/schemas/LessonContentBlockType'
+        mediaFileId:
+          type: string
+          format: uuid
+          description: Required by the domain policy for managed binary block types.
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        position:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        isRequired:
+          type: boolean
+          default: true
+        isVisible:
+          type: boolean
+          default: true
+        textContent:
+          type: string
+        sourceUrl:
+          type: string
+          format: uri
+        externalProvider:
+          type: string
+          maxLength: 100
+        fileName:
+          type: string
+          maxLength: 255
+        originalFileName:
+          type: string
+          maxLength: 255
+        fileUrl:
+          type: string
+          format: uri
+        mimeType:
+          type: string
+          maxLength: 160
+        fileSizeBytes:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: string
+              pattern: '^[1-9][0-9]*$'
+        durationSeconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+        thumbnailUrl:
+          type: string
+          format: uri
+        metadata:
+          type: object
+    UpdateLessonContentBlock:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        blockType:
+          $ref: '#/components/schemas/LessonContentBlockType'
+        mediaFileId:
+          type: [string, 'null']
+          format: uuid
+          description: Omit to preserve, use null to remove, or provide a UUID to assign/replace.
+        title:
+          type: [string, 'null']
+          maxLength: 200
+        description:
+          type: [string, 'null']
+        isRequired:
+          type: boolean
+        textContent:
+          type: [string, 'null']
+        sourceUrl:
+          type: [string, 'null']
+          format: uri
+        externalProvider:
+          type: [string, 'null']
+          maxLength: 100
+        fileName:
+          type: [string, 'null']
+          maxLength: 255
+        originalFileName:
+          type: [string, 'null']
+          maxLength: 255
+        fileUrl:
+          type: [string, 'null']
+          format: uri
+        mimeType:
+          type: [string, 'null']
+          maxLength: 160
+        fileSizeBytes:
+          oneOf:
+            - type: integer
+              minimum: 1
+            - type: string
+              pattern: '^[1-9][0-9]*$'
+            - type: 'null'
+        durationSeconds:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 86400
+        thumbnailUrl:
+          type: [string, 'null']
+          format: uri
+        metadata:
+          type: [object, 'null']
+    LessonContentBlockType:
+      type: string
+      enum: [TEXT, VIDEO, AUDIO, PDF, DOCUMENT, IMAGE, LINK, DOWNLOAD]
+    LessonContentBlock:
+      type: object
+      additionalProperties: true
+      required: [id, mediaFileId, media, blockType, position, isRequired]
+      properties:
+        id:
+          type: string
+          format: uuid
+        mediaFileId:
+          type: [string, 'null']
+          format: uuid
+        media:
+          $ref: '#/components/schemas/MediaReference'
+        blockType:
+          $ref: '#/components/schemas/LessonContentBlockType'
+        title:
+          type: [string, 'null']
+        description:
+          type: [string, 'null']
+        position:
+          type: integer
+        isRequired:
+          type: boolean
+    LessonContentBlockSuccessResponse:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LessonContentBlock'
+    MediaUsage:
+      type: object
+      additionalProperties: false
+      required: [type, block, lesson, course]
+      properties:
+        type:
+          type: string
+          const: LESSON_CONTENT_BLOCK
+        block:
+          type: object
+          required: [id, blockType, title, position]
+          properties:
+            id:
+              type: string
+              format: uuid
+            blockType:
+              $ref: '#/components/schemas/LessonContentBlockType'
+            title:
+              type: [string, 'null']
+            position:
+              type: integer
+        lesson:
+          $ref: '#/components/schemas/UsageParent'
+        course:
+          $ref: '#/components/schemas/UsageParent'
+    UsageParent:
+      type: object
+      required: [id, title, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+    MediaUsagePage:
+      type: object
+      required: [mediaFileId, activeOnly, items, totalItems, limit, truncated]
+      properties:
+        mediaFileId:
+          type: string
+          format: uuid
+        activeOnly:
+          type: boolean
+          const: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaUsage'
+        totalItems:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          const: 100
+        truncated:
+          type: boolean
+    MediaUsageSuccessResponse:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MediaUsagePage'
+    MediaFile:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - originalFileName
+        - storedFileName
+        - mimeType
+        - extension
+        - category
+        - sizeBytes
+        - storageProvider
+        - uploadedById
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalFileName:
+          type: string
+          maxLength: 255
+        storedFileName:
+          type: string
+          maxLength: 255
+        mimeType:
+          type: string
+        extension:
+          type: string
+          enum: [jpg, jpeg, png, webp, pdf, doc, docx, ppt, pptx, mp3, wav, mp4]
+        category:
+          type: string
+          enum: [IMAGE, DOCUMENT, AUDIO, VIDEO]
+        sizeBytes:
+          type: string
+          pattern: '^[1-9][0-9]*$'
+          description: Decimal string because PostgreSQL stores this value as BIGINT.
+        storageProvider:
+          type: string
+          enum: [LOCAL]
+        checksum:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        uploadedById:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+    MediaSuccessResponse:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MediaFile'
+    MutationSuccessResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          type: string
+        message:
+          type: string
+        details: {}
+  responses:
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Role or permission denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Media file does not exist or is outside the caller scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    FileTooLarge:
+      description: Upload exceeds MEDIA_MAX_UPLOAD_BYTES
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationFailure:
+      description: Invalid path, body, file metadata, extension, MIME type, or signature
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MediaCompatibilityConflict:
+      description: >
+        MEDIA_FILE_IS_DELETED, MEDIA_CATEGORY_MISMATCH,
+        MEDIA_REQUIRED_FOR_BLOCK, or MEDIA_NOT_ALLOWED_FOR_BLOCK.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

@@ -303,6 +303,36 @@ const permissionDefinitions = [
     action: 'manage_visibility',
     description: 'Show or hide content blocks in permitted lessons.',
   },
+  {
+    code: 'media.upload',
+    resource: 'media',
+    action: 'upload',
+    description: 'Upload validated media files.',
+  },
+  {
+    code: 'media.read',
+    resource: 'media',
+    action: 'read',
+    description: 'View permitted media file metadata.',
+  },
+  {
+    code: 'media.download',
+    resource: 'media',
+    action: 'download',
+    description: 'Download permitted active media files.',
+  },
+  {
+    code: 'media.delete',
+    resource: 'media',
+    action: 'delete',
+    description: 'Soft-delete permitted media files.',
+  },
+  {
+    code: 'media.restore',
+    resource: 'media',
+    action: 'restore',
+    description: 'Restore permitted soft-deleted media files.',
+  },
 ] as const;
 
 const teacherPermissionCodes = [
@@ -333,6 +363,11 @@ const teacherPermissionCodes = [
   'lesson_blocks.restore',
   'lesson_blocks.reorder',
   'lesson_blocks.manage_visibility',
+  'media.upload',
+  'media.read',
+  'media.download',
+  'media.delete',
+  'media.restore',
 ] as const;
 
 async function seedIdentityAndAccess(): Promise<void> {

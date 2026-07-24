@@ -11,6 +11,7 @@ import {
   lessonRouter,
   sectionRouter,
 } from '../modules/lessons/lesson-management.routes.js';
+import { mediaRouter } from '../modules/media/media.routes.js';
 import { userManagementRouter } from '../modules/users/user-management.routes.js';
 
 export const apiV1Router = Router();
@@ -18,6 +19,7 @@ export const apiV1Router = Router();
 apiV1Router.use('/health', healthRouter);
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/users', userManagementRouter);
+apiV1Router.use('/media', mediaRouter);
 apiV1Router.use('/courses/:courseId/sections', sectionRouter);
 apiV1Router.use('/courses/:courseId/lessons/:lessonId/blocks', lessonContentBlockRouter);
 apiV1Router.use('/courses/:courseId/lessons', lessonRouter);

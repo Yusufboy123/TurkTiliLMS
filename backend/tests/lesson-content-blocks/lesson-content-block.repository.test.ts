@@ -1,4 +1,10 @@
-import { LessonContentBlockType, Prisma, type PrismaClient } from '@prisma/client';
+import {
+  LessonContentBlockType,
+  MediaCategory,
+  MediaStorageProvider,
+  Prisma,
+  type PrismaClient,
+} from '@prisma/client';
 import { vi } from 'vitest';
 import { PrismaLessonContentBlockRepository } from '../../src/modules/lesson-content-blocks/lesson-content-block.repository.js';
 import {
@@ -9,10 +15,27 @@ import {
 } from '../helpers/lesson-content-block-fakes.js';
 import { COURSE_TEACHER_ID } from '../helpers/course-fakes.js';
 import { LESSON_ID } from '../helpers/lesson-fakes.js';
+import { MEDIA_ID } from '../helpers/media-fakes.js';
+
+function databaseMediaReference() {
+  return {
+    id: MEDIA_ID,
+    originalFileName: 'dars.mp4',
+    mimeType: 'video/mp4',
+    extension: 'mp4',
+    category: MediaCategory.VIDEO as MediaCategory,
+    sizeBytes: 1024n,
+    checksum: 'a'.repeat(64),
+    storageProvider: MediaStorageProvider.LOCAL,
+    deletedAt: null,
+  };
+}
 
 function databaseBlock(
   overrides: Partial<{
     id: string;
+    mediaFileId: string | null;
+    mediaFile: ReturnType<typeof databaseMediaReference> | null;
     blockType: LessonContentBlockType;
     position: number;
     deletedAt: Date | null;
@@ -21,6 +44,8 @@ function databaseBlock(
   return {
     id: BLOCK_ONE_ID,
     lessonId: LESSON_ID,
+    mediaFileId: null,
+    mediaFile: null,
     blockType: LessonContentBlockType.TEXT,
     title: 'Kirish',
     description: null,
@@ -213,6 +238,177 @@ describe('PrismaLessonContentBlockRepository', () => {
     );
   });
 
+  it('creates a compatible media relation without selecting internal storage fields', async () => {
+    const mediaFile = databaseMediaReference();
+    const transaction = {
+      mediaFile: {
+        findUnique: vi.fn().mockResolvedValue(mediaFile),
+      },
+      lessonContentBlock: {
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([]),
+        create: vi.fn().mockImplementation(({ data }: { data: { mediaFileId: string } }) =>
+          Promise.resolve(
+            databaseBlock({
+              blockType: LessonContentBlockType.VIDEO,
+              mediaFileId: data.mediaFileId,
+              mediaFile,
+            }),
+          ),
+        ),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const repository = new PrismaLessonContentBlockRepository({
+      $transaction: vi
+        .fn()
+        .mockImplementation((operation: (value: typeof transaction) => Promise<unknown>) =>
+          operation(transaction),
+        ),
+    } as unknown as PrismaClient);
+
+    const created = await repository.create(
+      LESSON_ID,
+      {
+        blockType: LessonContentBlockType.VIDEO,
+        mediaFileId: MEDIA_ID,
+        isRequired: true,
+        isVisible: true,
+        createdById: COURSE_TEACHER_ID,
+      },
+      blockAuditContext,
+    );
+
+    expect(transaction.mediaFile.findUnique).toHaveBeenCalledWith({
+      where: { id: MEDIA_ID },
+      select: expect.not.objectContaining({
+        storedFileName: expect.anything(),
+        storagePath: expect.anything(),
+      }),
+    });
+    expect(created).toMatchObject({
+      mediaFileId: MEDIA_ID,
+      media: {
+        id: MEDIA_ID,
+        downloadUrl: `/api/v1/media/${MEDIA_ID}/download`,
+      },
+    });
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'LESSON_BLOCK_CREATED',
+        afterSummary: expect.objectContaining({ mediaFileId: MEDIA_ID }),
+      }),
+    });
+  });
+
+  it.each([
+    ['missing', null, LessonContentBlockType.VIDEO, 'MEDIA_FILE_NOT_FOUND'],
+    [
+      'deleted',
+      { ...databaseMediaReference(), deletedAt: new Date('2026-01-02T00:00:00.000Z') },
+      LessonContentBlockType.VIDEO,
+      'MEDIA_FILE_IS_DELETED',
+    ],
+    [
+      'incompatible',
+      {
+        ...databaseMediaReference(),
+        category: MediaCategory.IMAGE,
+        mimeType: 'image/png',
+        extension: 'png',
+      },
+      LessonContentBlockType.VIDEO,
+      'MEDIA_CATEGORY_MISMATCH',
+    ],
+  ])('rejects %s media inside the write transaction', async (_case, mediaFile, blockType, code) => {
+    const transaction = {
+      mediaFile: {
+        findUnique: vi.fn().mockResolvedValue(mediaFile),
+      },
+      lessonContentBlock: {
+        count: vi.fn(),
+        findMany: vi.fn(),
+        create: vi.fn(),
+      },
+      auditLog: { create: vi.fn() },
+    };
+    const repository = new PrismaLessonContentBlockRepository({
+      $transaction: vi
+        .fn()
+        .mockImplementation((operation: (value: typeof transaction) => Promise<unknown>) =>
+          operation(transaction),
+        ),
+    } as unknown as PrismaClient);
+
+    await expect(
+      repository.create(
+        LESSON_ID,
+        {
+          blockType,
+          mediaFileId: MEDIA_ID,
+          isRequired: true,
+          isVisible: true,
+          createdById: COURSE_TEACHER_ID,
+        },
+        blockAuditContext,
+      ),
+    ).rejects.toMatchObject({ code });
+    expect(transaction.lessonContentBlock.create).not.toHaveBeenCalled();
+    expect(transaction.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('audits media assignment separately from the general block update', async () => {
+    const imageMedia = {
+      ...databaseMediaReference(),
+      originalFileName: 'rasm.png',
+      mimeType: 'image/png',
+      extension: 'png',
+      category: MediaCategory.IMAGE,
+    };
+    const before = databaseBlock();
+    const updated = databaseBlock({
+      blockType: LessonContentBlockType.IMAGE,
+      mediaFileId: MEDIA_ID,
+      mediaFile: imageMedia,
+    });
+    const transaction = {
+      mediaFile: {
+        findUnique: vi.fn().mockResolvedValue(imageMedia),
+      },
+      lessonContentBlock: {
+        findFirst: vi.fn().mockResolvedValue(before),
+        update: vi.fn().mockResolvedValue(updated),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const repository = new PrismaLessonContentBlockRepository({
+      $transaction: vi
+        .fn()
+        .mockImplementation((operation: (value: typeof transaction) => Promise<unknown>) =>
+          operation(transaction),
+        ),
+    } as unknown as PrismaClient);
+
+    await repository.update(
+      LESSON_ID,
+      BLOCK_ONE_ID,
+      {
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: MEDIA_ID,
+      },
+      blockAuditContext,
+    );
+
+    expect(transaction.auditLog.create).toHaveBeenCalledTimes(2);
+    expect(transaction.auditLog.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        action: 'LESSON_BLOCK_MEDIA_ASSIGNED',
+        beforeSummary: { mediaFileId: null },
+        afterSummary: { mediaFileId: MEDIA_ID },
+      }),
+    });
+  });
+
   it('moves position 2 to position 1 without exceeding INTEGER or violating active uniqueness', async () => {
     const harness = orderingHarness([
       databaseBlock({ id: BLOCK_ONE_ID, blockType: LessonContentBlockType.TEXT, position: 1 }),
@@ -275,6 +471,14 @@ describe('PrismaLessonContentBlockRepository', () => {
           deletedAt: null,
           isVisible: true,
         },
+        select: expect.objectContaining({
+          mediaFile: {
+            select: expect.not.objectContaining({
+              storedFileName: expect.anything(),
+              storagePath: expect.anything(),
+            }),
+          },
+        }),
         orderBy: [{ position: 'asc' }, { id: 'asc' }],
       }),
     );

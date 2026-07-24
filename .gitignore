@@ -22,3 +22,6 @@ Thumbs.db
 
 # Prisma local artifacts
 backend/prisma/dev.db*
+
+# Local media storage
+uploads/

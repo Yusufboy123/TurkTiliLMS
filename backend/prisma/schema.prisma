@@ -90,6 +90,21 @@ enum LessonContentBlockType {
   @@map("lesson_content_block_type")
 }
 
+enum MediaCategory {
+  IMAGE
+  DOCUMENT
+  AUDIO
+  VIDEO
+
+  @@map("media_category")
+}
+
+enum MediaStorageProvider {
+  LOCAL
+
+  @@map("media_storage_provider")
+}
+
 model User {
   id                    String               @id @default(uuid(7)) @db.Uuid
   email                 String               @unique(map: "users_email_key") @db.Citext
@@ -114,6 +129,7 @@ model User {
   lessonsCreated        Lesson[]             @relation("LessonCreator")
   lessonsTaught         Lesson[]             @relation("LessonTeacher")
   lessonBlocksCreated   LessonContentBlock[] @relation("LessonContentBlockCreator")
+  mediaFilesUploaded    MediaFile[]          @relation("MediaFileUploader")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -358,12 +374,12 @@ model Lesson {
   @@map("lessons")
 }
 
-/// This release stores validated content URLs and metadata only. Binary objects
-/// remain outside PostgreSQL and will be connected through a future storage
-/// adapter without changing the ordered lesson-content contract.
+/// Ordered lesson content keeps delivery references and metadata only. Binary
+/// payload ownership belongs to MediaFile and its storage-provider adapter.
 model LessonContentBlock {
   id               String                 @id @default(uuid(7)) @db.Uuid
   lessonId         String                 @map("lesson_id") @db.Uuid
+  mediaFileId      String?                @map("media_file_id") @db.Uuid
   blockType        LessonContentBlockType @map("block_type")
   title            String?                @db.VarChar(200)
   description      String?                @db.Text
@@ -388,12 +404,44 @@ model LessonContentBlock {
   updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(3)
   lesson           Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  /// Media is never cascade-deleted: content history must not disappear when a
+  /// binary asset is retired or a future hard-delete workflow is introduced.
+  mediaFile        MediaFile?             @relation(fields: [mediaFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy        User                   @relation("LessonContentBlockCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@index([mediaFileId], map: "lesson_content_blocks_media_file_id_idx")
   @@index([lessonId, deletedAt, position], map: "lesson_content_blocks_lesson_id_deleted_at_position_idx")
   @@index([lessonId, blockType, deletedAt], map: "lesson_content_blocks_lesson_id_block_type_deleted_at_idx")
   @@index([lessonId, isVisible, deletedAt, position], map: "lesson_blocks_lesson_visibility_position_idx")
   @@index([createdById], map: "lesson_content_blocks_created_by_id_idx")
   @@index([deletedAt], map: "lesson_content_blocks_deleted_at_idx")
   @@map("lesson_content_blocks")
+}
+
+/// Binary payloads are stored behind a MediaStorage interface. This table keeps
+/// only trusted metadata and an opaque provider-relative storage path.
+model MediaFile {
+  id                  String               @id @default(uuid(7)) @db.Uuid
+  originalFileName    String               @map("original_file_name") @db.VarChar(255)
+  storedFileName      String               @unique(map: "media_files_stored_file_name_key") @map("stored_file_name") @db.VarChar(255)
+  mimeType            String               @map("mime_type") @db.VarChar(160)
+  extension           String               @db.VarChar(16)
+  category            MediaCategory
+  sizeBytes           BigInt               @map("size_bytes") @db.BigInt
+  /// Never expose this provider-relative path directly to API consumers.
+  storagePath         String               @unique(map: "media_files_storage_path_key") @map("storage_path") @db.VarChar(512)
+  storageProvider     MediaStorageProvider @default(LOCAL) @map("storage_provider")
+  checksum            String?              @db.Char(64)
+  uploadedById        String               @map("uploaded_by_id") @db.Uuid
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  uploadedBy          User                 @relation("MediaFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lessonContentBlocks LessonContentBlock[]
+
+  @@index([uploadedById, deletedAt, createdAt], map: "media_files_uploaded_by_id_deleted_at_created_at_idx")
+  @@index([category, deletedAt, createdAt], map: "media_files_category_deleted_at_created_at_idx")
+  @@index([checksum], map: "media_files_checksum_idx")
+  @@index([deletedAt], map: "media_files_deleted_at_idx")
+  @@map("media_files")
 }

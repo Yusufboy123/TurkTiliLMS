@@ -121,11 +121,6 @@ function validateContentDefinition(value: ContentDefinition, context: z.Refineme
       );
       break;
     case LessonContentBlockType.VIDEO:
-      required(
-        Boolean(value.fileUrl || value.sourceUrl),
-        'fileUrl',
-        'VIDEO blok uchun fayl yoki tashqi manba manzili talab qilinadi.',
-      );
       if (value.mimeType) {
         required(
           value.mimeType.startsWith('video/'),
@@ -135,11 +130,6 @@ function validateContentDefinition(value: ContentDefinition, context: z.Refineme
       }
       break;
     case LessonContentBlockType.AUDIO:
-      required(
-        Boolean(value.fileUrl || value.sourceUrl),
-        'fileUrl',
-        'AUDIO blok uchun fayl yoki tashqi manba manzili talab qilinadi.',
-      );
       if (value.mimeType) {
         required(
           value.mimeType.startsWith('audio/'),
@@ -149,7 +139,6 @@ function validateContentDefinition(value: ContentDefinition, context: z.Refineme
       }
       break;
     case LessonContentBlockType.PDF:
-      required(Boolean(value.fileUrl), 'fileUrl', 'PDF blok uchun fayl manzili talab qilinadi.');
       if (value.mimeType) {
         required(
           value.mimeType === 'application/pdf',
@@ -159,11 +148,6 @@ function validateContentDefinition(value: ContentDefinition, context: z.Refineme
       }
       break;
     case LessonContentBlockType.DOCUMENT:
-      required(
-        Boolean(value.fileUrl),
-        'fileUrl',
-        'DOCUMENT blok uchun fayl manzili talab qilinadi.',
-      );
       if (value.mimeType) {
         required(
           documentMimeTypes.has(value.mimeType),
@@ -173,7 +157,6 @@ function validateContentDefinition(value: ContentDefinition, context: z.Refineme
       }
       break;
     case LessonContentBlockType.IMAGE:
-      required(Boolean(value.fileUrl), 'fileUrl', 'IMAGE blok uchun fayl manzili talab qilinadi.');
       if (value.mimeType) {
         required(
           imageMimeTypes.has(value.mimeType),
@@ -190,11 +173,6 @@ function validateContentDefinition(value: ContentDefinition, context: z.Refineme
       );
       break;
     case LessonContentBlockType.DOWNLOAD:
-      required(
-        Boolean(value.fileUrl),
-        'fileUrl',
-        'DOWNLOAD blok uchun fayl manzili talab qilinadi.',
-      );
       break;
   }
 }
@@ -231,6 +209,7 @@ export const lessonBlockCatalogParamsSchema = z
 export const createLessonContentBlockSchema = z
   .object({
     blockType: z.nativeEnum(LessonContentBlockType),
+    mediaFileId: z.uuid().optional(),
     ...contentShape,
     position: z.number().int().positive().max(1_000_000).optional(),
     isRequired: z.boolean().default(true),
@@ -242,6 +221,7 @@ export const createLessonContentBlockSchema = z
 export const updateLessonContentBlockSchema = z
   .object({
     blockType: z.nativeEnum(LessonContentBlockType).optional(),
+    mediaFileId: z.uuid().nullable().optional(),
     ...contentShape,
   })
   .strict()

@@ -31,6 +31,7 @@ import {
   TEST_COURSE_ID,
 } from '../helpers/course-fakes.js';
 import { FakeLessonRepository, LESSON_ID, SECTION_ID } from '../helpers/lesson-fakes.js';
+import { MEDIA_ID, publicMediaReference } from '../helpers/media-fakes.js';
 
 const SESSION_ID = '019b9e23-bde8-7342-a46e-c682ab77d88f';
 
@@ -170,16 +171,45 @@ describe('Lesson content block management routes', () => {
     expect(response.body.code).toBe('ACCESS_DENIED');
   });
 
-  it('validates block content before service persistence', async () => {
+  it('returns the stable media-required error before persistence', async () => {
     const { app, blocks } = createTestApp(principal([RoleCode.ADMIN], ['lesson_blocks.create']));
 
     const response = await request(app)
       .post(`/api/v1/courses/${TEST_COURSE_ID}/lessons/${LESSON_ID}/blocks`)
       .send({ blockType: LessonContentBlockType.PDF })
+      .expect(409);
+
+    expect(response.body.code).toBe('MEDIA_REQUIRED_FOR_BLOCK');
+    expect(blocks.lastCreateData).toBeNull();
+  });
+
+  it('validates media UUIDs and returns the safe media object after creation', async () => {
+    const { app, blocks } = createTestApp(principal([RoleCode.ADMIN], ['lesson_blocks.create']));
+    const basePath = `/api/v1/courses/${TEST_COURSE_ID}/lessons/${LESSON_ID}/blocks`;
+
+    await request(app)
+      .post(basePath)
+      .send({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: 'not-a-uuid',
+      })
       .expect(422);
 
-    expect(response.body.code).toBe('VALIDATION_ERROR');
-    expect(blocks.lastCreateData).toBeNull();
+    blocks.mediaReferences.set(MEDIA_ID, publicMediaReference());
+    const response = await request(app)
+      .post(basePath)
+      .send({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: MEDIA_ID,
+      })
+      .expect(201);
+
+    expect(response.body.data.media).toMatchObject({
+      id: MEDIA_ID,
+      downloadUrl: `/api/v1/media/${MEDIA_ID}/download`,
+    });
+    expect(response.body.data.media).not.toHaveProperty('storagePath');
+    expect(response.body.data.media).not.toHaveProperty('storedFileName');
   });
 
   it('requires confirmation for deletion', async () => {

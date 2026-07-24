@@ -1,5 +1,6 @@
 import { LessonContentBlockType, RoleCode } from '@prisma/client';
 import type { LessonContentBlockRepository } from '../../src/modules/lesson-content-blocks/lesson-content-block.repository.js';
+import type { PublicMediaReference } from '../../src/modules/media/media-reference.presenter.js';
 import type {
   CreateLessonContentBlockData,
   LessonBlockActor,
@@ -49,6 +50,8 @@ export function contentBlock(
   return {
     id: BLOCK_ONE_ID,
     lessonId: LESSON_ID,
+    mediaFileId: null,
+    media: null,
     blockType: LessonContentBlockType.TEXT,
     title: 'Kirish matni',
     description: null,
@@ -77,6 +80,8 @@ export function contentBlock(
 function toPublic(block: LessonContentBlockRecord): PublicLessonContentBlock {
   return {
     id: block.id,
+    mediaFileId: block.mediaFileId,
+    media: block.media,
     blockType: block.blockType,
     title: block.title,
     description: block.description,
@@ -96,6 +101,7 @@ function toPublic(block: LessonContentBlockRecord): PublicLessonContentBlock {
 
 export class FakeLessonContentBlockRepository implements LessonContentBlockRepository {
   readonly blocks = new Map<string, LessonContentBlockRecord>();
+  readonly mediaReferences = new Map<string, PublicMediaReference>();
   lastCreateData: CreateLessonContentBlockData | null = null;
   lastListQuery: LessonContentBlockListQuery | null = null;
 
@@ -107,6 +113,10 @@ export class FakeLessonContentBlockRepository implements LessonContentBlockRepos
     return [...this.blocks.values()]
       .filter((block) => block.lessonId === lessonId && block.deletedAt === null)
       .sort((left, right) => left.position - right.position);
+  }
+
+  findMediaReference(id: string): Promise<PublicMediaReference | null> {
+    return Promise.resolve(this.mediaReferences.get(id) ?? null);
   }
 
   list(
@@ -155,6 +165,8 @@ export class FakeLessonContentBlockRepository implements LessonContentBlockRepos
     const block = contentBlock({
       id: '019b9e23-6e5e-7819-b1da-3f3d0d506fde',
       lessonId,
+      mediaFileId: data.mediaFileId ?? null,
+      media: data.mediaFileId ? (this.mediaReferences.get(data.mediaFileId) ?? null) : null,
       blockType: data.blockType,
       title: data.title ?? null,
       description: data.description ?? null,
@@ -190,6 +202,12 @@ export class FakeLessonContentBlockRepository implements LessonContentBlockRepos
     const updated: LessonContentBlockRecord = {
       ...block,
       ...(data.blockType !== undefined ? { blockType: data.blockType } : {}),
+      ...(data.mediaFileId !== undefined
+        ? {
+            mediaFileId: data.mediaFileId,
+            media: data.mediaFileId ? (this.mediaReferences.get(data.mediaFileId) ?? null) : null,
+          }
+        : {}),
       ...(data.title !== undefined ? { title: data.title } : {}),
       ...(data.description !== undefined ? { description: data.description } : {}),
       ...(data.isRequired !== undefined ? { isRequired: data.isRequired } : {}),

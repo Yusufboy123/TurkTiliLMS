@@ -50,17 +50,26 @@ describe('Lesson content block validation', () => {
     ).toBe(true);
   });
 
-  it.each([
-    LessonContentBlockType.TEXT,
-    LessonContentBlockType.VIDEO,
-    LessonContentBlockType.AUDIO,
-    LessonContentBlockType.PDF,
-    LessonContentBlockType.DOCUMENT,
-    LessonContentBlockType.IMAGE,
-    LessonContentBlockType.LINK,
-    LessonContentBlockType.DOWNLOAD,
-  ])('rejects %s when its required content is absent', (blockType) => {
-    expect(createLessonContentBlockSchema.safeParse({ blockType }).success).toBe(false);
+  it.each([LessonContentBlockType.TEXT, LessonContentBlockType.LINK])(
+    'rejects %s when its required content is absent',
+    (blockType) => {
+      expect(createLessonContentBlockSchema.safeParse({ blockType }).success).toBe(false);
+    },
+  );
+
+  it('accepts UUID media references and rejects malformed identifiers', () => {
+    expect(
+      createLessonContentBlockSchema.safeParse({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: '019b9e24-1147-7f4b-9726-e46482877c65',
+      }).success,
+    ).toBe(true);
+    expect(
+      createLessonContentBlockSchema.safeParse({
+        blockType: LessonContentBlockType.IMAGE,
+        mediaFileId: 'not-a-uuid',
+      }).success,
+    ).toBe(false);
   });
 
   it.each([

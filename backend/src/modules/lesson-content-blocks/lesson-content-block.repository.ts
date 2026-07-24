@@ -1,5 +1,15 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
+import {
+  mediaReferenceSelect,
+  presentMediaReference,
+  type MediaReferencePayload,
+  type PublicMediaReference,
+} from '../media/media-reference.presenter.js';
+import {
+  assertLessonBlockMediaCompatibility,
+  mediaFileNotFound,
+} from './lesson-content-block.media-policy.js';
 import type {
   CreateLessonContentBlockData,
   LessonBlockAuditContext,
@@ -15,6 +25,8 @@ const MAX_TRANSACTION_ATTEMPTS = 3;
 const blockSelect = {
   id: true,
   lessonId: true,
+  mediaFileId: true,
+  mediaFile: { select: mediaReferenceSelect },
   blockType: true,
   title: true,
   description: true,
@@ -40,6 +52,8 @@ const blockSelect = {
 
 const publicBlockSelect = {
   id: true,
+  mediaFileId: true,
+  mediaFile: { select: mediaReferenceSelect },
   blockType: true,
   title: true,
   description: true,
@@ -76,8 +90,10 @@ function auditFields(context: LessonBlockAuditContext) {
 }
 
 function mapBlock(block: BlockPayload): LessonContentBlockRecord {
+  const { mediaFile, ...fields } = block;
   return {
-    ...block,
+    ...fields,
+    media: presentMediaReference(mediaFile),
     fileSizeBytes: block.fileSizeBytes?.toString() ?? null,
   };
 }
@@ -85,6 +101,8 @@ function mapBlock(block: BlockPayload): LessonContentBlockRecord {
 function mapPublicBlock(block: PublicBlockPayload): PublicLessonContentBlock {
   return {
     id: block.id,
+    mediaFileId: block.mediaFileId,
+    media: presentMediaReference(block.mediaFile),
     blockType: block.blockType,
     title: block.title,
     description: block.description,
@@ -105,6 +123,7 @@ function mapPublicBlock(block: PublicBlockPayload): PublicLessonContentBlock {
 function blockSummary(block: BlockPayload): Prisma.InputJsonObject {
   return {
     blockType: block.blockType,
+    mediaFileId: block.mediaFileId,
     title: block.title,
     position: block.position,
     isRequired: block.isRequired,
@@ -118,6 +137,25 @@ function blockSummary(block: BlockPayload): Prisma.InputJsonObject {
     durationSeconds: block.durationSeconds,
     deletedAt: block.deletedAt?.toISOString() ?? null,
   };
+}
+
+async function validatedMediaFile(
+  transaction: Prisma.TransactionClient,
+  blockType: BlockPayload['blockType'],
+  mediaFileId: string | null,
+): Promise<MediaReferencePayload | null> {
+  const mediaFile = mediaFileId
+    ? await transaction.mediaFile.findUnique({
+        where: { id: mediaFileId },
+        select: mediaReferenceSelect,
+      })
+    : null;
+
+  if (mediaFileId && !mediaFile) {
+    throw mediaFileNotFound();
+  }
+  assertLessonBlockMediaCompatibility(blockType, mediaFile);
+  return mediaFile;
 }
 
 function isRetryableOrderingError(error: unknown): boolean {
@@ -207,6 +245,7 @@ async function shiftPositionsDown(
 }
 
 export interface LessonContentBlockRepository {
+  findMediaReference(id: string): Promise<PublicMediaReference | null>;
   list(
     lessonId: string,
     query: LessonContentBlockListQuery,
@@ -252,6 +291,14 @@ export interface LessonContentBlockRepository {
 export class PrismaLessonContentBlockRepository implements LessonContentBlockRepository {
   constructor(private readonly client: PrismaClient = prisma) {}
 
+  async findMediaReference(id: string): Promise<PublicMediaReference | null> {
+    const mediaFile = await this.client.mediaFile.findUnique({
+      where: { id },
+      select: mediaReferenceSelect,
+    });
+    return presentMediaReference(mediaFile);
+  }
+
   async list(
     lessonId: string,
     query: LessonContentBlockListQuery,
@@ -290,6 +337,7 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
     context: LessonBlockAuditContext,
   ): Promise<LessonContentBlockRecord> {
     return runOrderingTransaction(this.client, async (transaction) => {
+      await validatedMediaFile(transaction, data.blockType, data.mediaFileId ?? null);
       const count = await transaction.lessonContentBlock.count({
         where: { lessonId, deletedAt: null },
       });
@@ -298,6 +346,7 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
       const block = await transaction.lessonContentBlock.create({
         data: {
           lessonId,
+          ...(data.mediaFileId !== undefined ? { mediaFileId: data.mediaFileId } : {}),
           blockType: data.blockType,
           ...(data.title !== undefined ? { title: data.title } : {}),
           ...(data.description !== undefined ? { description: data.description } : {}),
@@ -343,16 +392,21 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
     data: UpdateLessonContentBlockData,
     context: LessonBlockAuditContext,
   ): Promise<LessonContentBlockRecord | null> {
-    return this.client.$transaction(async (transaction) => {
+    return runOrderingTransaction(this.client, async (transaction) => {
       const before = await transaction.lessonContentBlock.findFirst({
         where: { id: blockId, lessonId },
         select: blockSelect,
       });
       if (!before) return null;
+      const finalBlockType = data.blockType ?? before.blockType;
+      const finalMediaFileId =
+        data.mediaFileId !== undefined ? data.mediaFileId : before.mediaFileId;
+      await validatedMediaFile(transaction, finalBlockType, finalMediaFileId);
       const updated = await transaction.lessonContentBlock.update({
         where: { id: blockId },
         data: {
           ...(data.blockType !== undefined ? { blockType: data.blockType } : {}),
+          ...(data.mediaFileId !== undefined ? { mediaFileId: data.mediaFileId } : {}),
           ...(data.title !== undefined ? { title: data.title } : {}),
           ...(data.description !== undefined ? { description: data.description } : {}),
           ...(data.isRequired !== undefined ? { isRequired: data.isRequired } : {}),
@@ -389,6 +443,25 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
           metadata: { courseId: context.courseId, lessonId },
         },
       });
+      if (before.mediaFileId !== updated.mediaFileId) {
+        const action =
+          before.mediaFileId === null
+            ? 'LESSON_BLOCK_MEDIA_ASSIGNED'
+            : updated.mediaFileId === null
+              ? 'LESSON_BLOCK_MEDIA_REMOVED'
+              : 'LESSON_BLOCK_MEDIA_REPLACED';
+        await transaction.auditLog.create({
+          data: {
+            ...auditFields(context),
+            action,
+            subjectType: 'lesson_content_block',
+            subjectId: blockId,
+            beforeSummary: { mediaFileId: before.mediaFileId },
+            afterSummary: { mediaFileId: updated.mediaFileId },
+            metadata: { courseId: context.courseId, lessonId },
+          },
+        });
+      }
       return mapBlock(updated);
     });
   }
@@ -520,6 +593,7 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
       const count = await transaction.lessonContentBlock.count({
         where: { lessonId, deletedAt: null },
       });
+      await validatedMediaFile(transaction, before.blockType, before.mediaFileId);
       const position = Math.min(requestedPosition ?? count + 1, count + 1);
       await shiftPositionsUp(transaction, lessonId, position);
       const updated = await transaction.lessonContentBlock.update({
