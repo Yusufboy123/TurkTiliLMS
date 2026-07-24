@@ -15,7 +15,7 @@ import type {
   UpdateSectionData,
 } from './lesson-management.types.js';
 
-const POSITION_OFFSET = 1_000_000_000;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const personSelect = {
   id: true,
   firstName: true,
@@ -56,6 +56,7 @@ type LessonPayload = Prisma.LessonGetPayload<{ select: typeof lessonSelect }>;
 
 export class SectionNotEmptyError extends Error {}
 export class LessonSlugConflictError extends Error {}
+export class ContentPositionCapacityError extends Error {}
 
 function auditFields(context: ContentAuditContext) {
   return {
@@ -104,64 +105,118 @@ function isUniqueError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
-async function openSectionPosition(
+async function shiftSectionPositionsUp(
   transaction: Prisma.TransactionClient,
   courseId: string,
-  position: number,
+  startPosition: number,
+  endPosition?: number,
 ): Promise<void> {
-  await transaction.courseSection.updateMany({
-    where: { courseId, deletedAt: null, position: { gte: position } },
-    data: { position: { increment: POSITION_OFFSET } },
+  const sections = await transaction.courseSection.findMany({
+    where: {
+      courseId,
+      deletedAt: null,
+      position: {
+        gte: startPosition,
+        ...(endPosition !== undefined ? { lte: endPosition } : {}),
+      },
+    },
+    select: { id: true, position: true },
+    orderBy: { position: 'desc' },
   });
-  await transaction.courseSection.updateMany({
-    where: { courseId, deletedAt: null, position: { gte: position + POSITION_OFFSET } },
-    data: { position: { decrement: POSITION_OFFSET - 1 } },
-  });
+
+  for (const section of sections) {
+    if (section.position === POSTGRES_INTEGER_MAX) {
+      throw new ContentPositionCapacityError();
+    }
+    await transaction.courseSection.update({
+      where: { id: section.id },
+      data: { position: section.position + 1 },
+    });
+  }
 }
 
-async function closeSectionPosition(
+async function shiftSectionPositionsDown(
   transaction: Prisma.TransactionClient,
   courseId: string,
-  position: number,
+  startPosition: number,
+  endPosition?: number,
 ): Promise<void> {
-  await transaction.courseSection.updateMany({
-    where: { courseId, deletedAt: null, position: { gt: position } },
-    data: { position: { increment: POSITION_OFFSET } },
+  const sections = await transaction.courseSection.findMany({
+    where: {
+      courseId,
+      deletedAt: null,
+      position: {
+        gt: startPosition,
+        ...(endPosition !== undefined ? { lte: endPosition } : {}),
+      },
+    },
+    select: { id: true, position: true },
+    orderBy: { position: 'asc' },
   });
-  await transaction.courseSection.updateMany({
-    where: { courseId, deletedAt: null, position: { gt: position + POSITION_OFFSET } },
-    data: { position: { decrement: POSITION_OFFSET + 1 } },
-  });
+
+  for (const section of sections) {
+    await transaction.courseSection.update({
+      where: { id: section.id },
+      data: { position: section.position - 1 },
+    });
+  }
 }
 
-async function openLessonPosition(
+async function shiftLessonPositionsUp(
   transaction: Prisma.TransactionClient,
   sectionId: string,
-  position: number,
+  startPosition: number,
+  endPosition?: number,
 ): Promise<void> {
-  await transaction.lesson.updateMany({
-    where: { sectionId, deletedAt: null, position: { gte: position } },
-    data: { position: { increment: POSITION_OFFSET } },
+  const lessons = await transaction.lesson.findMany({
+    where: {
+      sectionId,
+      deletedAt: null,
+      position: {
+        gte: startPosition,
+        ...(endPosition !== undefined ? { lte: endPosition } : {}),
+      },
+    },
+    select: { id: true, position: true },
+    orderBy: { position: 'desc' },
   });
-  await transaction.lesson.updateMany({
-    where: { sectionId, deletedAt: null, position: { gte: position + POSITION_OFFSET } },
-    data: { position: { decrement: POSITION_OFFSET - 1 } },
-  });
+
+  for (const lesson of lessons) {
+    if (lesson.position === POSTGRES_INTEGER_MAX) {
+      throw new ContentPositionCapacityError();
+    }
+    await transaction.lesson.update({
+      where: { id: lesson.id },
+      data: { position: lesson.position + 1 },
+    });
+  }
 }
 
-async function closeLessonPosition(
+async function shiftLessonPositionsDown(
   transaction: Prisma.TransactionClient,
   sectionId: string,
-  position: number,
+  startPosition: number,
+  endPosition?: number,
 ): Promise<void> {
-  await transaction.lesson.updateMany({
-    where: { sectionId, deletedAt: null, position: { gt: position } },
-    data: { position: { increment: POSITION_OFFSET } },
+  const lessons = await transaction.lesson.findMany({
+    where: {
+      sectionId,
+      deletedAt: null,
+      position: {
+        gt: startPosition,
+        ...(endPosition !== undefined ? { lte: endPosition } : {}),
+      },
+    },
+    select: { id: true, position: true },
+    orderBy: { position: 'asc' },
   });
-  await transaction.lesson.updateMany({
-    where: { sectionId, deletedAt: null, position: { gt: position + POSITION_OFFSET } },
-    data: { position: { decrement: POSITION_OFFSET + 1 } },
-  });
+
+  for (const lesson of lessons) {
+    await transaction.lesson.update({
+      where: { id: lesson.id },
+      data: { position: lesson.position - 1 },
+    });
+  }
 }
 
 export interface LessonManagementRepository {
@@ -291,7 +346,7 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
       async (tx) => {
         const count = await tx.courseSection.count({ where: { courseId, deletedAt: null } });
         const position = Math.min(data.position ?? count + 1, count + 1);
-        await openSectionPosition(tx, courseId, position);
+        await shiftSectionPositionsUp(tx, courseId, position);
         const section = await tx.courseSection.create({
           data: {
             courseId,
@@ -371,10 +426,19 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
         const count = await tx.courseSection.count({ where: { courseId, deletedAt: null } });
         const position = Math.min(requested, count);
         if (position !== section.position) {
-          await tx.courseSection.update({ where: { id: sectionId }, data: { position: 0 } });
-          await closeSectionPosition(tx, courseId, section.position);
-          await openSectionPosition(tx, courseId, position);
-          await tx.courseSection.update({ where: { id: sectionId }, data: { position } });
+          await tx.courseSection.update({
+            where: { id: sectionId },
+            data: { deletedAt: new Date() },
+          });
+          if (position < section.position) {
+            await shiftSectionPositionsUp(tx, courseId, position, section.position - 1);
+          } else {
+            await shiftSectionPositionsDown(tx, courseId, section.position, position);
+          }
+          await tx.courseSection.update({
+            where: { id: sectionId },
+            data: { position, deletedAt: null },
+          });
         }
         const updated = await tx.courseSection.findUniqueOrThrow({ where: { id: sectionId } });
         await tx.auditLog.create({
@@ -412,7 +476,7 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           where: { id: sectionId },
           data: { deletedAt: new Date(), isPublished: false },
         });
-        await closeSectionPosition(tx, courseId, section.position);
+        await shiftSectionPositionsDown(tx, courseId, section.position);
         await tx.auditLog.create({
           data: {
             ...auditFields(context),
@@ -444,7 +508,7 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
         if (!section) return null;
         const count = await tx.courseSection.count({ where: { courseId, deletedAt: null } });
         const position = Math.min(section.position, count + 1);
-        await openSectionPosition(tx, courseId, position);
+        await shiftSectionPositionsUp(tx, courseId, position);
         const restored = await tx.courseSection.update({
           where: { id: sectionId },
           data: { deletedAt: null, isPublished: false, position },
@@ -521,7 +585,7 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
             where: { sectionId: data.sectionId, deletedAt: null },
           });
           const position = Math.min(data.position ?? count + 1, count + 1);
-          await openLessonPosition(tx, data.sectionId, position);
+          await shiftLessonPositionsUp(tx, data.sectionId, position);
           const lesson = await tx.lesson.create({
             data: {
               courseId,
@@ -695,16 +759,19 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           select: lessonSelect,
         });
         if (!before) return null;
-        await tx.lesson.update({ where: { id: lessonId }, data: { position: 0 } });
-        await closeLessonPosition(tx, before.section.id, before.position);
+        await tx.lesson.update({
+          where: { id: lessonId },
+          data: { deletedAt: new Date() },
+        });
+        await shiftLessonPositionsDown(tx, before.section.id, before.position);
         const count = await tx.lesson.count({
-          where: { sectionId: targetSectionId, deletedAt: null, id: { not: lessonId } },
+          where: { sectionId: targetSectionId, deletedAt: null },
         });
         const position = Math.min(requested, count + 1);
-        await openLessonPosition(tx, targetSectionId, position);
+        await shiftLessonPositionsUp(tx, targetSectionId, position);
         const updated = await tx.lesson.update({
           where: { id: lessonId },
-          data: { sectionId: targetSectionId, position },
+          data: { sectionId: targetSectionId, position, deletedAt: null },
           select: lessonSelect,
         });
         await tx.auditLog.create({
@@ -742,7 +809,7 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           data: { deletedAt: new Date() },
           select: lessonSelect,
         });
-        await closeLessonPosition(tx, before.section.id, before.position);
+        await shiftLessonPositionsDown(tx, before.section.id, before.position);
         await tx.auditLog.create({
           data: {
             ...auditFields(context),
@@ -776,7 +843,7 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           where: { sectionId: before.section.id, deletedAt: null },
         });
         const position = Math.min(before.position, count + 1);
-        await openLessonPosition(tx, before.section.id, position);
+        await shiftLessonPositionsUp(tx, before.section.id, position);
         const updated = await tx.lesson.update({
           where: { id: lessonId },
           data: {

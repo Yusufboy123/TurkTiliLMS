@@ -77,29 +77,43 @@ enum LessonStatus {
   @@map("lesson_status")
 }
 
+enum LessonContentBlockType {
+  TEXT
+  VIDEO
+  AUDIO
+  PDF
+  DOCUMENT
+  IMAGE
+  LINK
+  DOWNLOAD
+
+  @@map("lesson_content_block_type")
+}
+
 model User {
-  id                    String           @id @default(uuid(7)) @db.Uuid
-  email                 String           @unique(map: "users_email_key") @db.Citext
-  firstName             String?          @map("first_name") @db.VarChar(100)
-  lastName              String?          @map("last_name") @db.VarChar(100)
-  displayName           String?          @map("display_name") @db.VarChar(160)
-  status                UserStatus       @default(ACTIVE)
-  emailVerifiedAt       DateTime?        @map("email_verified_at") @db.Timestamptz(3)
-  lastLoginAt           DateTime?        @map("last_login_at") @db.Timestamptz(3)
-  deletedAt             DateTime?        @map("deleted_at") @db.Timestamptz(3)
-  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                    String               @id @default(uuid(7)) @db.Uuid
+  email                 String               @unique(map: "users_email_key") @db.Citext
+  firstName             String?              @map("first_name") @db.VarChar(100)
+  lastName              String?              @map("last_name") @db.VarChar(100)
+  displayName           String?              @map("display_name") @db.VarChar(160)
+  status                UserStatus           @default(ACTIVE)
+  emailVerifiedAt       DateTime?            @map("email_verified_at") @db.Timestamptz(3)
+  lastLoginAt           DateTime?            @map("last_login_at") @db.Timestamptz(3)
+  deletedAt             DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
   credential            UserCredential?
   sessions              UserSession[]
-  roles                 UserRole[]       @relation("UserRoleUser")
-  roleAssignmentsMade   UserRole[]       @relation("UserRoleAssigner")
-  permissionGrantsMade  RolePermission[] @relation("RolePermissionGranter")
-  auditLogs             AuditLog[]       @relation("AuditLogActor")
-  coursesCreated        Course[]         @relation("CourseCreator")
-  coursesTaught         Course[]         @relation("CourseTeacher")
-  courseSectionsCreated CourseSection[]  @relation("CourseSectionCreator")
-  lessonsCreated        Lesson[]         @relation("LessonCreator")
-  lessonsTaught         Lesson[]         @relation("LessonTeacher")
+  roles                 UserRole[]           @relation("UserRoleUser")
+  roleAssignmentsMade   UserRole[]           @relation("UserRoleAssigner")
+  permissionGrantsMade  RolePermission[]     @relation("RolePermissionGranter")
+  auditLogs             AuditLog[]           @relation("AuditLogActor")
+  coursesCreated        Course[]             @relation("CourseCreator")
+  coursesTaught         Course[]             @relation("CourseTeacher")
+  courseSectionsCreated CourseSection[]      @relation("CourseSectionCreator")
+  lessonsCreated        Lesson[]             @relation("LessonCreator")
+  lessonsTaught         Lesson[]             @relation("LessonTeacher")
+  lessonBlocksCreated   LessonContentBlock[] @relation("LessonContentBlockCreator")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -307,31 +321,32 @@ model CourseSection {
 }
 
 model Lesson {
-  id              String        @id @default(uuid(7)) @db.Uuid
-  courseId        String        @map("course_id") @db.Uuid
-  sectionId       String        @map("section_id") @db.Uuid
-  title           String        @db.VarChar(200)
-  slug            String        @db.VarChar(180)
-  summary         String?       @db.Text
-  content         String?       @db.Text
-  lessonType      LessonType    @map("lesson_type")
+  id              String               @id @default(uuid(7)) @db.Uuid
+  courseId        String               @map("course_id") @db.Uuid
+  sectionId       String               @map("section_id") @db.Uuid
+  title           String               @db.VarChar(200)
+  slug            String               @db.VarChar(180)
+  summary         String?              @db.Text
+  content         String?              @db.Text
+  lessonType      LessonType           @map("lesson_type")
   /// Active sibling uniqueness is enforced by a PostgreSQL partial index in
   /// the migration so soft-deleted rows can retain their historical position.
   position        Int
-  durationMinutes Int?          @map("duration_minutes")
-  isPreview       Boolean       @default(false) @map("is_preview")
-  status          LessonStatus  @default(DRAFT)
-  createdById     String        @map("created_by_id") @db.Uuid
-  teacherId       String?       @map("teacher_id") @db.Uuid
-  publishedAt     DateTime?     @map("published_at") @db.Timestamptz(3)
-  archivedAt      DateTime?     @map("archived_at") @db.Timestamptz(3)
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(3)
-  course          Course        @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  section         CourseSection @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
-  createdBy       User          @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  teacher         User?         @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  durationMinutes Int?                 @map("duration_minutes")
+  isPreview       Boolean              @default(false) @map("is_preview")
+  status          LessonStatus         @default(DRAFT)
+  createdById     String               @map("created_by_id") @db.Uuid
+  teacherId       String?              @map("teacher_id") @db.Uuid
+  publishedAt     DateTime?            @map("published_at") @db.Timestamptz(3)
+  archivedAt      DateTime?            @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  course          Course               @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  section         CourseSection        @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy       User                 @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher         User?                @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  contentBlocks   LessonContentBlock[]
 
   @@unique([courseId, slug], map: "lessons_course_id_slug_key")
   @@index([courseId, status, deletedAt], map: "lessons_course_id_status_deleted_at_idx")
@@ -341,4 +356,44 @@ model Lesson {
   @@index([createdById], map: "lessons_created_by_id_idx")
   @@index([deletedAt], map: "lessons_deleted_at_idx")
   @@map("lessons")
+}
+
+/// This release stores validated content URLs and metadata only. Binary objects
+/// remain outside PostgreSQL and will be connected through a future storage
+/// adapter without changing the ordered lesson-content contract.
+model LessonContentBlock {
+  id               String                 @id @default(uuid(7)) @db.Uuid
+  lessonId         String                 @map("lesson_id") @db.Uuid
+  blockType        LessonContentBlockType @map("block_type")
+  title            String?                @db.VarChar(200)
+  description      String?                @db.Text
+  /// Active sibling uniqueness is enforced by a PostgreSQL partial index in
+  /// the migration so soft-deleted blocks retain their historical position.
+  position         Int
+  isRequired       Boolean                @default(true) @map("is_required")
+  isVisible        Boolean                @default(true) @map("is_visible")
+  textContent      String?                @map("text_content") @db.Text
+  sourceUrl        String?                @map("source_url") @db.Text
+  externalProvider String?                @map("external_provider") @db.VarChar(100)
+  fileName         String?                @map("file_name") @db.VarChar(255)
+  originalFileName String?                @map("original_file_name") @db.VarChar(255)
+  fileUrl          String?                @map("file_url") @db.Text
+  mimeType         String?                @map("mime_type") @db.VarChar(160)
+  fileSizeBytes    BigInt?                @map("file_size_bytes") @db.BigInt
+  durationSeconds  Int?                   @map("duration_seconds")
+  thumbnailUrl     String?                @map("thumbnail_url") @db.Text
+  metadata         Json?
+  createdById      String                 @map("created_by_id") @db.Uuid
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(3)
+  lesson           Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy        User                   @relation("LessonContentBlockCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([lessonId, deletedAt, position], map: "lesson_content_blocks_lesson_id_deleted_at_position_idx")
+  @@index([lessonId, blockType, deletedAt], map: "lesson_content_blocks_lesson_id_block_type_deleted_at_idx")
+  @@index([lessonId, isVisible, deletedAt, position], map: "lesson_blocks_lesson_visibility_position_idx")
+  @@index([createdById], map: "lesson_content_blocks_created_by_id_idx")
+  @@index([deletedAt], map: "lesson_content_blocks_deleted_at_idx")
+  @@map("lesson_content_blocks")
 }

@@ -261,6 +261,48 @@ const permissionDefinitions = [
     action: 'view_statistics',
     description: 'View lesson statistics for permitted courses.',
   },
+  {
+    code: 'lesson_blocks.read',
+    resource: 'lesson_blocks',
+    action: 'read',
+    description: 'View content blocks in permitted lessons.',
+  },
+  {
+    code: 'lesson_blocks.create',
+    resource: 'lesson_blocks',
+    action: 'create',
+    description: 'Create content blocks in permitted lessons.',
+  },
+  {
+    code: 'lesson_blocks.update',
+    resource: 'lesson_blocks',
+    action: 'update',
+    description: 'Update content blocks in permitted lessons.',
+  },
+  {
+    code: 'lesson_blocks.delete',
+    resource: 'lesson_blocks',
+    action: 'delete',
+    description: 'Soft-delete content blocks in permitted lessons.',
+  },
+  {
+    code: 'lesson_blocks.restore',
+    resource: 'lesson_blocks',
+    action: 'restore',
+    description: 'Restore content blocks in permitted lessons.',
+  },
+  {
+    code: 'lesson_blocks.reorder',
+    resource: 'lesson_blocks',
+    action: 'reorder',
+    description: 'Reorder content blocks in permitted lessons.',
+  },
+  {
+    code: 'lesson_blocks.manage_visibility',
+    resource: 'lesson_blocks',
+    action: 'manage_visibility',
+    description: 'Show or hide content blocks in permitted lessons.',
+  },
 ] as const;
 
 const teacherPermissionCodes = [
@@ -284,6 +326,13 @@ const teacherPermissionCodes = [
   'lessons.reorder',
   'lessons.submit_review',
   'lessons.view_statistics',
+  'lesson_blocks.read',
+  'lesson_blocks.create',
+  'lesson_blocks.update',
+  'lesson_blocks.delete',
+  'lesson_blocks.restore',
+  'lesson_blocks.reorder',
+  'lesson_blocks.manage_visibility',
 ] as const;
 
 async function seedIdentityAndAccess(): Promise<void> {
