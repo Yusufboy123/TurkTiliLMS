@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { authRouter } from '../modules/auth/auth.routes.js';
 import { courseCatalogRouter, courseRouter } from '../modules/courses/course.routes.js';
+import {
+  courseEnrollmentRouter,
+  enrollmentManagementRouter,
+  myEnrollmentRouter,
+} from '../modules/course-enrollments/course-enrollment.routes.js';
 import { healthRouter } from '../modules/health/health.routes.js';
 import {
   lessonContentBlockCatalogRouter,
@@ -20,6 +25,9 @@ apiV1Router.use('/health', healthRouter);
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/users', userManagementRouter);
 apiV1Router.use('/media', mediaRouter);
+apiV1Router.use('/courses/:courseId/enrollments', courseEnrollmentRouter);
+apiV1Router.use('/me/enrollments', myEnrollmentRouter);
+apiV1Router.use('/enrollments', enrollmentManagementRouter);
 apiV1Router.use('/courses/:courseId/sections', sectionRouter);
 apiV1Router.use('/courses/:courseId/lessons/:lessonId/blocks', lessonContentBlockRouter);
 apiV1Router.use('/courses/:courseId/lessons', lessonRouter);

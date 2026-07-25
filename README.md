@@ -64,7 +64,43 @@ The default local URLs are:
 - Backend: `http://localhost:5000`
 - API base URL: `http://localhost:5000/api/v1`
 
-No database tables or migrations are included yet.
+Apply the database migrations and seed the standard roles and permissions:
+
+```bash
+npm exec --workspace=backend -- prisma migrate deploy
+npm run db:seed
+```
+
+## Local development accounts
+
+The standard seed does **not** create fixed-credential users. To create the
+login-capable local accounts below, explicitly opt in from a non-production
+environment:
+
+```powershell
+$env:SEED_DEVELOPMENT_USERS='true'
+npm run db:seed
+Remove-Item Env:SEED_DEVELOPMENT_USERS
+```
+
+For POSIX shells, run
+`SEED_DEVELOPMENT_USERS=true npm run db:seed`.
+
+| Role    | Email                    | Password      |
+| ------- | ------------------------ | ------------- |
+| Admin   | `admin@turktili.local`   | `Admin123!`   |
+| Teacher | `teacher@turktili.local` | `Teacher123!` |
+| Student | `student@turktili.local` | `Student123!` |
+
+These fixed credentials are strictly for isolated local development and manual
+API verification. Never use or promote these identities, passwords, or a
+database containing them to production. Production seed execution rejects the
+opt-in flag and fails its safety preflight if any known development identity is
+already present; it never silently deletes or changes such an account.
+
+With the non-production opt-in enabled, re-running the seed is idempotent: it
+restores each account to an active, verified, unlocked state, replaces its local
+password, assigns exactly the documented role, and revokes previous sessions.
 
 ## Development commands
 
@@ -115,7 +151,7 @@ Expected response:
 
 ## Current scope
 
-This foundation includes application structure, configuration, API health
-monitoring, environment validation, logging, error handling, and Prisma setup.
-Authentication, users, lessons, tests, and an admin dashboard are intentionally
+The backend currently includes authentication and RBAC, user administration,
+course, section, lesson, content-block, media, and course-enrollment modules.
+The graphical admin dashboard and later learning modules remain intentionally
 deferred.

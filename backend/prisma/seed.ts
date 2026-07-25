@@ -1,6 +1,20 @@
-import { PrismaClient, RoleCode } from '@prisma/client';
+import 'dotenv/config';
+import { PrismaClient, RoleCode, UserStatus, type Role } from '@prisma/client';
+import { z } from 'zod';
+import { BcryptPasswordService } from '../src/modules/auth/password.service.js';
 
 const prisma = new PrismaClient();
+
+const seedConfiguration = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']),
+    BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
+    SEED_DEVELOPMENT_USERS: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .parse(process.env);
 
 const roleDefinitions = [
   {
@@ -17,6 +31,33 @@ const roleDefinitions = [
     code: RoleCode.STUDENT,
     name: 'Student',
     description: 'Learner role without administrative permissions.',
+  },
+] as const;
+
+const developmentUserDefinitions = [
+  {
+    email: 'admin@turktili.local',
+    password: 'Admin123!',
+    firstName: 'Development',
+    lastName: 'Admin',
+    displayName: 'Development Admin',
+    role: RoleCode.ADMIN,
+  },
+  {
+    email: 'teacher@turktili.local',
+    password: 'Teacher123!',
+    firstName: 'Development',
+    lastName: 'Teacher',
+    displayName: 'Development Teacher',
+    role: RoleCode.TEACHER,
+  },
+  {
+    email: 'student@turktili.local',
+    password: 'Student123!',
+    firstName: 'Development',
+    lastName: 'Student',
+    displayName: 'Development Student',
+    role: RoleCode.STUDENT,
   },
 ] as const;
 
@@ -333,6 +374,42 @@ const permissionDefinitions = [
     action: 'restore',
     description: 'Restore permitted soft-deleted media files.',
   },
+  {
+    code: 'enrollments.self_create',
+    resource: 'enrollments',
+    action: 'self_create',
+    description: 'Enroll the current student in an available course.',
+  },
+  {
+    code: 'enrollments.self_read',
+    resource: 'enrollments',
+    action: 'self_read',
+    description: 'View the current student enrollment records.',
+  },
+  {
+    code: 'enrollments.self_cancel',
+    resource: 'enrollments',
+    action: 'self_cancel',
+    description: 'Cancel the current student active enrollment.',
+  },
+  {
+    code: 'enrollments.create',
+    resource: 'enrollments',
+    action: 'create',
+    description: 'Enroll an eligible student within the permitted course scope.',
+  },
+  {
+    code: 'enrollments.read',
+    resource: 'enrollments',
+    action: 'read',
+    description: 'View enrollment records within the permitted course scope.',
+  },
+  {
+    code: 'enrollments.update_status',
+    resource: 'enrollments',
+    action: 'update_status',
+    description: 'Manage enrollment lifecycle status within the permitted course scope.',
+  },
 ] as const;
 
 const teacherPermissionCodes = [
@@ -368,9 +445,158 @@ const teacherPermissionCodes = [
   'media.download',
   'media.delete',
   'media.restore',
+  'enrollments.create',
+  'enrollments.read',
+  'enrollments.update_status',
 ] as const;
 
+const studentPermissionCodes = [
+  'enrollments.self_create',
+  'enrollments.self_read',
+  'enrollments.self_cancel',
+] as const;
+
+async function seedDevelopmentUsers(roles: Role[]): Promise<void> {
+  if (!seedConfiguration.SEED_DEVELOPMENT_USERS) {
+    console.info(
+      'Development foydalanuvchilari yaratilmadi. Yaratish uchun SEED_DEVELOPMENT_USERS=true qiymatini aniq belgilang.',
+    );
+    return;
+  }
+
+  if (seedConfiguration.NODE_ENV === 'production') {
+    throw new Error(
+      'SEED_DEVELOPMENT_USERS=true production muhitida taqiqlangan. Development hisoblari yaratilmadi.',
+    );
+  }
+
+  const passwordService = new BcryptPasswordService(seedConfiguration.BCRYPT_ROUNDS);
+  const rolesByCode = new Map(roles.map((role) => [role.code, role]));
+
+  for (const definition of developmentUserDefinitions) {
+    const role = rolesByCode.get(definition.role);
+
+    if (!role) {
+      throw new Error(`${definition.role} roli development foydalanuvchisi uchun topilmadi.`);
+    }
+
+    const passwordHash = await passwordService.hash(definition.password);
+    const now = new Date();
+
+    await prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.upsert({
+        where: { email: definition.email },
+        update: {
+          firstName: definition.firstName,
+          lastName: definition.lastName,
+          displayName: definition.displayName,
+          status: UserStatus.ACTIVE,
+          deletedAt: null,
+          credential: {
+            upsert: {
+              create: {
+                passwordHash,
+                requiresPasswordChange: false,
+              },
+              update: {
+                passwordHash,
+                failedLoginCount: 0,
+                lockedUntil: null,
+                passwordChangedAt: now,
+                requiresPasswordChange: false,
+                passwordResetTokenHash: null,
+                passwordResetExpiresAt: null,
+              },
+            },
+          },
+        },
+        create: {
+          email: definition.email,
+          firstName: definition.firstName,
+          lastName: definition.lastName,
+          displayName: definition.displayName,
+          status: UserStatus.ACTIVE,
+          emailVerifiedAt: now,
+          credential: {
+            create: {
+              passwordHash,
+              requiresPasswordChange: false,
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      await transaction.user.updateMany({
+        where: { id: user.id, emailVerifiedAt: null },
+        data: { emailVerifiedAt: now },
+      });
+      await transaction.userRole.deleteMany({
+        where: {
+          userId: user.id,
+          roleId: { not: role.id },
+        },
+      });
+      await transaction.userRole.upsert({
+        where: {
+          userId_roleId: {
+            userId: user.id,
+            roleId: role.id,
+          },
+        },
+        update: {
+          assignedByUserId: null,
+          expiresAt: null,
+        },
+        create: {
+          userId: user.id,
+          roleId: role.id,
+        },
+      });
+      await transaction.userSession.updateMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: now,
+          revocationReason: 'Development seed credential reset.',
+        },
+      });
+    });
+  }
+
+  console.info('Development login foydalanuvchilari tayyorlandi.');
+}
+
+async function assertProductionSeedSafety(): Promise<void> {
+  if (seedConfiguration.NODE_ENV !== 'production') return;
+
+  if (seedConfiguration.SEED_DEVELOPMENT_USERS) {
+    throw new Error(
+      'SEED_DEVELOPMENT_USERS=true production muhitida taqiqlangan. Development hisoblari yaratilmadi.',
+    );
+  }
+
+  const knownDevelopmentUsers = await prisma.user.findMany({
+    where: {
+      email: { in: developmentUserDefinitions.map((definition) => definition.email) },
+    },
+    select: { email: true },
+    orderBy: { email: 'asc' },
+  });
+
+  if (knownDevelopmentUsers.length > 0) {
+    const identities = knownDevelopmentUsers.map((user) => user.email).join(', ');
+    throw new Error(
+      `Production xavfsizlik tekshiruvi muvaffaqiyatsiz: ma’lum development hisoblari topildi: ${identities}. Seed ma’lumotlarni o‘zgartirmadi; deploymentni to‘xtating va hisoblarni xavfsiz boshqaruv jarayoni orqali tekshiring.`,
+    );
+  }
+}
+
 async function seedIdentityAndAccess(): Promise<void> {
+  await assertProductionSeedSafety();
+
   const roles = await prisma.$transaction(
     roleDefinitions.map((role) =>
       prisma.role.upsert({
@@ -404,9 +630,10 @@ async function seedIdentityAndAccess(): Promise<void> {
 
   const adminRole = roles.find((role) => role.code === RoleCode.ADMIN);
   const teacherRole = roles.find((role) => role.code === RoleCode.TEACHER);
+  const studentRole = roles.find((role) => role.code === RoleCode.STUDENT);
 
-  if (!adminRole || !teacherRole) {
-    throw new Error('The ADMIN or TEACHER role could not be created.');
+  if (!adminRole || !teacherRole || !studentRole) {
+    throw new Error('The ADMIN, TEACHER, or STUDENT role could not be created.');
   }
 
   const adminAssignments = permissions.map((permission) =>
@@ -443,8 +670,28 @@ async function seedIdentityAndAccess(): Promise<void> {
         },
       }),
     );
+  const studentAssignments = permissions
+    .filter((permission) =>
+      studentPermissionCodes.includes(permission.code as (typeof studentPermissionCodes)[number]),
+    )
+    .map((permission) =>
+      prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: studentRole.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: studentRole.id,
+          permissionId: permission.id,
+        },
+      }),
+    );
 
-  await prisma.$transaction([...adminAssignments, ...teacherAssignments]);
+  await prisma.$transaction([...adminAssignments, ...teacherAssignments, ...studentAssignments]);
+  await seedDevelopmentUsers(roles);
 }
 
 try {

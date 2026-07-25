@@ -56,6 +56,22 @@ enum CourseStatus {
   @@map("course_status")
 }
 
+enum CourseEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  SUSPENDED
+
+  @@map("course_enrollment_status")
+}
+
+enum CourseEnrollmentSource {
+  SELF
+  ADMIN
+
+  @@map("course_enrollment_source")
+}
+
 enum LessonType {
   TEXT
   VIDEO
@@ -130,6 +146,8 @@ model User {
   lessonsTaught         Lesson[]             @relation("LessonTeacher")
   lessonBlocksCreated   LessonContentBlock[] @relation("LessonContentBlockCreator")
   mediaFilesUploaded    MediaFile[]          @relation("MediaFileUploader")
+  courseEnrollments     CourseEnrollment[]   @relation("CourseEnrollmentStudent")
+  enrollmentsCreated    CourseEnrollment[]   @relation("CourseEnrollmentCreator")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -276,29 +294,30 @@ model AuditLog {
 /// `contentLanguage` uses a BCP 47-compatible code so future languages are not
 /// coupled to the initial Turkish catalog.
 model Course {
-  id                       String          @id @default(uuid(7)) @db.Uuid
-  title                    String          @db.VarChar(200)
-  slug                     String          @unique(map: "courses_slug_key") @db.VarChar(180)
-  shortDescription         String?         @map("short_description") @db.VarChar(500)
-  description              String?         @db.Text
-  coverImageUrl            String?         @map("cover_image_url") @db.Text
-  contentLanguage          String          @default("tr") @map("content_language") @db.VarChar(35)
+  id                       String             @id @default(uuid(7)) @db.Uuid
+  title                    String             @db.VarChar(200)
+  slug                     String             @unique(map: "courses_slug_key") @db.VarChar(180)
+  shortDescription         String?            @map("short_description") @db.VarChar(500)
+  description              String?            @db.Text
+  coverImageUrl            String?            @map("cover_image_url") @db.Text
+  contentLanguage          String             @default("tr") @map("content_language") @db.VarChar(35)
   level                    CourseLevel?
-  status                   CourseStatus    @default(DRAFT)
-  createdByUserId          String          @map("created_by_user_id") @db.Uuid
-  teacherId                String?         @map("teacher_id") @db.Uuid
-  estimatedDurationMinutes Int?            @map("estimated_duration_minutes")
-  sortOrder                Int             @default(0) @map("sort_order")
-  isFeatured               Boolean         @default(false) @map("is_featured")
-  publishedAt              DateTime?       @map("published_at") @db.Timestamptz(3)
-  archivedAt               DateTime?       @map("archived_at") @db.Timestamptz(3)
-  createdAt                DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt                DateTime?       @map("deleted_at") @db.Timestamptz(3)
-  createdBy                User            @relation("CourseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  teacher                  User?           @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  status                   CourseStatus       @default(DRAFT)
+  createdByUserId          String             @map("created_by_user_id") @db.Uuid
+  teacherId                String?            @map("teacher_id") @db.Uuid
+  estimatedDurationMinutes Int?               @map("estimated_duration_minutes")
+  sortOrder                Int                @default(0) @map("sort_order")
+  isFeatured               Boolean            @default(false) @map("is_featured")
+  publishedAt              DateTime?          @map("published_at") @db.Timestamptz(3)
+  archivedAt               DateTime?          @map("archived_at") @db.Timestamptz(3)
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  createdBy                User               @relation("CourseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher                  User?              @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sections                 CourseSection[]
   lessons                  Lesson[]
+  enrollments              CourseEnrollment[]
 
   @@index([status, deletedAt, sortOrder], map: "courses_status_deleted_at_sort_order_idx")
   @@index([teacherId, status, deletedAt], map: "courses_teacher_id_status_deleted_at_idx")
@@ -309,6 +328,36 @@ model Course {
   @@index([publishedAt], map: "courses_published_at_idx")
   @@index([deletedAt], map: "courses_deleted_at_idx")
   @@map("courses")
+}
+
+/// Enrollment rows are lifecycle records. A cancelled enrollment is retained and
+/// a later explicit re-enrollment creates a new row so historical events remain auditable.
+/// Current-membership uniqueness is enforced by a PostgreSQL partial unique index.
+model CourseEnrollment {
+  id          String                 @id @default(uuid(7)) @db.Uuid
+  courseId    String                 @map("course_id") @db.Uuid
+  studentId   String                 @map("student_id") @db.Uuid
+  status      CourseEnrollmentStatus @default(ACTIVE)
+  source      CourseEnrollmentSource
+  enrolledAt  DateTime               @default(now()) @map("enrolled_at") @db.Timestamptz(3)
+  startedAt   DateTime?              @map("started_at") @db.Timestamptz(3)
+  completedAt DateTime?              @map("completed_at") @db.Timestamptz(3)
+  cancelledAt DateTime?              @map("cancelled_at") @db.Timestamptz(3)
+  suspendedAt DateTime?              @map("suspended_at") @db.Timestamptz(3)
+  createdById String?                @map("created_by_id") @db.Uuid
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  course      Course                 @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student     User                   @relation("CourseEnrollmentStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User?                  @relation("CourseEnrollmentCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
+  @@index([courseId, status, enrolledAt], map: "course_enrollments_course_id_status_enrolled_at_idx")
+  @@index([courseId, studentId, enrolledAt], map: "course_enrollments_course_id_student_id_enrolled_at_idx")
+  @@index([createdById], map: "course_enrollments_created_by_id_idx")
+  @@index([completedAt], map: "course_enrollments_completed_at_idx")
+  @@index([createdAt], map: "course_enrollments_created_at_idx")
+  @@map("course_enrollments")
 }
 
 model CourseSection {
