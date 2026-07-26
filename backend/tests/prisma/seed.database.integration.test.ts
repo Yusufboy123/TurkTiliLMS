@@ -33,6 +33,24 @@ const expectedAccounts = [
   },
 ] as const;
 const knownEmails = expectedAccounts.map((account) => account.email);
+const expectedProgressPermissions = {
+  [RoleCode.ADMIN]: [
+    'progress.course.read',
+    'progress.export',
+    'progress.read',
+    'progress.self_complete',
+    'progress.self_read',
+    'progress.self_record_visit',
+    'progress.self_reopen',
+  ],
+  [RoleCode.TEACHER]: ['progress.course.read'],
+  [RoleCode.STUDENT]: [
+    'progress.self_complete',
+    'progress.self_read',
+    'progress.self_record_visit',
+    'progress.self_reopen',
+  ],
+} as const;
 
 describeDatabase('development user seed PostgreSQL integration', () => {
   const administrationClient = new PrismaClient({
@@ -111,6 +129,34 @@ describeDatabase('development user seed PostgreSQL integration', () => {
   it('does not create development users by default', async () => {
     await runSeed('test', false);
     await expect(client.user.count({ where: { email: { in: knownEmails } } })).resolves.toBe(0);
+  });
+
+  it('seeds approved progress permissions and role assignments idempotently', async () => {
+    await runSeed('test', false);
+    await runSeed('test', false);
+
+    const roles = await client.role.findMany({
+      where: { code: { in: [RoleCode.ADMIN, RoleCode.TEACHER, RoleCode.STUDENT] } },
+      select: {
+        code: true,
+        permissions: {
+          where: { permission: { code: { startsWith: 'progress.' } } },
+          select: { permission: { select: { code: true } } },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    expect(roles).toHaveLength(3);
+    for (const role of roles) {
+      expect(role.permissions.map(({ permission }) => permission.code).sort()).toEqual([
+        ...expectedProgressPermissions[role.code],
+      ]);
+    }
+
+    await expect(
+      client.permission.count({ where: { code: { startsWith: 'progress.' } } }),
+    ).resolves.toBe(7);
   });
 
   it('creates opt-in development users idempotently with exactly the expected roles', async () => {

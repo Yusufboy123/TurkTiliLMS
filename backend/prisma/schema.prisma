@@ -72,6 +72,54 @@ enum CourseEnrollmentSource {
   @@map("course_enrollment_source")
 }
 
+/// NOT_STARTED is intentionally absent: a missing BlockProgress row represents
+/// that state under the approved sparse progress model.
+enum BlockProgressState {
+  INCOMPLETE
+  COMPLETED
+
+  @@map("block_progress_state")
+}
+
+/// NOT_STARTED and READY_TO_COMPLETE are derived projections and are not stored.
+enum LessonProgressState {
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("lesson_progress_state")
+}
+
+enum ProgressEventType {
+  BLOCK_COMPLETED
+  BLOCK_REOPENED
+  LESSON_COMPLETED
+  LESSON_REOPENED
+  COURSE_COMPLETED
+
+  @@map("progress_event_type")
+}
+
+/// This shared event vocabulary records before/after state without exposing
+/// internal event rows through the public API.
+enum ProgressEventState {
+  NOT_STARTED
+  INCOMPLETE
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("progress_event_state")
+}
+
+enum IdempotencyOperation {
+  COMPLETE_BLOCK
+  REOPEN_BLOCK
+  COMPLETE_LESSON
+  REOPEN_LESSON
+  RECORD_LAST_VISITED_LESSON
+
+  @@map("idempotency_operation")
+}
+
 enum LessonType {
   TEXT
   VIDEO
@@ -148,6 +196,8 @@ model User {
   mediaFilesUploaded    MediaFile[]          @relation("MediaFileUploader")
   courseEnrollments     CourseEnrollment[]   @relation("CourseEnrollmentStudent")
   enrollmentsCreated    CourseEnrollment[]   @relation("CourseEnrollmentCreator")
+  progressEvents        ProgressEvent[]      @relation("ProgressEventActor")
+  idempotencyRecords    IdempotencyRecord[]  @relation("IdempotencyRecordActor")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -308,6 +358,7 @@ model Course {
   estimatedDurationMinutes Int?               @map("estimated_duration_minutes")
   sortOrder                Int                @default(0) @map("sort_order")
   isFeatured               Boolean            @default(false) @map("is_featured")
+  curriculumVersion        Int                @default(1) @map("curriculum_version")
   publishedAt              DateTime?          @map("published_at") @db.Timestamptz(3)
   archivedAt               DateTime?          @map("archived_at") @db.Timestamptz(3)
   createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -334,22 +385,23 @@ model Course {
 /// a later explicit re-enrollment creates a new row so historical events remain auditable.
 /// Current-membership uniqueness is enforced by a PostgreSQL partial unique index.
 model CourseEnrollment {
-  id          String                 @id @default(uuid(7)) @db.Uuid
-  courseId    String                 @map("course_id") @db.Uuid
-  studentId   String                 @map("student_id") @db.Uuid
-  status      CourseEnrollmentStatus @default(ACTIVE)
-  source      CourseEnrollmentSource
-  enrolledAt  DateTime               @default(now()) @map("enrolled_at") @db.Timestamptz(3)
-  startedAt   DateTime?              @map("started_at") @db.Timestamptz(3)
-  completedAt DateTime?              @map("completed_at") @db.Timestamptz(3)
-  cancelledAt DateTime?              @map("cancelled_at") @db.Timestamptz(3)
-  suspendedAt DateTime?              @map("suspended_at") @db.Timestamptz(3)
-  createdById String?                @map("created_by_id") @db.Uuid
-  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  course      Course                 @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  student     User                   @relation("CourseEnrollmentStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdBy   User?                  @relation("CourseEnrollmentCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id           String                  @id @default(uuid(7)) @db.Uuid
+  courseId     String                  @map("course_id") @db.Uuid
+  studentId    String                  @map("student_id") @db.Uuid
+  status       CourseEnrollmentStatus  @default(ACTIVE)
+  source       CourseEnrollmentSource
+  enrolledAt   DateTime                @default(now()) @map("enrolled_at") @db.Timestamptz(3)
+  startedAt    DateTime?               @map("started_at") @db.Timestamptz(3)
+  completedAt  DateTime?               @map("completed_at") @db.Timestamptz(3)
+  cancelledAt  DateTime?               @map("cancelled_at") @db.Timestamptz(3)
+  suspendedAt  DateTime?               @map("suspended_at") @db.Timestamptz(3)
+  createdById  String?                 @map("created_by_id") @db.Uuid
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  course       Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student      User                    @relation("CourseEnrollmentStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy    User?                   @relation("CourseEnrollmentCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  progressRoot EnrollmentProgressRoot?
 
   @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
   @@index([courseId, status, enrolledAt], map: "course_enrollments_course_id_status_enrolled_at_idx")
@@ -358,6 +410,144 @@ model CourseEnrollment {
   @@index([completedAt], map: "course_enrollments_completed_at_idx")
   @@index([createdAt], map: "course_enrollments_created_at_idx")
   @@map("course_enrollments")
+}
+
+/// One root owns the authoritative snapshot and activity cursor for exactly one
+/// enrollment lifecycle. Progress records are intentionally not soft-deleted.
+model EnrollmentProgressRoot {
+  id                      String              @id @default(uuid(7)) @db.Uuid
+  enrollmentId            String              @unique(map: "enrollment_progress_roots_enrollment_id_key") @map("enrollment_id") @db.Uuid
+  lastVisitedLessonId     String?             @map("last_visited_lesson_id") @db.Uuid
+  lastVisitedAt           DateTime?           @map("last_visited_at") @db.Timestamptz(3)
+  firstActivityAt         DateTime?           @map("first_activity_at") @db.Timestamptz(3)
+  completionVersion       Int                 @default(0) @map("completion_version")
+  activityVersion         Int                 @default(0) @map("activity_version")
+  curriculumVersion       Int                 @default(1) @map("curriculum_version")
+  completedEligibleBlocks Int                 @default(0) @map("completed_eligible_blocks")
+  totalEligibleBlocks     Int                 @default(0) @map("total_eligible_blocks")
+  completedLessons        Int                 @default(0) @map("completed_lessons")
+  totalEligibleLessons    Int                 @default(0) @map("total_eligible_lessons")
+  coursePercentage        Int                 @default(0) @map("course_percentage")
+  frozenAt                DateTime?           @map("frozen_at") @db.Timestamptz(3)
+  createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  enrollment              CourseEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lastVisitedLesson       Lesson?             @relation("EnrollmentProgressLastVisitedLesson", fields: [lastVisitedLessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lessonProgress          LessonProgress[]
+  blockProgress           BlockProgress[]
+  events                  ProgressEvent[]
+  idempotencyRecords      IdempotencyRecord[]
+
+  @@index([lastVisitedAt, enrollmentId], map: "enrollment_progress_roots_last_visited_at_enrollment_id_idx")
+  @@index([frozenAt], map: "enrollment_progress_roots_frozen_at_idx")
+  @@map("enrollment_progress_roots")
+}
+
+/// Persisted lesson state is enrollment-scoped. NOT_STARTED and
+/// READY_TO_COMPLETE remain derived so they cannot become stale stored states.
+model LessonProgress {
+  id                String                 @id @default(uuid(7)) @db.Uuid
+  enrollmentId      String                 @map("enrollment_id") @db.Uuid
+  lessonId          String                 @map("lesson_id") @db.Uuid
+  state             LessonProgressState    @default(IN_PROGRESS)
+  curriculumVersion Int                    @map("curriculum_version")
+  firstActivityAt   DateTime               @default(now()) @map("first_activity_at") @db.Timestamptz(3)
+  lastActivityAt    DateTime               @default(now()) @map("last_activity_at") @db.Timestamptz(3)
+  completedAt       DateTime?              @map("completed_at") @db.Timestamptz(3)
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  progressRoot      EnrollmentProgressRoot @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Restrict, onUpdate: Cascade)
+  lesson            Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([enrollmentId, lessonId], map: "lesson_progress_enrollment_id_lesson_id_key")
+  @@index([enrollmentId, state, lessonId], map: "lesson_progress_enrollment_id_state_lesson_id_idx")
+  @@index([lessonId, state], map: "lesson_progress_lesson_id_state_idx")
+  @@index([enrollmentId, lastActivityAt], map: "lesson_progress_enrollment_id_last_activity_at_idx")
+  @@index([completedAt], map: "lesson_progress_completed_at_idx")
+  @@map("lesson_progress")
+}
+
+/// A missing row is NOT_STARTED. Only explicit INCOMPLETE and COMPLETED states
+/// are persisted, preserving sparse storage and reopen history.
+model BlockProgress {
+  id                String                 @id @default(uuid(7)) @db.Uuid
+  enrollmentId      String                 @map("enrollment_id") @db.Uuid
+  blockId           String                 @map("block_id") @db.Uuid
+  state             BlockProgressState
+  curriculumVersion Int                    @map("curriculum_version")
+  completedAt       DateTime?              @map("completed_at") @db.Timestamptz(3)
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  progressRoot      EnrollmentProgressRoot @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Restrict, onUpdate: Cascade)
+  block             LessonContentBlock     @relation(fields: [blockId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([enrollmentId, blockId], map: "block_progress_enrollment_id_block_id_key")
+  @@index([enrollmentId, state, blockId], map: "block_progress_enrollment_id_state_block_id_idx")
+  @@index([blockId, state], map: "block_progress_block_id_state_idx")
+  @@index([completedAt], map: "block_progress_completed_at_idx")
+  @@map("block_progress")
+}
+
+/// Fixed-column, append-only progress history. It is neither a public event
+/// stream nor an unrestricted analytics payload.
+model ProgressEvent {
+  id                              String                 @id @default(uuid(7)) @db.Uuid
+  enrollmentId                    String                 @map("enrollment_id") @db.Uuid
+  actorUserId                     String?                @map("actor_user_id") @db.Uuid
+  eventType                       ProgressEventType      @map("event_type")
+  lessonId                        String?                @map("lesson_id") @db.Uuid
+  blockId                         String?                @map("block_id") @db.Uuid
+  previousState                   ProgressEventState     @map("previous_state")
+  newState                        ProgressEventState     @map("new_state")
+  curriculumVersion               Int                    @map("curriculum_version")
+  resultingCompletionVersion      Int                    @map("resulting_completion_version")
+  idempotencyRecordId             String?                @map("idempotency_record_id") @db.Uuid
+  requestCorrelationId            String?                @map("request_correlation_id") @db.Uuid
+  snapshotCompletedEligibleBlocks Int?                   @map("snapshot_completed_eligible_blocks")
+  snapshotTotalEligibleBlocks     Int?                   @map("snapshot_total_eligible_blocks")
+  snapshotCompletedLessons        Int?                   @map("snapshot_completed_lessons")
+  snapshotTotalEligibleLessons    Int?                   @map("snapshot_total_eligible_lessons")
+  snapshotCoursePercentage        Int?                   @map("snapshot_course_percentage")
+  occurredAt                      DateTime               @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  progressRoot                    EnrollmentProgressRoot @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Restrict, onUpdate: Cascade)
+  actor                           User?                  @relation("ProgressEventActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  lesson                          Lesson?                @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  block                           LessonContentBlock?    @relation(fields: [blockId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  idempotencyRecord               IdempotencyRecord?     @relation(fields: [idempotencyRecordId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([enrollmentId, occurredAt], map: "progress_events_enrollment_id_occurred_at_idx")
+  @@index([actorUserId, occurredAt], map: "progress_events_actor_user_id_occurred_at_idx")
+  @@index([lessonId, occurredAt], map: "progress_events_lesson_id_occurred_at_idx")
+  @@index([blockId, occurredAt], map: "progress_events_block_id_occurred_at_idx")
+  @@index([eventType, occurredAt], map: "progress_events_event_type_occurred_at_idx")
+  @@index([idempotencyRecordId], map: "progress_events_idempotency_record_id_idx")
+  @@map("progress_events")
+}
+
+/// Successful mutation responses are retained for bounded actor-isolated
+/// replay. Authentication and authorization must still be revalidated.
+model IdempotencyRecord {
+  id                         String                 @id @default(uuid(7)) @db.Uuid
+  actorUserId                String                 @map("actor_user_id") @db.Uuid
+  enrollmentId               String                 @map("enrollment_id") @db.Uuid
+  key                        String                 @db.VarChar(128)
+  operation                  IdempotencyOperation
+  requestFingerprint         String                 @map("request_fingerprint") @db.Char(64)
+  responseStatus             Int                    @map("response_status") @db.SmallInt
+  responseEnvelope           Json                   @map("response_envelope")
+  resultingCompletionVersion Int?                   @map("resulting_completion_version")
+  resultingActivityVersion   Int?                   @map("resulting_activity_version")
+  createdAt                  DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt                  DateTime               @map("expires_at") @db.Timestamptz(3)
+  actor                      User                   @relation("IdempotencyRecordActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  progressRoot               EnrollmentProgressRoot @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Restrict, onUpdate: Cascade)
+  events                     ProgressEvent[]
+
+  @@unique([actorUserId, key], map: "idempotency_records_actor_user_id_key_key")
+  @@index([enrollmentId, createdAt], map: "idempotency_records_enrollment_id_created_at_idx")
+  @@index([expiresAt], map: "idempotency_records_expires_at_idx")
+  @@index([operation, createdAt], map: "idempotency_records_operation_created_at_idx")
+  @@map("idempotency_records")
 }
 
 model CourseSection {
@@ -386,32 +576,35 @@ model CourseSection {
 }
 
 model Lesson {
-  id              String               @id @default(uuid(7)) @db.Uuid
-  courseId        String               @map("course_id") @db.Uuid
-  sectionId       String               @map("section_id") @db.Uuid
-  title           String               @db.VarChar(200)
-  slug            String               @db.VarChar(180)
-  summary         String?              @db.Text
-  content         String?              @db.Text
-  lessonType      LessonType           @map("lesson_type")
+  id                       String                   @id @default(uuid(7)) @db.Uuid
+  courseId                 String                   @map("course_id") @db.Uuid
+  sectionId                String                   @map("section_id") @db.Uuid
+  title                    String                   @db.VarChar(200)
+  slug                     String                   @db.VarChar(180)
+  summary                  String?                  @db.Text
+  content                  String?                  @db.Text
+  lessonType               LessonType               @map("lesson_type")
   /// Active sibling uniqueness is enforced by a PostgreSQL partial index in
   /// the migration so soft-deleted rows can retain their historical position.
-  position        Int
-  durationMinutes Int?                 @map("duration_minutes")
-  isPreview       Boolean              @default(false) @map("is_preview")
-  status          LessonStatus         @default(DRAFT)
-  createdById     String               @map("created_by_id") @db.Uuid
-  teacherId       String?              @map("teacher_id") @db.Uuid
-  publishedAt     DateTime?            @map("published_at") @db.Timestamptz(3)
-  archivedAt      DateTime?            @map("archived_at") @db.Timestamptz(3)
-  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  course          Course               @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  section         CourseSection        @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
-  createdBy       User                 @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  teacher         User?                @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  contentBlocks   LessonContentBlock[]
+  position                 Int
+  durationMinutes          Int?                     @map("duration_minutes")
+  isPreview                Boolean                  @default(false) @map("is_preview")
+  status                   LessonStatus             @default(DRAFT)
+  createdById              String                   @map("created_by_id") @db.Uuid
+  teacherId                String?                  @map("teacher_id") @db.Uuid
+  publishedAt              DateTime?                @map("published_at") @db.Timestamptz(3)
+  archivedAt               DateTime?                @map("archived_at") @db.Timestamptz(3)
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  course                   Course                   @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  section                  CourseSection            @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy                User                     @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher                  User?                    @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  contentBlocks            LessonContentBlock[]
+  lastVisitedProgressRoots EnrollmentProgressRoot[] @relation("EnrollmentProgressLastVisitedLesson")
+  progress                 LessonProgress[]
+  progressEvents           ProgressEvent[]
 
   @@unique([courseId, slug], map: "lessons_course_id_slug_key")
   @@index([courseId, status, deletedAt], map: "lessons_course_id_status_deleted_at_idx")
@@ -457,6 +650,8 @@ model LessonContentBlock {
   /// binary asset is retired or a future hard-delete workflow is introduced.
   mediaFile        MediaFile?             @relation(fields: [mediaFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy        User                   @relation("LessonContentBlockCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  progress         BlockProgress[]
+  progressEvents   ProgressEvent[]
 
   @@index([mediaFileId], map: "lesson_content_blocks_media_file_id_idx")
   @@index([lessonId, deletedAt, position], map: "lesson_content_blocks_lesson_id_deleted_at_position_idx")

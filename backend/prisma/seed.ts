@@ -410,6 +410,48 @@ const permissionDefinitions = [
     action: 'update_status',
     description: 'Manage enrollment lifecycle status within the permitted course scope.',
   },
+  {
+    code: 'progress.self_read',
+    resource: 'progress',
+    action: 'self_read',
+    description: 'View the current student enrollment-scoped progress.',
+  },
+  {
+    code: 'progress.self_complete',
+    resource: 'progress',
+    action: 'self_complete',
+    description: 'Complete eligible blocks and lessons in the current student enrollment.',
+  },
+  {
+    code: 'progress.self_reopen',
+    resource: 'progress',
+    action: 'self_reopen',
+    description: 'Reopen eligible progress in the current active student enrollment.',
+  },
+  {
+    code: 'progress.self_record_visit',
+    resource: 'progress',
+    action: 'self_record_visit',
+    description: 'Record the current student last-visited eligible lesson.',
+  },
+  {
+    code: 'progress.course.read',
+    resource: 'progress.course',
+    action: 'read',
+    description: 'View progress within the currently assigned teacher course scope.',
+  },
+  {
+    code: 'progress.read',
+    resource: 'progress',
+    action: 'read',
+    description: 'View permission-scoped progress administration records.',
+  },
+  {
+    code: 'progress.export',
+    resource: 'progress',
+    action: 'export',
+    description: 'Authorize a future approved, step-up-protected progress export.',
+  },
 ] as const;
 
 const teacherPermissionCodes = [
@@ -448,12 +490,17 @@ const teacherPermissionCodes = [
   'enrollments.create',
   'enrollments.read',
   'enrollments.update_status',
+  'progress.course.read',
 ] as const;
 
 const studentPermissionCodes = [
   'enrollments.self_create',
   'enrollments.self_read',
   'enrollments.self_cancel',
+  'progress.self_read',
+  'progress.self_complete',
+  'progress.self_reopen',
+  'progress.self_record_visit',
 ] as const;
 
 async function seedDevelopmentUsers(roles: Role[]): Promise<void> {

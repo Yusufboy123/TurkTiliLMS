@@ -36,19 +36,22 @@ is implemented.
 
 ### Module #8 progress blueprint notice
 
-The original `lesson_progress` entries in this broad blueprint predate the
+The original `lesson_progress` entries in this broad blueprint predated the
 implemented course-enrollment lifecycle and the decision to exclude video
-playback position from initial Module #8. The Module 8.1A review candidates
+playback position from initial Module #8. The approved Module 8.1A
 [ADR-002](./design-system/decisions/ADR-002-progress-tracking-contract.md) and
-[Progress Tracking Contract](./PROGRESS_TRACKING_CONTRACT.md) propose replacing
+[Progress Tracking Contract](./PROGRESS_TRACKING_CONTRACT.md) replace
 canonical `user_id + lesson_id`, optional enrollment identity, video
 `resume_position_seconds`, and one generic version with enrollment-bound
 lesson/block identity, a progress root, fixed-column events, idempotency, and
 separate completion/activity/curriculum versions.
 
-Until ADR-002 is accepted, no progress schema is authorized. After acceptance,
-the Module #8 contract supersedes the legacy `lesson_progress` assumptions for
-Module 8.1B. Other domain sections of this database blueprint remain unaffected.
+Module 8.1B implements that physical schema through the additive
+`20260726190508_add_progress_tracking_schema` migration. It creates no
+historical progress rows. See
+[Module 8.1B Migration](./database/MODULE_8_1B_MIGRATION.md) for the preflight,
+verification, backfill, and rollback boundaries. Other domain sections of this
+database blueprint remain unaffected.
 
 ---
 
@@ -127,7 +130,7 @@ values such as `uz-Latn`, `tr`, and `en`.
 | Access control | `roles`, `permissions`, `user_roles`, `role_permissions`                                                                 |
 | Learning       | `courses`, `course_instructors`, `course_enrollments`, `modules`, `lessons`                                              |
 | Media          | `media_files`, `lesson_videos`, `lesson_documents`, `lesson_audio`                                                       |
-| Progress       | `lesson_progress`                                                                                                        |
+| Progress       | `enrollment_progress_roots`, `lesson_progress`, `block_progress`, `progress_events`, `idempotency_records`               |
 | Assessment     | `tests`, `questions`, `question_options`, `test_questions`, `test_attempts`, `test_answers`, `test_answer_options`       |
 | Certificates   | `certificates`                                                                                                           |
 | Dictionary     | `dictionary_categories`, `dictionary_words`, `dictionary_word_categories`, `dictionary_examples`, `dictionary_favorites` |
@@ -232,13 +235,22 @@ erDiagram
     media_files ||--o| lesson_audio : "backs"
     media_files ||--o{ lesson_videos : "caption asset"
 
-    users ||--o{ lesson_progress : "records"
+    course_enrollments ||--o| enrollment_progress_roots : "owns lifecycle progress"
+    enrollment_progress_roots ||--o{ lesson_progress : "contains"
+    enrollment_progress_roots ||--o{ block_progress : "contains"
+    enrollment_progress_roots ||--o{ progress_events : "records"
+    enrollment_progress_roots ||--o{ idempotency_records : "scopes replay"
     lessons ||--o{ lesson_progress : "tracked by"
+    lessons ||--o{ enrollment_progress_roots : "last visited"
+    lesson_content_blocks ||--o{ block_progress : "tracked by"
+    users ||--o{ progress_events : "acts in"
+    users ||--o{ idempotency_records : "owns replay key"
 
     courses {
         uuid id PK
         uuid created_by_user_id FK
         string status
+        int curriculum_version
     }
     course_translations {
         uuid id PK
@@ -254,7 +266,7 @@ erDiagram
     course_enrollments {
         uuid id PK
         uuid course_id FK
-        uuid user_id FK
+        uuid student_id FK
         string status
     }
     modules {
@@ -302,9 +314,43 @@ erDiagram
     }
     lesson_progress {
         uuid id PK
-        uuid user_id FK
+        uuid enrollment_id FK
         uuid lesson_id FK
-        string status
+        string state
+        int curriculum_version
+    }
+    lesson_content_blocks {
+        uuid id PK
+        uuid lesson_id FK
+        boolean is_required
+        boolean is_visible
+    }
+    enrollment_progress_roots {
+        uuid id PK
+        uuid enrollment_id FK, UK
+        uuid last_visited_lesson_id FK
+        int completion_version
+        int activity_version
+        int curriculum_version
+        int course_percentage
+    }
+    block_progress {
+        uuid id PK
+        uuid enrollment_id FK
+        uuid block_id FK
+        string state
+    }
+    progress_events {
+        uuid id PK
+        uuid enrollment_id FK
+        uuid actor_user_id FK
+        string event_type
+    }
+    idempotency_records {
+        uuid id PK
+        uuid enrollment_id FK
+        uuid actor_user_id FK
+        string key
     }
 ```
 
@@ -581,7 +627,11 @@ specifications for every table.
 | Media         | `lesson_videos`                      | Video attachments and playback metadata      |
 | Media         | `lesson_documents`                   | Document attachments                         |
 | Media         | `lesson_audio`                       | Audio attachments                            |
-| Progress      | `lesson_progress`                    | Per-user lesson progress                     |
+| Progress      | `enrollment_progress_roots`          | Per-enrollment aggregate and resume root     |
+| Progress      | `lesson_progress`                    | Enrollment-scoped persisted lesson state     |
+| Progress      | `block_progress`                     | Sparse enrollment-scoped block state         |
+| Progress      | `progress_events`                    | Fixed-column append-only progress history    |
+| Progress      | `idempotency_records`                | Actor-isolated mutation replay records       |
 | Assessment    | `tests`                              | Test policies and lifecycle                  |
 | Localization  | `test_translations`                  | Localized test text                          |
 | Assessment    | `questions`                          | Reusable course question bank                |
@@ -926,26 +976,106 @@ expires_at)`; index on `token_family_id`; index on `expires_at` for cleanup.
 - **Indexes:** Unique `media_file_id`; unique `(lesson_id, position)`; indexes on
   `(lesson_id, audio_type)` and `locale_id`.
 
+#### `enrollment_progress_roots`
+
+- **Purpose:** Owns the authoritative aggregate snapshot, versions, and
+  lesson-level resume cursor for one enrollment lifecycle.
+- **Primary key:** `id`, UUIDv7 generated by Prisma.
+- **Important fields:** Unique `enrollment_id`, nullable paired
+  `last_visited_lesson_id` and `last_visited_at`, `first_activity_at`,
+  `completion_version`, `activity_version`, `curriculum_version`,
+  completed/eligible block and lesson counts, `course_percentage`,
+  `frozen_at`, `created_at`, and `updated_at`.
+- **Foreign keys:** `enrollment_id` references `course_enrollments.id`;
+  `last_visited_lesson_id` references `lessons.id`.
+- **Relationships:** One enrollment has at most one root. One root owns many
+  lesson states, block states, progress events, and idempotency records.
+- **Indexes:** Unique enrollment ID; `(last_visited_at, enrollment_id)` for
+  global resume; `frozen_at` for retention/review.
+- **Constraints:** Versions and counts are nonnegative, curriculum version is
+  positive, completed counts cannot exceed totals, percentage exactly matches
+  the floor-rounded lesson formula, and last-visited fields are paired.
+
 #### `lesson_progress`
 
-**Legacy blueprint entry:** This per-user model and its video resume field are
-not the Module #8 implementation target. They are retained only to show the
-earlier database concept.
+- **Purpose:** Stores the current persisted lesson state for one enrollment.
+  `NOT_STARTED` and `READY_TO_COMPLETE` are derived rather than stored.
+- **Primary key:** `id`, UUIDv7 generated by Prisma.
+- **Important fields:** `enrollment_id`, `lesson_id`, `state`,
+  `curriculum_version`, first/last activity timestamps, nullable
+  `completed_at`, `created_at`, and `updated_at`.
+- **Foreign keys:** `enrollment_id` references the unique enrollment identity
+  on `enrollment_progress_roots`; `lesson_id` references `lessons.id`.
+- **Relationships:** Many lesson states belong to one progress root; each row
+  addresses one lesson.
+- **Indexes:** Unique `(enrollment_id, lesson_id)`; indexes on
+  `(enrollment_id, state, lesson_id)`, `(lesson_id, state)`,
+  `(enrollment_id, last_activity_at)`, and `completed_at`.
+- **Constraints:** Curriculum version is positive; `COMPLETED` requires
+  `completed_at`; `IN_PROGRESS` requires it to be null; activity and completion
+  timestamps are ordered.
 
-The Module 8.1A candidate instead proposes:
+#### `block_progress`
 
-- one enrollment progress root per enrollment lifecycle;
-- lesson progress unique by enrollment and lesson;
-- sparse block progress unique by enrollment and block;
-- fixed-column progress events;
-- actor-scoped idempotency records;
-- lesson-only resume metadata on the enrollment progress root;
-- separate completion, activity, and curriculum versions.
+- **Purpose:** Stores sparse current block state. No row means `NOT_STARTED`;
+  rows contain only `INCOMPLETE` or `COMPLETED`.
+- **Primary key:** `id`, UUIDv7 generated by Prisma.
+- **Important fields:** `enrollment_id`, `block_id`, `state`,
+  `curriculum_version`, nullable `completed_at`, `created_at`, and `updated_at`.
+- **Foreign keys:** `enrollment_id` references
+  `enrollment_progress_roots.enrollment_id`; `block_id` references
+  `lesson_content_blocks.id`.
+- **Relationships:** Many block states belong to one progress root; each row
+  addresses one content block.
+- **Indexes:** Unique `(enrollment_id, block_id)`; indexes on
+  `(enrollment_id, state, block_id)`, `(block_id, state)`, and `completed_at`.
+- **Constraints:** Curriculum version is positive; `COMPLETED` requires
+  `completed_at`; `INCOMPLETE` requires it to be null.
 
-Exact proposed fields, relations, indexes, retention status, constraints,
-preflight, and backfill boundaries are maintained in
-[Progress Tracking Contract](./PROGRESS_TRACKING_CONTRACT.md). No Prisma model
-or migration may be created until ADR-002 receives recorded approval.
+#### `progress_events`
+
+- **Purpose:** Preserves fixed-column, append-only completion/reopen history and
+  terminal completion evidence. It is not a public stream, analytics warehouse,
+  or outbox.
+- **Primary key:** `id`, UUIDv7 generated by Prisma.
+- **Important fields:** Enrollment and nullable actor/lesson/block IDs, event
+  type, previous/new state, curriculum and resulting completion versions,
+  optional idempotency-record and request-correlation IDs, optional terminal
+  snapshot counts/percentage, and `occurred_at`.
+- **Foreign keys:** Enrollment identity references the progress root; actor
+  references `users`; lesson and block reference their content records;
+  idempotency reference targets `idempotency_records`.
+- **Relationships:** Many events belong to one progress root and may share one
+  idempotency record.
+- **Indexes:** Enrollment, actor, lesson, block, and event type paired with
+  occurrence time; idempotency-record ID.
+- **Constraints:** Event target shape and before/after transitions match event
+  type. Only course-completion events contain a complete, valid 100-percent
+  terminal snapshot.
+
+#### `idempotency_records`
+
+- **Purpose:** Stores a successful response for actor-isolated replay of
+  progress mutations.
+- **Primary key:** `id`, UUIDv7 generated by Prisma.
+- **Important fields:** `actor_user_id`, `enrollment_id`, `key`, operation,
+  SHA-256 request fingerprint, successful response status/envelope, one
+  resulting version, `created_at`, and `expires_at`.
+- **Foreign keys:** Actor references `users`; enrollment identity references
+  `enrollment_progress_roots.enrollment_id`.
+- **Relationships:** Many records belong to an actor and progress root; one
+  record may relate to multiple progress events.
+- **Indexes:** Unique `(actor_user_id, key)`; indexes on
+  `(enrollment_id, created_at)`, `expires_at`, and `(operation, created_at)`.
+- **Constraints:** Key length/characters, lowercase SHA-256 shape, successful
+  HTTP status, operation-specific result version, and future expiry are checked.
+
+Progress foreign keys use `RESTRICT` to preserve academic history except the
+nullable progress-event actor and idempotency-record references, which use
+`SET NULL`. This lets approved user anonymization and bounded idempotency cleanup
+preserve the event itself. Cross-table eligibility and same-course membership
+cannot be enforced safely by PostgreSQL `CHECK`; Module 8.2 must validate them
+inside the approved serializable transaction.
 
 ### 4.4 Assessments
 
