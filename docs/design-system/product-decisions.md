@@ -36,6 +36,61 @@ fields. Add the feature through a later contract and product-behavior review.
 future media-engagement capability and cannot determine canonical completion
 without a later policy.
 
+## Progress Tracking v1 policies
+
+**Status:** Accepted architecture direction; Module 8.1A approval record pending.
+
+The detailed contract is in
+[Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md), and the
+architectural rationale is in
+[ADR-002](./decisions/ADR-002-progress-tracking-contract.md).
+
+**Identity:** Canonical progress belongs to one enrollment lifecycle. Lesson and
+block progress use enrollment-scoped identity. Cancelled re-enrollment receives
+a new progress root; suspended reactivation keeps the existing root.
+
+**Enrollment state:** Only ACTIVE enrollment permits progress mutation.
+SUSPENDED progress remains readable but has no mutation or resume target.
+CANCELLED progress is frozen, historical, and read-only. COMPLETED progress is
+terminal, frozen at 100 percent, and has no mutation or resume target.
+
+**Content access:** Content access is separate from progress mutation. A
+completed learner may receive content revisit capability without changing last
+visit, activity, completion, aggregate, resume, or canonical state. Use
+`Qayta ko‘rish` for a revisit and reserve `Qayta ochish` for a progress-state
+transition.
+
+**Completion:** Eligible blocks may be completed manually. Lesson completion is
+explicit and requires all eligible required blocks. Optional blocks may be
+completed but do not enter denominators or prerequisites. A lesson with zero
+required blocks may be explicitly completed. Opening a lesson never completes
+it.
+
+**Reopen:** Blocks and lessons may reopen only while the enrollment is ACTIVE
+and course progress is not terminal. Completed course progress cannot reopen in
+v1.
+
+**Course completion:** Completing all eligible lessons atomically completes the
+ACTIVE enrollment only when at least one eligible lesson exists. No separate
+course-completion button exists.
+
+**Curriculum:** ACTIVE and SUSPENDED progress follows the current published
+curriculum version. CANCELLED and COMPLETED snapshots remain frozen. Stale
+curriculum mutations fail and require authoritative refresh.
+
+**Versions:** Completion state, visit activity, and curriculum use separate
+`completionVersion`, `activityVersion`, and `curriculumVersion` concepts.
+
+**Resume:** Resume is a backend-selected lesson target. Clients do not sort
+incomplete lessons and receive no playback seconds or block offsets.
+
+**Retention:** The 24-hour idempotency, 13-month detailed-event, and canonical
+completion retention periods remain proposals until privacy/legal approval.
+
+**Legacy data:** Module 8.1B requires a target-environment preflight. Historical
+snapshots must not be invented when the original curriculum cannot be
+reconstructed.
+
 ## Charts
 
 **Decision:** Initial simple progress displays use semantic HTML, CSS, and
@@ -86,4 +141,7 @@ unapproved retention controls.
 Progress UI implementation remains blocked until OpenAPI, DTOs, nullability,
 pagination, enums, error codes, concurrency, idempotency, enrollment read
 behavior, view-model mapping, and loading/mutation states are jointly approved.
-See [Progress Tracking UI](./progress-tracking-ui.md).
+Module 8.1A provides review candidates for these artifacts but does not approve
+implementation. See [Progress Tracking UI](./progress-tracking-ui.md),
+[Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md), and
+[Progress Tracking OpenAPI](../openapi/progress-tracking.v1.yaml).

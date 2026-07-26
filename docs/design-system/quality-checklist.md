@@ -129,10 +129,15 @@ misses are tracked but do not alone block release.
 
 ## Module #8 gate
 
+- [ ] ADR-002 and the Module 8.1A contract have recorded human approval.
 - [ ] Approved OpenAPI schemas and exact response DTOs exist.
 - [ ] Nullability, pagination, state enums, and stable error codes are complete.
-- [ ] Concurrency and idempotency contracts are complete.
+- [ ] Completion/activity/curriculum versions are distinct and complete.
+- [ ] Concurrency and actor-scoped idempotency contracts are complete.
 - [ ] Suspended/cancelled read behavior is explicit.
+- [ ] Completed content revisit is separate from progress reopen.
+- [ ] Database blueprint legacy assumptions are explicitly superseded.
+- [ ] Module 8.1B environment preflight and legacy-data policy are approved.
 - [ ] Typed DTO-to-view-model mapping is reviewed.
 - [ ] Initial loading, background refresh, and mutation pending are distinct.
 - [ ] No streak, achievement, or playback-position behavior leaked into v1.

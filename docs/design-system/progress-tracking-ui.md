@@ -1,10 +1,14 @@
 # Progress Tracking UI — Module #8 Preparation
 
-**Status:** Contract-blocked design candidate
+**Status:** Module 8.1A contract review candidate; frontend implementation blocked
 
-This document specifies presentation behavior only. It does not design or
-authorize the Module #8 backend. Frontend implementation of Module #8 is
-blocked until the contract approval gate in this document is complete.
+This document specifies presentation behavior. The proposed backend and API
+contract is now defined by
+[Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md),
+[ADR-002](./decisions/ADR-002-progress-tracking-contract.md), and
+[Progress Tracking OpenAPI](../openapi/progress-tracking.v1.yaml). These
+artifacts remain review candidates and authorize no backend, database, package,
+or frontend implementation until the approval gate is recorded.
 
 ## V1 scope
 
@@ -105,9 +109,9 @@ The card includes:
 - current authoritative course percentage;
 - unavailable reason if enrollment/course state changed.
 
-Last visited lesson is presentation metadata, not completion. Opening a lesson
-does not mark it complete unless the future contract explicitly defines an
-idempotent visit mutation.
+Last visited lesson is presentation metadata, not completion. The Module 8.1A
+candidate defines an idempotent last-visited mutation for ACTIVE enrollment.
+Opening a lesson never marks it or its blocks complete.
 
 ## Enrollment-state behavior
 
@@ -119,21 +123,23 @@ API determine complete/reopen availability.
 ### Suspended
 
 Mutation controls are replaced by
-`O‘qish jarayoni vaqtincha to‘xtatilgan.` Confirmed progress remains visible
-only if the approved contract permits suspended reads. A suspension response
-during mutation wins over the local pending state.
+`O‘qish jarayoni vaqtincha to‘xtatilgan.` Confirmed progress remains readable,
+but mutation, activity recording, and resume are unavailable. A suspension
+response during mutation wins over the local pending state.
 
 ### Cancelled
 
-Mutation controls are removed. Whether historical progress remains readable
-must be explicitly defined by the future contract; the frontend does not assume
-it. Copy uses `Kursdan chiqilgan`.
+Mutation controls are removed. The frozen historical snapshot remains readable
+to the owning student and authorized scoped viewers. Activity recording and
+resume are unavailable. Copy uses `Kursdan chiqilgan`.
 
 ### Completed
 
-Canonical completion is read-only unless a specific approved reopen policy
-exists. Certificate UI appears only after a future certificate eligibility DTO
-confirms it.
+Canonical completion is terminal and read-only in v1. Content may remain
+available through separate content-access capabilities. Revisiting content uses
+`Qayta ko‘rish`, changes no progress or activity state, and is not a
+`Qayta ochish` transition. Certificate UI appears only after a future
+certificate eligibility DTO confirms it.
 
 ## Mutation and reconciliation contract
 
@@ -168,10 +174,12 @@ If the response reports a curriculum/version conflict, the client:
 
 ### Idempotency and concurrency
 
-The mutation contract must specify an idempotency key and `expectedVersion` (or
-an equivalent server concurrency mechanism). A repeated identical completion
-must resolve to the same authoritative state. A stale version is not silently
-retried as a write; refresh and user review occur first.
+Completion mutations require an idempotency key, `expectedCompletionVersion`,
+and `curriculumVersion`. Last-visited mutations require an idempotency key and
+`curriculumVersion`; they update a separate `activityVersion`. A repeated
+identical operation resolves to the same authoritative state. A stale
+completion or curriculum version is not silently retried as a write; refresh
+and user review occur first.
 
 ## Loading model
 
@@ -267,13 +275,16 @@ The UI does not invent exact codes before contract approval.
 Frontend implementation is blocked until all artifacts below are reviewed and
 approved together:
 
+- [ADR-002](./decisions/ADR-002-progress-tracking-contract.md);
+- [Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md);
+- [Progress Tracking OpenAPI](../openapi/progress-tracking.v1.yaml);
 - OpenAPI operation and component schemas;
 - exact self, teacher, and admin response DTOs;
 - nullability for every field;
 - pagination shape and maximum/default limits;
 - stable course/section/lesson/block/enrollment state enums;
 - stable error-code catalog and HTTP mapping;
-- `expectedVersion` or equivalent concurrency control;
+- `completionVersion`, `activityVersion`, and `curriculumVersion` behavior;
 - idempotency-key generation, scope, replay, and expiry contract;
 - suspended and cancelled read behavior;
 - reopen policy and completion timestamp semantics;
@@ -283,10 +294,13 @@ approved together:
 - item-level mutation-pending and rollback states;
 - authorization/capability fields that avoid client inference.
 
-Approval means OpenAPI parses and lints, DTO examples match runtime behavior,
-contract tests pass, security/privacy review is recorded, and no blocking
-ambiguity remains. Until then, this document is a presentation proposal, not an
-implementation contract.
+Module 8.1A approval means OpenAPI parses and lints, examples match the
+documented DTOs, internal links and formatting pass, security/privacy and other
+named human reviews are recorded, and no blocking ambiguity remains. Runtime
+example matching and runtime contract tests are required again in Module 8.2.
+Until 8.1A approval, these documents remain proposals. Module 8.3 remains
+blocked until the implemented Module 8.2 contract tests also pass and applicable
+Design System approval is recorded.
 
 ## Future compatibility
 

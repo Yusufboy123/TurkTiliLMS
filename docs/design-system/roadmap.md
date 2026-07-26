@@ -87,10 +87,11 @@ and enrollment contracts.
 Exit: an eligible student can navigate directly to and consume every supported
 lesson-content type without client-derived progress or resume behavior.
 
-## Phase 6 — Module #8 backend/API contract design and approval
+## Phase 6A — Module 8.1A contract design and approval
 
-Design and jointly approve:
+Create and jointly approve, without runtime or database implementation:
 
+- product policies and accepted ADR;
 - OpenAPI operations and component schemas;
 - exact student, teacher, and admin DTOs with nullability;
 - pagination, enums, and stable error/HTTP mappings;
@@ -98,19 +99,50 @@ Design and jointly approve:
 - enrollment read policy and curriculum revision behavior;
 - completion, reopening, timestamps, aggregates, and resume-target semantics;
 - authorization/capability fields;
+- logical data-model proposal;
 - typed frontend DTO-to-view-model mapping;
 - initial-loading, background-refresh, stale, mutation-pending, and rollback
   states.
 
-No Module #8-dependent frontend behavior may begin until OpenAPI parses and
-lints, examples match runtime behavior, contract tests pass, and
-security/privacy approval is recorded.
+No Prisma, migration, permission seed, runtime, package, or Module #8 frontend
+change belongs to this phase.
 
-Exit: the complete Module #8 API and frontend-consumption contract is approved.
+Exit: the Module 8.1A ADR, product policy, contract specification, and OpenAPI
+parse and lint; human product, architecture, security/privacy, accessibility,
+and engineering approval is recorded.
 
-## Phase 7 — Module #8 student frontend integration
+## Phase 6B — Module 8.1B schema and migration
 
-Only after Phase 6:
+Only after Phase 6A approval:
+
+- run the target-environment data and migration preflight;
+- update Prisma schema;
+- create an additive migration;
+- seed approved permissions idempotently;
+- execute the approved legacy backfill;
+- verify database constraints, rollback strategy, and migration behavior.
+
+Exit: schema validation/generation, migration deploy/status, backfill,
+constraint, concurrency-foundation, and production-safety checks pass. No
+progress endpoint or frontend behavior is implemented.
+
+## Phase 6C — Module 8.2 backend progress engine
+
+Only after Phase 6B:
+
+- implement Repository → Service → Controller progress architecture;
+- implement student progress reads and mutations from the approved OpenAPI;
+- enforce service-level authorization and capabilities;
+- implement serializable transactions, versions, idempotency, aggregates,
+  resume selection, events, and enrollment completion integration;
+- pass unit, route, PostgreSQL concurrency, security, and contract tests.
+
+Exit: Module 8.2 runtime matches the approved OpenAPI and all backend,
+PostgreSQL, compatibility, and production-error checks pass.
+
+## Phase 7 — Module 8.3 student frontend integration
+
+Only after Phase 6C and applicable Design System approval:
 
 - implement Student Dashboard progress and resume regions;
 - implement My Courses progress and completed-course states;
@@ -129,7 +161,8 @@ reconciliation tests pass.
 - Accessible reorder and content-block editing.
 - Teacher Media after reuse/quota policy.
 - Publish checklist, preview, and enrollment management.
-- Teacher `O‘zlashtirish` only through the approved Phase 6 contract.
+- Module 8.4 teacher `O‘zlashtirish` only through the approved Module 8.1A
+  reporting boundary and after Module 8.3.
 - Settings after preference contracts.
 
 Exit: normal teacher operations require no source edits.
@@ -141,7 +174,8 @@ Exit: normal teacher operations require no source edits.
 - Roles/permission matrix after API/conflict policy.
 - Course/enrollment/media management.
 - Audit and permission-controlled export.
-- Admin `O‘zlashtirish` only through the approved Phase 6 contract.
+- Module 8.4 admin `O‘zlashtirish` only through the approved Module 8.1A
+  reporting boundary and after Module 8.3.
 - Typed safe business/brand settings.
 
 Exit: every owner-managed module has graphical UI, permission, validation,

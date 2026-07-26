@@ -34,6 +34,22 @@ Table and field names are presented in the intended PostgreSQL naming style.
 Exact data types, constraints, and migrations must be reviewed when the schema
 is implemented.
 
+### Module #8 progress blueprint notice
+
+The original `lesson_progress` entries in this broad blueprint predate the
+implemented course-enrollment lifecycle and the decision to exclude video
+playback position from initial Module #8. The Module 8.1A review candidates
+[ADR-002](./design-system/decisions/ADR-002-progress-tracking-contract.md) and
+[Progress Tracking Contract](./PROGRESS_TRACKING_CONTRACT.md) propose replacing
+canonical `user_id + lesson_id`, optional enrollment identity, video
+`resume_position_seconds`, and one generic version with enrollment-bound
+lesson/block identity, a progress root, fixed-column events, idempotency, and
+separate completion/activity/curriculum versions.
+
+Until ADR-002 is accepted, no progress schema is authorized. After acceptance,
+the Module #8 contract supersedes the legacy `lesson_progress` assumptions for
+Module 8.1B. Other domain sections of this database blueprint remain unaffected.
+
 ---
 
 ## 1. Database overview
@@ -912,20 +928,24 @@ expires_at)`; index on `token_family_id`; index on `expires_at` for cleanup.
 
 #### `lesson_progress`
 
-- **Purpose:** Stores the authoritative per-user state and resume position for a
-  lesson.
-- **Primary key:** `id`, UUID.
-- **Important fields:** `status`, `progress_percent`, `resume_position_seconds`,
-  `started_at`, `last_activity_at`, `completed_at`, `completion_source`,
-  `version`, `created_at`, `updated_at`.
-- **Foreign keys:** `user_id` references `users.id`; `lesson_id` references
-  `lessons.id`; optional `enrollment_id` references
-  `course_enrollments.id`.
-- **Relationships:** One user has at most one current progress row per lesson;
-  many progress rows belong to a lesson.
-- **Indexes:** Unique `(user_id, lesson_id)`; indexes on
-  `(user_id, status, last_activity_at)`, `(lesson_id, status)`,
-  `enrollment_id`, and `completed_at`.
+**Legacy blueprint entry:** This per-user model and its video resume field are
+not the Module #8 implementation target. They are retained only to show the
+earlier database concept.
+
+The Module 8.1A candidate instead proposes:
+
+- one enrollment progress root per enrollment lifecycle;
+- lesson progress unique by enrollment and lesson;
+- sparse block progress unique by enrollment and block;
+- fixed-column progress events;
+- actor-scoped idempotency records;
+- lesson-only resume metadata on the enrollment progress root;
+- separate completion, activity, and curriculum versions.
+
+Exact proposed fields, relations, indexes, retention status, constraints,
+preflight, and backfill boundaries are maintained in
+[Progress Tracking Contract](./PROGRESS_TRACKING_CONTRACT.md). No Prisma model
+or migration may be created until ADR-002 receives recorded approval.
 
 ### 4.4 Assessments
 

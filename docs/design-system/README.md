@@ -105,6 +105,7 @@ implementation.
 | Document                                                          | Authority                                            |
 | ----------------------------------------------------------------- | ---------------------------------------------------- |
 | [ADR-001](./decisions/ADR-001-semantic-tokens-and-role-shells.md) | Semantic-token and role-shell architectural decision |
+| [ADR-002](./decisions/ADR-002-progress-tracking-contract.md)      | Proposed Module #8 architecture; approval pending    |
 | [Foundations](./foundations.md)                                   | Normative tokens, contrast, type, layout, stack      |
 | [Accessibility](./accessibility.md)                               | Normative WCAG and acceptance contract               |
 | [Components](./components.md)                                     | Component layers and public contracts                |
@@ -121,6 +122,17 @@ implementation.
 | [Personas and IA](./personas-and-information-architecture.md)     | Audiences and navigation model                       |
 | [Quality Checklist](./quality-checklist.md)                       | Release and review evidence                          |
 | [Roadmap](./roadmap.md)                                           | Dependency-aware delivery order                      |
+
+Project-level Module #8 review candidates:
+
+- [Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md)
+- [Progress Tracking OpenAPI](../openapi/progress-tracking.v1.yaml)
+
+The existing `design-system-v1.0` Git tag does not override this directory's
+status vocabulary or approval markers. Module 8.1A contract review may proceed.
+Module 8.1B remains blocked until Module 8.1A approval is recorded, and Module
+8.3 remains blocked until the contract gate, applicable Design System approval,
+and accessibility/product requirements are accepted.
 
 ## Settled baseline decisions
 
@@ -161,4 +173,5 @@ OpenAPI contracts, and tests are accounted for.
 
 This documentation does not authorize frontend/backend implementation, schema
 changes, package installation, deployment, or migrations. Module #8 UI remains
-blocked until its future OpenAPI and DTO contract gate is approved.
+blocked until the Module 8.1A OpenAPI and DTO contract gate is approved,
+Module 8.2 matches it, and applicable Design System approval is recorded.

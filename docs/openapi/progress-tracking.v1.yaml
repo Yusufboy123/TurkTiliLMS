@@ -1,0 +1,2156 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Progress Tracking API
+  version: 1.0.0-contract-candidate
+  description: |
+    Module 8.1A contract-only baseline for backend-authoritative progress.
+    No operation in this document is implemented by Module 8.1A. Student
+    operations are planned for Module 8.2. Teacher and administrator reporting
+    boundaries are planned for Module 8.4. Export is intentionally unavailable.
+    Route middleware and the future service layer must both enforce documented
+    role, permission, ownership, enrollment-state, and resource-scope policies.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development base path
+tags:
+  - name: Student Progress
+  - name: Teacher Progress
+  - name: Administrator Progress
+paths:
+  /me/progress:
+    get:
+      tags: [Student Progress]
+      operationId: getOwnProgressSummary
+      summary: Retrieve the authenticated student's progress summary
+      description: |
+        Requires the STUDENT role and `progress.self_read`. Returns only the
+        authenticated student's progress and a backend-selected global resume
+        target. This operation is planned for Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ActiveLimit'
+      responses:
+        '200':
+          description: Personal progress summary returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProgressSummaryResponse'
+              examples:
+                summary:
+                  $ref: '#/components/examples/StudentProgressSummaryExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/progress/completed-courses:
+    get:
+      tags: [Student Progress]
+      operationId: listOwnCompletedCourses
+      summary: List the authenticated student's completed courses
+      description: |
+        Requires the STUDENT role and `progress.self_read`. Returns frozen
+        terminal completion snapshots only. This operation is planned for
+        Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [completedAt, enrolledAt]
+            default: completedAt
+        - $ref: '#/components/parameters/SortDirection'
+      responses:
+        '200':
+          description: Completed-course page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletedCoursePageResponse'
+              examples:
+                completedCourses:
+                  $ref: '#/components/examples/CompletedCoursePageExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress:
+    get:
+      tags: [Student Progress]
+      operationId: getOwnEnrollmentProgress
+      summary: Retrieve hierarchical progress for one owned enrollment
+      description: |
+        Requires the STUDENT role, `progress.self_read`, and enrollment
+        ownership. SUSPENDED, CANCELLED, and COMPLETED history is readable but
+        has no mutation or resume capabilities. This operation is planned for
+        Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Authoritative course progress returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseProgressResponse'
+              examples:
+                courseProgress:
+                  $ref: '#/components/examples/CourseProgressExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ProgressScopeDenied'
+        '404':
+          $ref: '#/components/responses/EnrollmentNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress/resume:
+    get:
+      tags: [Student Progress]
+      operationId: getOwnEnrollmentResumeTarget
+      summary: Retrieve the authoritative resume target for one enrollment
+      description: |
+        Requires the STUDENT role, `progress.self_read`, and ownership. The
+        result is null for non-ACTIVE enrollment, unavailable course, completed
+        curriculum, or no eligible incomplete lesson. No playback position or
+        block offset is returned. This operation is planned for Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Resume target or null returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeLearningResponse'
+              examples:
+                target:
+                  $ref: '#/components/examples/ResumeLearningExample'
+                noTarget:
+                  value:
+                    success: true
+                    message: Davom ettirish uchun dars mavjud emas.
+                    data: null
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ProgressScopeDenied'
+        '404':
+          $ref: '#/components/responses/EnrollmentNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress/blocks/{blockId}/complete:
+    post:
+      tags: [Student Progress]
+      operationId: completeOwnContentBlock
+      summary: Mark one eligible content block complete
+      description: |
+        Requires the STUDENT role, `progress.self_complete`, ownership, ACTIVE
+        enrollment, current curriculum version, expected completion version,
+        and an Idempotency-Key. Repeating the same effective operation succeeds
+        with changed=false. This operation is planned for Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_complete]
+      x-idempotency-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+        - $ref: '#/components/parameters/BlockId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/CompletionMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProgressMutationSucceeded'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/MutationDenied'
+        '404':
+          $ref: '#/components/responses/ProgressResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ProgressConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress/blocks/{blockId}/reopen:
+    post:
+      tags: [Student Progress]
+      operationId: reopenOwnContentBlock
+      summary: Reopen one completed content block
+      description: |
+        Requires the STUDENT role, `progress.self_reopen`, ownership, ACTIVE
+        nonterminal progress, current versions, and an Idempotency-Key. Reading
+        completed content is not this operation. This operation is planned for
+        Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_reopen]
+      x-idempotency-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+        - $ref: '#/components/parameters/BlockId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/CompletionMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProgressMutationSucceeded'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/MutationDenied'
+        '404':
+          $ref: '#/components/responses/ProgressResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ProgressConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress/lessons/{lessonId}/complete:
+    post:
+      tags: [Student Progress]
+      operationId: completeOwnLesson
+      summary: Explicitly complete one eligible lesson
+      description: |
+        Requires the STUDENT role, `progress.self_complete`, ownership, ACTIVE
+        enrollment, all required eligible blocks complete, current versions,
+        and an Idempotency-Key. Completing the final eligible lesson may
+        atomically complete the enrollment. This operation is planned for
+        Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_complete]
+      x-idempotency-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+        - $ref: '#/components/parameters/LessonId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/CompletionMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProgressMutationSucceeded'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/MutationDenied'
+        '404':
+          $ref: '#/components/responses/ProgressResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ProgressConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress/lessons/{lessonId}/reopen:
+    post:
+      tags: [Student Progress]
+      operationId: reopenOwnLesson
+      summary: Reopen one completed lesson before terminal course completion
+      description: |
+        Requires the STUDENT role, `progress.self_reopen`, ownership, ACTIVE
+        nonterminal progress, current versions, and an Idempotency-Key. A
+        COMPLETED enrollment cannot reopen in v1. This operation is planned for
+        Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_reopen]
+      x-idempotency-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+        - $ref: '#/components/parameters/LessonId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/CompletionMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProgressMutationSucceeded'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/MutationDenied'
+        '404':
+          $ref: '#/components/responses/ProgressResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ProgressConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/progress/last-visited-lesson:
+    put:
+      tags: [Student Progress]
+      operationId: recordOwnLastVisitedLesson
+      summary: Record the last visited eligible lesson
+      description: |
+        Requires the STUDENT role, `progress.self_record_visit`, ownership,
+        ACTIVE enrollment, current curriculum version, and an Idempotency-Key.
+        It increments activityVersion but not completionVersion and never
+        completes content. Legitimate concurrent visits use last-committed server
+        order. This operation is planned for Module 8.2.
+      x-implementation-phase: Module 8.2
+      x-implementation-status: contract-only
+      x-required-roles: [STUDENT]
+      x-required-permissions: [progress.self_record_visit]
+      x-idempotency-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordLastVisitedLessonRequest'
+            example:
+              lessonId: 019c0000-0000-7000-8000-000000000004
+              curriculumVersion: 4
+      responses:
+        '200':
+          description: Last visited lesson recorded or idempotently replayed
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityMutationResponse'
+              examples:
+                recorded:
+                  $ref: '#/components/examples/ActivityMutationExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/MutationDenied'
+        '404':
+          $ref: '#/components/responses/ProgressResourceNotFound'
+        '409':
+          $ref: '#/components/responses/ProgressConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /courses/{courseId}/progress:
+    get:
+      tags: [Teacher Progress]
+      operationId: listTeacherCourseProgress
+      summary: List student progress for a teacher-owned course
+      description: |
+        Future Module 8.4 boundary. Requires ADMIN or TEACHER,
+        `progress.course.read`, and for a teacher the current course owner scope.
+        This operation is not available in Module 8.1A, 8.1B, 8.2, or 8.3.
+      x-implementation-phase: Module 8.4
+      x-implementation-status: future-boundary-not-available
+      x-required-roles: [ADMIN, TEACHER]
+      x-required-permissions: [progress.course.read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/EnrollmentStatusFilter'
+        - $ref: '#/components/parameters/ProgressStateFilter'
+        - $ref: '#/components/parameters/ReportingSortBy'
+        - $ref: '#/components/parameters/SortDirection'
+      responses:
+        '200':
+          description: Teacher-scoped progress page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherCourseProgressPageResponse'
+              examples:
+                reporting:
+                  $ref: '#/components/examples/TeacherCourseProgressPageExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ReportingDenied'
+        '404':
+          $ref: '#/components/responses/CourseNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /courses/{courseId}/progress/enrollments/{enrollmentId}:
+    get:
+      tags: [Teacher Progress]
+      operationId: getTeacherStudentProgress
+      summary: Retrieve one student's progress in a teacher-owned course
+      description: |
+        Future Module 8.4 boundary. Requires ADMIN or TEACHER,
+        `progress.course.read`, course ownership for a teacher, and an enrollment
+        belonging to the path course. This operation is not currently available.
+      x-implementation-phase: Module 8.4
+      x-implementation-status: future-boundary-not-available
+      x-required-roles: [ADMIN, TEACHER]
+      x-required-permissions: [progress.course.read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Teacher-scoped student detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherStudentProgressResponse'
+              examples:
+                detail:
+                  $ref: '#/components/examples/TeacherStudentProgressExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ReportingDenied'
+        '404':
+          $ref: '#/components/responses/ProgressResourceNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /progress:
+    get:
+      tags: [Administrator Progress]
+      operationId: listAdministratorProgress
+      summary: Search permission-scoped progress records
+      description: |
+        Future Module 8.4 boundary. Requires ADMIN and `progress.read`. It is not
+        an export endpoint and is not currently available.
+      x-implementation-phase: Module 8.4
+      x-implementation-status: future-boundary-not-available
+      x-required-roles: [ADMIN]
+      x-required-permissions: [progress.read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - name: courseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: studentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/EnrollmentStatusFilter'
+        - $ref: '#/components/parameters/ProgressStateFilter'
+        - $ref: '#/components/parameters/ReportingSortBy'
+        - $ref: '#/components/parameters/SortDirection'
+      responses:
+        '200':
+          description: Administrator progress page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProgressPageResponse'
+              examples:
+                reporting:
+                  $ref: '#/components/examples/AdminProgressPageExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ReportingDenied'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /progress/enrollments/{enrollmentId}:
+    get:
+      tags: [Administrator Progress]
+      operationId: getAdministratorEnrollmentProgress
+      summary: Retrieve one permission-scoped enrollment progress detail
+      description: |
+        Future Module 8.4 boundary. Requires ADMIN and `progress.read`. This
+        operation exposes no internal progress events and is not currently
+        available.
+      x-implementation-phase: Module 8.4
+      x-implementation-status: future-boundary-not-available
+      x-required-roles: [ADMIN]
+      x-required-permissions: [progress.read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Administrator-scoped detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherStudentProgressResponse'
+              examples:
+                detail:
+                  $ref: '#/components/examples/TeacherStudentProgressExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ReportingDenied'
+        '404':
+          $ref: '#/components/responses/EnrollmentNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EnrollmentId:
+      name: enrollmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LessonId:
+      name: lessonId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BlockId:
+      name: blockId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Actor-scoped key for one normalized operation. UUIDv4 or UUIDv7 is
+        recommended. Reuse with a different request fingerprint returns
+        IDEMPOTENCY_KEY_CONFLICT.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]{16,128}$'
+      example: 019c0000-0000-7000-8000-000000000099
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ActiveLimit:
+      name: activeLimit
+      in: query
+      description: Maximum active-course summaries embedded in the dashboard response.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10
+        default: 5
+    Search:
+      name: search
+      in: query
+      description: Case-insensitive permitted student identity search.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    EnrollmentStatusFilter:
+      name: enrollmentStatus
+      in: query
+      schema:
+        $ref: '#/components/schemas/EnrollmentStatus'
+    ProgressStateFilter:
+      name: progressState
+      in: query
+      schema:
+        $ref: '#/components/schemas/CourseProgressState'
+    ReportingSortBy:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+        enum: [lastActivityAt, completedAt, percentage, enrolledAt, studentName]
+        default: lastActivityAt
+    SortDirection:
+      name: sortDirection
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+  headers:
+    IdempotencyReplayed:
+      description: True when the successful response was replayed from an actor-scoped key.
+      schema:
+        type: boolean
+        default: false
+  requestBodies:
+    CompletionMutation:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CompletionMutationRequest'
+          example:
+            expectedCompletionVersion: 7
+            curriculumVersion: 4
+  responses:
+    AuthenticationRequired:
+      description: Authentication is required or the access token is invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing:
+              value:
+                success: false
+                code: AUTHENTICATION_REQUIRED
+                message: Davom etish uchun tizimga kirish talab qilinadi.
+            invalid:
+              value:
+                success: false
+                code: INVALID_ACCESS_TOKEN
+                message: Kirish sessiyasi yaroqsiz yoki muddati tugagan.
+    AccessDenied:
+      description: Required role or permission is missing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: ACCESS_DENIED
+            message: Bu amal uchun ruxsat yetarli emas.
+    ProgressScopeDenied:
+      description: Progress is outside the authenticated student's ownership
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: PROGRESS_SCOPE_DENIED
+            message: Bu o‘qish jarayonini ko‘rishga ruxsat yetarli emas.
+    ReportingDenied:
+      description: Reporting permission or teacher course scope is missing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            permission:
+              value:
+                success: false
+                code: ACCESS_DENIED
+                message: Bu amal uchun ruxsat yetarli emas.
+            courseScope:
+              value:
+                success: false
+                code: COURSE_SCOPE_DENIED
+                message: Bu kurs sizga biriktirilmagan.
+    MutationDenied:
+      description: Mutation permission, ownership, or reopen policy denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            permission:
+              value:
+                success: false
+                code: ACCESS_DENIED
+                message: Bu amal uchun ruxsat yetarli emas.
+            reopen:
+              value:
+                success: false
+                code: REOPEN_NOT_PERMITTED
+                message: Bu elementni qayta ochishga ruxsat berilmagan.
+    EnrollmentNotFound:
+      description: Enrollment was not found or is hidden by ownership policy
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: ENROLLMENT_NOT_FOUND
+            message: Enrollment topilmadi.
+    CourseNotFound:
+      description: Course was not found in the permitted scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: COURSE_NOT_FOUND
+            message: Kurs topilmadi.
+    ProgressResourceNotFound:
+      description: Enrollment, lesson, or content block was not found in scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            enrollment:
+              value:
+                success: false
+                code: ENROLLMENT_NOT_FOUND
+                message: Enrollment topilmadi.
+            lesson:
+              value:
+                success: false
+                code: LESSON_NOT_FOUND
+                message: Dars topilmadi.
+            block:
+              value:
+                success: false
+                code: CONTENT_BLOCK_NOT_FOUND
+                message: Dars materiali topilmadi.
+    ProgressConflict:
+      description: Enrollment, curriculum, completion, eligibility, or idempotency conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            curriculum:
+              value:
+                success: false
+                code: CURRICULUM_VERSION_CONFLICT
+                message: Kurs tarkibi yangilandi. Jarayonni qayta yuklang.
+            completion:
+              value:
+                success: false
+                code: COMPLETION_VERSION_CONFLICT
+                message: O‘qish jarayoni boshqa qurilmada yangilangan. Ma’lumotlarni qayta yuklang.
+            idempotency:
+              value:
+                success: false
+                code: IDEMPOTENCY_KEY_CONFLICT
+                message: Takroriy so‘rov kaliti boshqa amal uchun ishlatilgan.
+            requirements:
+              value:
+                success: false
+                code: LESSON_COMPLETION_REQUIREMENTS_NOT_MET
+                message: Darsni tugallash uchun majburiy materiallarni yakunlang.
+    ValidationFailure:
+      description: Path, query, header, or body validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: VALIDATION_ERROR
+            message: Kiritilgan ma’lumotlarni tekshiring.
+            details:
+              - path: expectedCompletionVersion
+                message: Qiymat manfiy bo‘lmasligi kerak.
+    RateLimited:
+      description: Request rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: RATE_LIMIT_EXCEEDED
+            message: Juda ko‘p so‘rov yuborildi. Birozdan so‘ng qayta urinib ko‘ring.
+    ProgressMutationSucceeded:
+      description: Progress mutation committed or returned idempotently
+      headers:
+        Idempotency-Replayed:
+          $ref: '#/components/headers/IdempotencyReplayed'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProgressMutationResponse'
+          examples:
+            changed:
+              $ref: '#/components/examples/ProgressMutationExample'
+            unchanged:
+              $ref: '#/components/examples/ProgressMutationUnchangedExample'
+  schemas:
+    EnrollmentStatus:
+      type: string
+      enum: [ACTIVE, SUSPENDED, CANCELLED, COMPLETED]
+    BlockProgressState:
+      type: string
+      enum: [NOT_STARTED, INCOMPLETE, COMPLETED]
+    LessonProgressState:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, READY_TO_COMPLETE, COMPLETED]
+    CourseProgressState:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, COMPLETED]
+    ProgressUnavailableReason:
+      type:
+        - string
+        - 'null'
+      enum:
+        - ENROLLMENT_SUSPENDED
+        - ENROLLMENT_CANCELLED
+        - ENROLLMENT_COMPLETED
+        - COURSE_UNAVAILABLE
+        - LESSON_UNAVAILABLE
+        - CONTENT_BLOCK_UNAVAILABLE
+        - null
+    ErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - INVALID_ACCESS_TOKEN
+        - ACCESS_DENIED
+        - COURSE_SCOPE_DENIED
+        - PROGRESS_SCOPE_DENIED
+        - REOPEN_NOT_PERMITTED
+        - COURSE_NOT_FOUND
+        - ENROLLMENT_NOT_FOUND
+        - LESSON_NOT_FOUND
+        - CONTENT_BLOCK_NOT_FOUND
+        - ENROLLMENT_NOT_ACTIVE
+        - ENROLLMENT_SUSPENDED
+        - ENROLLMENT_CANCELLED
+        - ENROLLMENT_COMPLETED
+        - COURSE_UNAVAILABLE
+        - LESSON_UNAVAILABLE
+        - CONTENT_BLOCK_UNAVAILABLE
+        - LESSON_COMPLETION_REQUIREMENTS_NOT_MET
+        - INVALID_PROGRESS_TRANSITION
+        - CURRICULUM_VERSION_CONFLICT
+        - COMPLETION_VERSION_CONFLICT
+        - IDEMPOTENCY_KEY_CONFLICT
+        - VALIDATION_ERROR
+        - RATE_LIMIT_EXCEEDED
+        - INTERNAL_SERVER_ERROR
+    Percentage:
+      type: integer
+      minimum: 0
+      maximum: 100
+    NonNegativeCount:
+      type: integer
+      minimum: 0
+    CompletionVersion:
+      type: integer
+      minimum: 0
+    ActivityVersion:
+      type: integer
+      minimum: 0
+    CurriculumVersion:
+      type: integer
+      minimum: 1
+    CompletionMutationRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedCompletionVersion, curriculumVersion]
+      properties:
+        expectedCompletionVersion:
+          $ref: '#/components/schemas/CompletionVersion'
+        curriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+    RecordLastVisitedLessonRequest:
+      type: object
+      additionalProperties: false
+      required: [lessonId, curriculumVersion]
+      properties:
+        lessonId:
+          type: string
+          format: uuid
+        curriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+    CourseReference:
+      type: object
+      additionalProperties: false
+      required: [id, title, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+    SectionReference:
+      type: object
+      additionalProperties: false
+      required: [id, title, position]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+        position:
+          type: integer
+          minimum: 1
+    LessonReference:
+      type: object
+      additionalProperties: false
+      required: [id, title, slug, position]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        position:
+          type: integer
+          minimum: 1
+    StudentReference:
+      type: object
+      additionalProperties: false
+      required: [id, email, firstName, lastName, displayName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        displayName:
+          type: [string, 'null']
+    ProgressCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        - canReadProgress
+        - canAccessCourseContent
+        - canNavigateCurriculum
+        - canDownloadPermittedMedia
+        - canRecordActivity
+        - canResumeLearning
+        - canCompleteBlock
+        - canReopenBlock
+        - canCompleteLesson
+        - canReopenLesson
+        - unavailableReason
+      properties:
+        canReadProgress:
+          type: boolean
+        canAccessCourseContent:
+          type: boolean
+        canNavigateCurriculum:
+          type: boolean
+        canDownloadPermittedMedia:
+          type: boolean
+        canRecordActivity:
+          type: boolean
+        canResumeLearning:
+          type: boolean
+        canCompleteBlock:
+          type: boolean
+        canReopenBlock:
+          type: boolean
+        canCompleteLesson:
+          type: boolean
+        canReopenLesson:
+          type: boolean
+        unavailableReason:
+          $ref: '#/components/schemas/ProgressUnavailableReason'
+    BlockMutationCapabilities:
+      type: object
+      additionalProperties: false
+      required: [canCompleteBlock, canReopenBlock, unavailableReason]
+      properties:
+        canCompleteBlock:
+          type: boolean
+        canReopenBlock:
+          type: boolean
+        unavailableReason:
+          $ref: '#/components/schemas/ProgressUnavailableReason'
+    LessonMutationCapabilities:
+      type: object
+      additionalProperties: false
+      required: [canCompleteLesson, canReopenLesson, unavailableReason]
+      properties:
+        canCompleteLesson:
+          type: boolean
+        canReopenLesson:
+          type: boolean
+        unavailableReason:
+          $ref: '#/components/schemas/ProgressUnavailableReason'
+    ReportingCapabilities:
+      type: object
+      additionalProperties: false
+      required: [canReadDetail, canExport, exportRequiresStepUp]
+      properties:
+        canReadDetail:
+          type: boolean
+        canExport:
+          type: boolean
+          const: false
+        exportRequiresStepUp:
+          type: boolean
+          const: true
+          description: Export remains unavailable; future implementation requires step-up approval.
+    BlockProgress:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - blockType
+        - title
+        - position
+        - isRequired
+        - status
+        - completedAt
+        - capabilities
+      properties:
+        id:
+          type: string
+          format: uuid
+        blockType:
+          type: string
+          enum: [TEXT, VIDEO, AUDIO, PDF, DOCUMENT, IMAGE, LINK, DOWNLOAD]
+        title:
+          type: [string, 'null']
+        position:
+          type: integer
+          minimum: 1
+        isRequired:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/BlockProgressState'
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        capabilities:
+          $ref: '#/components/schemas/BlockMutationCapabilities'
+    LessonProgress:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - sectionId
+        - title
+        - slug
+        - position
+        - status
+        - completedEligibleBlocks
+        - totalEligibleBlocks
+        - percentage
+        - firstActivityAt
+        - lastActivityAt
+        - completedAt
+        - blocks
+        - capabilities
+      properties:
+        id:
+          type: string
+          format: uuid
+        sectionId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        position:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/LessonProgressState'
+        completedEligibleBlocks:
+          $ref: '#/components/schemas/NonNegativeCount'
+        totalEligibleBlocks:
+          $ref: '#/components/schemas/NonNegativeCount'
+        percentage:
+          $ref: '#/components/schemas/Percentage'
+        firstActivityAt:
+          type: [string, 'null']
+          format: date-time
+        lastActivityAt:
+          type: [string, 'null']
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockProgress'
+        capabilities:
+          $ref: '#/components/schemas/LessonMutationCapabilities'
+    SectionProgress:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - position
+        - status
+        - completedLessons
+        - totalEligibleLessons
+        - percentage
+        - lessons
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        position:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/CourseProgressState'
+        completedLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        totalEligibleLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        percentage:
+          $ref: '#/components/schemas/Percentage'
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonProgress'
+    ResumeLearning:
+      type: object
+      additionalProperties: false
+      required:
+        - enrollmentId
+        - course
+        - section
+        - lesson
+        - lastActivityAt
+        - coursePercentage
+        - unavailableReason
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        section:
+          $ref: '#/components/schemas/SectionReference'
+        lesson:
+          $ref: '#/components/schemas/LessonReference'
+        lastActivityAt:
+          type: [string, 'null']
+          format: date-time
+        coursePercentage:
+          $ref: '#/components/schemas/Percentage'
+        unavailableReason:
+          $ref: '#/components/schemas/ProgressUnavailableReason'
+    CourseProgressSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - enrollmentId
+        - course
+        - enrollmentStatus
+        - status
+        - curriculumVersion
+        - completionVersion
+        - activityVersion
+        - completedLessons
+        - totalEligibleLessons
+        - percentage
+        - firstActivityAt
+        - lastActivityAt
+        - completedAt
+        - resumeTarget
+        - capabilities
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        enrollmentStatus:
+          $ref: '#/components/schemas/EnrollmentStatus'
+        status:
+          $ref: '#/components/schemas/CourseProgressState'
+        curriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+        completionVersion:
+          $ref: '#/components/schemas/CompletionVersion'
+        activityVersion:
+          $ref: '#/components/schemas/ActivityVersion'
+        completedLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        totalEligibleLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        percentage:
+          $ref: '#/components/schemas/Percentage'
+        firstActivityAt:
+          type: [string, 'null']
+          format: date-time
+        lastActivityAt:
+          type: [string, 'null']
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        resumeTarget:
+          oneOf:
+            - $ref: '#/components/schemas/ResumeLearning'
+            - type: 'null'
+        capabilities:
+          $ref: '#/components/schemas/ProgressCapabilities'
+    CourseProgress:
+      allOf:
+        - $ref: '#/components/schemas/CourseProgressSummary'
+        - type: object
+          required: [completedEligibleBlocks, totalEligibleBlocks, sections, calculatedAt]
+          properties:
+            completedEligibleBlocks:
+              $ref: '#/components/schemas/NonNegativeCount'
+            totalEligibleBlocks:
+              $ref: '#/components/schemas/NonNegativeCount'
+            sections:
+              type: array
+              items:
+                $ref: '#/components/schemas/SectionProgress'
+            calculatedAt:
+              type: string
+              format: date-time
+      unevaluatedProperties: false
+    CompletedCourse:
+      type: object
+      additionalProperties: false
+      required:
+        - enrollmentId
+        - course
+        - completionCurriculumVersion
+        - percentage
+        - completedLessons
+        - totalEligibleLessons
+        - completedAt
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        completionCurriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+        percentage:
+          type: integer
+          const: 100
+        completedLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        totalEligibleLessons:
+          type: integer
+          minimum: 1
+        completedAt:
+          type: string
+          format: date-time
+    StudentProgressSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - generatedAt
+        - resumeLearning
+        - activeCourseCount
+        - completedCourseCount
+        - activeCourses
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        resumeLearning:
+          oneOf:
+            - $ref: '#/components/schemas/ResumeLearning'
+            - type: 'null'
+        activeCourseCount:
+          $ref: '#/components/schemas/NonNegativeCount'
+        completedCourseCount:
+          $ref: '#/components/schemas/NonNegativeCount'
+        activeCourses:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CourseProgressSummary'
+    ProgressMutationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - enrollmentId
+        - curriculumVersion
+        - completionVersion
+        - activityVersion
+        - changed
+        - affectedLesson
+        - course
+        - resumeTarget
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        curriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+        completionVersion:
+          $ref: '#/components/schemas/CompletionVersion'
+        activityVersion:
+          $ref: '#/components/schemas/ActivityVersion'
+        changed:
+          type: boolean
+        affectedLesson:
+          $ref: '#/components/schemas/LessonProgress'
+        course:
+          $ref: '#/components/schemas/CourseProgressSummary'
+        resumeTarget:
+          oneOf:
+            - $ref: '#/components/schemas/ResumeLearning'
+            - type: 'null'
+    ActivityMutationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - enrollmentId
+        - curriculumVersion
+        - completionVersion
+        - activityVersion
+        - changed
+        - lastVisitedLessonId
+        - lastVisitedAt
+        - resumeTarget
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        curriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+        completionVersion:
+          $ref: '#/components/schemas/CompletionVersion'
+        activityVersion:
+          $ref: '#/components/schemas/ActivityVersion'
+        changed:
+          type: boolean
+        lastVisitedLessonId:
+          type: string
+          format: uuid
+        lastVisitedAt:
+          type: string
+          format: date-time
+        resumeTarget:
+          oneOf:
+            - $ref: '#/components/schemas/ResumeLearning'
+            - type: 'null'
+    Pagination:
+      type: object
+      additionalProperties: false
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalItems:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    TeacherStudentProgress:
+      type: object
+      additionalProperties: false
+      required:
+        - enrollmentId
+        - student
+        - enrollmentStatus
+        - progressStatus
+        - percentage
+        - completedLessons
+        - totalEligibleLessons
+        - lastActivityAt
+        - completedAt
+        - capabilities
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        student:
+          $ref: '#/components/schemas/StudentReference'
+        enrollmentStatus:
+          $ref: '#/components/schemas/EnrollmentStatus'
+        progressStatus:
+          $ref: '#/components/schemas/CourseProgressState'
+        percentage:
+          $ref: '#/components/schemas/Percentage'
+        completedLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        totalEligibleLessons:
+          $ref: '#/components/schemas/NonNegativeCount'
+        lastActivityAt:
+          type: [string, 'null']
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        capabilities:
+          $ref: '#/components/schemas/ReportingCapabilities'
+    TeacherStudentProgressDetail:
+      type: object
+      additionalProperties: false
+      required: [student, progress, capabilities]
+      properties:
+        student:
+          $ref: '#/components/schemas/StudentReference'
+        progress:
+          $ref: '#/components/schemas/CourseProgress'
+        capabilities:
+          $ref: '#/components/schemas/ReportingCapabilities'
+    TeacherCourseProgressPage:
+      type: object
+      additionalProperties: false
+      required:
+        - course
+        - curriculumVersion
+        - activeEnrollmentCount
+        - suspendedEnrollmentCount
+        - completedEnrollmentCount
+        - cancelledEnrollmentCount
+        - averageProgressPercentage
+        - items
+        - pagination
+        - capabilities
+      properties:
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        curriculumVersion:
+          $ref: '#/components/schemas/CurriculumVersion'
+        activeEnrollmentCount:
+          $ref: '#/components/schemas/NonNegativeCount'
+        suspendedEnrollmentCount:
+          $ref: '#/components/schemas/NonNegativeCount'
+        completedEnrollmentCount:
+          $ref: '#/components/schemas/NonNegativeCount'
+        cancelledEnrollmentCount:
+          $ref: '#/components/schemas/NonNegativeCount'
+        averageProgressPercentage:
+          $ref: '#/components/schemas/Percentage'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeacherStudentProgress'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        capabilities:
+          $ref: '#/components/schemas/ReportingCapabilities'
+    AdminProgressPage:
+      type: object
+      additionalProperties: false
+      required:
+        - generatedAt
+        - totalEnrollments
+        - activeLearners
+        - completedEnrollments
+        - averageProgressPercentage
+        - items
+        - pagination
+        - capabilities
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        totalEnrollments:
+          $ref: '#/components/schemas/NonNegativeCount'
+        activeLearners:
+          $ref: '#/components/schemas/NonNegativeCount'
+        completedEnrollments:
+          $ref: '#/components/schemas/NonNegativeCount'
+        averageProgressPercentage:
+          $ref: '#/components/schemas/Percentage'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeacherStudentProgress'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        capabilities:
+          $ref: '#/components/schemas/ReportingCapabilities'
+    StudentProgressSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/StudentProgressSummary'
+    CourseProgressResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CourseProgress'
+    ResumeLearningResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/ResumeLearning'
+            - type: 'null'
+    CompletedCoursePage:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompletedCourse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CompletedCoursePageResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CompletedCoursePage'
+    ProgressMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProgressMutationResult'
+    ActivityMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ActivityMutationResult'
+    TeacherCourseProgressPageResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/TeacherCourseProgressPage'
+    TeacherStudentProgressResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/TeacherStudentProgressDetail'
+    AdminProgressPageResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AdminProgressPage'
+    ValidationIssue:
+      type: object
+      additionalProperties: false
+      required: [path, message]
+      properties:
+        path:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+        details:
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/ValidationIssue'
+            - type: object
+            - type: 'null'
+  examples:
+    ResumeLearningExample:
+      value:
+        success: true
+        message: Davom ettirish uchun dars olindi.
+        data:
+          enrollmentId: 019c0000-0000-7000-8000-000000000001
+          course:
+            id: 019c0000-0000-7000-8000-000000000002
+            title: Turk tili A1
+            slug: turk-tili-a1
+          section:
+            id: 019c0000-0000-7000-8000-000000000003
+            title: Tanishuv
+            position: 1
+          lesson:
+            id: 019c0000-0000-7000-8000-000000000004
+            title: Salomlashish
+            slug: salomlashish
+            position: 1
+          lastActivityAt: '2026-07-26T10:30:00.000Z'
+          coursePercentage: 20
+          unavailableReason: null
+    StudentProgressSummaryExample:
+      value:
+        success: true
+        message: O‘qish jarayoni olindi.
+        data:
+          generatedAt: '2026-07-26T10:30:01.000Z'
+          resumeLearning:
+            enrollmentId: 019c0000-0000-7000-8000-000000000001
+            course:
+              id: 019c0000-0000-7000-8000-000000000002
+              title: Turk tili A1
+              slug: turk-tili-a1
+            section:
+              id: 019c0000-0000-7000-8000-000000000003
+              title: Tanishuv
+              position: 1
+            lesson:
+              id: 019c0000-0000-7000-8000-000000000004
+              title: Salomlashish
+              slug: salomlashish
+              position: 1
+            lastActivityAt: '2026-07-26T10:30:00.000Z'
+            coursePercentage: 20
+            unavailableReason: null
+          activeCourseCount: 1
+          completedCourseCount: 0
+          activeCourses:
+            - enrollmentId: 019c0000-0000-7000-8000-000000000001
+              course:
+                id: 019c0000-0000-7000-8000-000000000002
+                title: Turk tili A1
+                slug: turk-tili-a1
+              enrollmentStatus: ACTIVE
+              status: IN_PROGRESS
+              curriculumVersion: 4
+              completionVersion: 7
+              activityVersion: 3
+              completedLessons: 2
+              totalEligibleLessons: 10
+              percentage: 20
+              firstActivityAt: '2026-07-20T08:00:00.000Z'
+              lastActivityAt: '2026-07-26T10:30:00.000Z'
+              completedAt: null
+              resumeTarget:
+                enrollmentId: 019c0000-0000-7000-8000-000000000001
+                course:
+                  id: 019c0000-0000-7000-8000-000000000002
+                  title: Turk tili A1
+                  slug: turk-tili-a1
+                section:
+                  id: 019c0000-0000-7000-8000-000000000003
+                  title: Tanishuv
+                  position: 1
+                lesson:
+                  id: 019c0000-0000-7000-8000-000000000004
+                  title: Salomlashish
+                  slug: salomlashish
+                  position: 1
+                lastActivityAt: '2026-07-26T10:30:00.000Z'
+                coursePercentage: 20
+                unavailableReason: null
+              capabilities:
+                canReadProgress: true
+                canAccessCourseContent: true
+                canNavigateCurriculum: true
+                canDownloadPermittedMedia: true
+                canRecordActivity: true
+                canResumeLearning: true
+                canCompleteBlock: true
+                canReopenBlock: true
+                canCompleteLesson: true
+                canReopenLesson: true
+                unavailableReason: null
+    CourseProgressExample:
+      value:
+        success: true
+        message: Kurs jarayoni olindi.
+        data:
+          enrollmentId: 019c0000-0000-7000-8000-000000000001
+          course:
+            id: 019c0000-0000-7000-8000-000000000002
+            title: Turk tili A1
+            slug: turk-tili-a1
+          enrollmentStatus: ACTIVE
+          status: IN_PROGRESS
+          curriculumVersion: 4
+          completionVersion: 7
+          activityVersion: 3
+          completedLessons: 2
+          totalEligibleLessons: 10
+          percentage: 20
+          firstActivityAt: '2026-07-20T08:00:00.000Z'
+          lastActivityAt: '2026-07-26T10:30:00.000Z'
+          completedAt: null
+          resumeTarget: null
+          capabilities:
+            canReadProgress: true
+            canAccessCourseContent: true
+            canNavigateCurriculum: true
+            canDownloadPermittedMedia: true
+            canRecordActivity: true
+            canResumeLearning: true
+            canCompleteBlock: true
+            canReopenBlock: true
+            canCompleteLesson: false
+            canReopenLesson: false
+            unavailableReason: null
+          completedEligibleBlocks: 8
+          totalEligibleBlocks: 20
+          sections:
+            - id: 019c0000-0000-7000-8000-000000000003
+              title: Tanishuv
+              position: 1
+              status: IN_PROGRESS
+              completedLessons: 2
+              totalEligibleLessons: 5
+              percentage: 40
+              lessons:
+                - id: 019c0000-0000-7000-8000-000000000004
+                  sectionId: 019c0000-0000-7000-8000-000000000003
+                  title: Salomlashish
+                  slug: salomlashish
+                  position: 1
+                  status: IN_PROGRESS
+                  completedEligibleBlocks: 1
+                  totalEligibleBlocks: 2
+                  percentage: 50
+                  firstActivityAt: '2026-07-26T10:00:00.000Z'
+                  lastActivityAt: '2026-07-26T10:30:00.000Z'
+                  completedAt: null
+                  blocks:
+                    - id: 019c0000-0000-7000-8000-000000000005
+                      blockType: TEXT
+                      title: Yangi so‘zlar
+                      position: 1
+                      isRequired: true
+                      status: COMPLETED
+                      completedAt: '2026-07-26T10:20:00.000Z'
+                      capabilities:
+                        canCompleteBlock: false
+                        canReopenBlock: true
+                        unavailableReason: null
+                  capabilities:
+                    canCompleteLesson: false
+                    canReopenLesson: false
+                    unavailableReason: null
+          calculatedAt: '2026-07-26T10:30:01.000Z'
+    CompletedCoursePageExample:
+      value:
+        success: true
+        message: Yakunlangan kurslar olindi.
+        data:
+          items:
+            - enrollmentId: 019c0000-0000-7000-8000-000000000011
+              course:
+                id: 019c0000-0000-7000-8000-000000000012
+                title: Turk tili asoslari
+                slug: turk-tili-asoslari
+              completionCurriculumVersion: 3
+              percentage: 100
+              completedLessons: 12
+              totalEligibleLessons: 12
+              completedAt: '2026-07-25T15:00:00.000Z'
+          pagination:
+            page: 1
+            pageSize: 20
+            totalItems: 1
+            totalPages: 1
+    ProgressMutationExample:
+      value:
+        success: true
+        message: O‘qish jarayoni yangilandi.
+        data:
+          enrollmentId: 019c0000-0000-7000-8000-000000000001
+          curriculumVersion: 4
+          completionVersion: 8
+          activityVersion: 3
+          changed: true
+          affectedLesson:
+            id: 019c0000-0000-7000-8000-000000000004
+            sectionId: 019c0000-0000-7000-8000-000000000003
+            title: Salomlashish
+            slug: salomlashish
+            position: 1
+            status: READY_TO_COMPLETE
+            completedEligibleBlocks: 2
+            totalEligibleBlocks: 2
+            percentage: 100
+            firstActivityAt: '2026-07-26T10:00:00.000Z'
+            lastActivityAt: '2026-07-26T10:35:00.000Z'
+            completedAt: null
+            blocks: []
+            capabilities:
+              canCompleteLesson: true
+              canReopenLesson: false
+              unavailableReason: null
+          course:
+            enrollmentId: 019c0000-0000-7000-8000-000000000001
+            course:
+              id: 019c0000-0000-7000-8000-000000000002
+              title: Turk tili A1
+              slug: turk-tili-a1
+            enrollmentStatus: ACTIVE
+            status: IN_PROGRESS
+            curriculumVersion: 4
+            completionVersion: 8
+            activityVersion: 3
+            completedLessons: 2
+            totalEligibleLessons: 10
+            percentage: 20
+            firstActivityAt: '2026-07-20T08:00:00.000Z'
+            lastActivityAt: '2026-07-26T10:35:00.000Z'
+            completedAt: null
+            resumeTarget: null
+            capabilities:
+              canReadProgress: true
+              canAccessCourseContent: true
+              canNavigateCurriculum: true
+              canDownloadPermittedMedia: true
+              canRecordActivity: true
+              canResumeLearning: true
+              canCompleteBlock: true
+              canReopenBlock: true
+              canCompleteLesson: true
+              canReopenLesson: true
+              unavailableReason: null
+          resumeTarget: null
+    ProgressMutationUnchangedExample:
+      value:
+        success: true
+        message: O‘qish jarayoni allaqachon shu holatda.
+        data:
+          enrollmentId: 019c0000-0000-7000-8000-000000000001
+          curriculumVersion: 4
+          completionVersion: 8
+          activityVersion: 3
+          changed: false
+          affectedLesson:
+            id: 019c0000-0000-7000-8000-000000000004
+            sectionId: 019c0000-0000-7000-8000-000000000003
+            title: Salomlashish
+            slug: salomlashish
+            position: 1
+            status: READY_TO_COMPLETE
+            completedEligibleBlocks: 2
+            totalEligibleBlocks: 2
+            percentage: 100
+            firstActivityAt: '2026-07-26T10:00:00.000Z'
+            lastActivityAt: '2026-07-26T10:35:00.000Z'
+            completedAt: null
+            blocks: []
+            capabilities:
+              canCompleteLesson: true
+              canReopenLesson: false
+              unavailableReason: null
+          course:
+            enrollmentId: 019c0000-0000-7000-8000-000000000001
+            course:
+              id: 019c0000-0000-7000-8000-000000000002
+              title: Turk tili A1
+              slug: turk-tili-a1
+            enrollmentStatus: ACTIVE
+            status: IN_PROGRESS
+            curriculumVersion: 4
+            completionVersion: 8
+            activityVersion: 3
+            completedLessons: 2
+            totalEligibleLessons: 10
+            percentage: 20
+            firstActivityAt: '2026-07-20T08:00:00.000Z'
+            lastActivityAt: '2026-07-26T10:35:00.000Z'
+            completedAt: null
+            resumeTarget: null
+            capabilities:
+              canReadProgress: true
+              canAccessCourseContent: true
+              canNavigateCurriculum: true
+              canDownloadPermittedMedia: true
+              canRecordActivity: true
+              canResumeLearning: true
+              canCompleteBlock: true
+              canReopenBlock: true
+              canCompleteLesson: true
+              canReopenLesson: true
+              unavailableReason: null
+          resumeTarget: null
+    ActivityMutationExample:
+      value:
+        success: true
+        message: Oxirgi ko‘rilgan dars yangilandi.
+        data:
+          enrollmentId: 019c0000-0000-7000-8000-000000000001
+          curriculumVersion: 4
+          completionVersion: 8
+          activityVersion: 4
+          changed: true
+          lastVisitedLessonId: 019c0000-0000-7000-8000-000000000004
+          lastVisitedAt: '2026-07-26T10:40:00.000Z'
+          resumeTarget:
+            enrollmentId: 019c0000-0000-7000-8000-000000000001
+            course:
+              id: 019c0000-0000-7000-8000-000000000002
+              title: Turk tili A1
+              slug: turk-tili-a1
+            section:
+              id: 019c0000-0000-7000-8000-000000000003
+              title: Tanishuv
+              position: 1
+            lesson:
+              id: 019c0000-0000-7000-8000-000000000004
+              title: Salomlashish
+              slug: salomlashish
+              position: 1
+            lastActivityAt: '2026-07-26T10:40:00.000Z'
+            coursePercentage: 20
+            unavailableReason: null
+    TeacherCourseProgressPageExample:
+      value:
+        success: true
+        message: Kurs o‘zlashtirish ma’lumotlari olindi.
+        data:
+          course:
+            id: 019c0000-0000-7000-8000-000000000002
+            title: Turk tili A1
+            slug: turk-tili-a1
+          curriculumVersion: 4
+          activeEnrollmentCount: 10
+          suspendedEnrollmentCount: 1
+          completedEnrollmentCount: 4
+          cancelledEnrollmentCount: 2
+          averageProgressPercentage: 46
+          items:
+            - enrollmentId: 019c0000-0000-7000-8000-000000000001
+              student:
+                id: 019c0000-0000-7000-8000-000000000020
+                email: student@example.com
+                firstName: Ali
+                lastName: Valiyev
+                displayName: Ali Valiyev
+              enrollmentStatus: ACTIVE
+              progressStatus: IN_PROGRESS
+              percentage: 20
+              completedLessons: 2
+              totalEligibleLessons: 10
+              lastActivityAt: '2026-07-26T10:40:00.000Z'
+              completedAt: null
+              capabilities:
+                canReadDetail: true
+                canExport: false
+                exportRequiresStepUp: true
+          pagination:
+            page: 1
+            pageSize: 20
+            totalItems: 17
+            totalPages: 1
+          capabilities:
+            canReadDetail: true
+            canExport: false
+            exportRequiresStepUp: true
+    TeacherStudentProgressExample:
+      value:
+        success: true
+        message: Talabaning o‘zlashtirish ma’lumotlari olindi.
+        data:
+          student:
+            id: 019c0000-0000-7000-8000-000000000020
+            email: student@example.com
+            firstName: Ali
+            lastName: Valiyev
+            displayName: Ali Valiyev
+          progress:
+            enrollmentId: 019c0000-0000-7000-8000-000000000001
+            course:
+              id: 019c0000-0000-7000-8000-000000000002
+              title: Turk tili A1
+              slug: turk-tili-a1
+            enrollmentStatus: ACTIVE
+            status: IN_PROGRESS
+            curriculumVersion: 4
+            completionVersion: 8
+            activityVersion: 4
+            completedLessons: 2
+            totalEligibleLessons: 10
+            percentage: 20
+            firstActivityAt: '2026-07-20T08:00:00.000Z'
+            lastActivityAt: '2026-07-26T10:40:00.000Z'
+            completedAt: null
+            resumeTarget: null
+            capabilities:
+              canReadProgress: true
+              canAccessCourseContent: false
+              canNavigateCurriculum: false
+              canDownloadPermittedMedia: false
+              canRecordActivity: false
+              canResumeLearning: false
+              canCompleteBlock: false
+              canReopenBlock: false
+              canCompleteLesson: false
+              canReopenLesson: false
+              unavailableReason: null
+            completedEligibleBlocks: 8
+            totalEligibleBlocks: 20
+            sections: []
+            calculatedAt: '2026-07-26T10:40:01.000Z'
+          capabilities:
+            canReadDetail: true
+            canExport: false
+            exportRequiresStepUp: true
+    AdminProgressPageExample:
+      value:
+        success: true
+        message: O‘zlashtirish ma’lumotlari olindi.
+        data:
+          generatedAt: '2026-07-26T10:45:00.000Z'
+          totalEnrollments: 100
+          activeLearners: 61
+          completedEnrollments: 24
+          averageProgressPercentage: 52
+          items: []
+          pagination:
+            page: 1
+            pageSize: 20
+            totalItems: 100
+            totalPages: 5
+          capabilities:
+            canReadDetail: true
+            canExport: false
+            exportRequiresStepUp: true

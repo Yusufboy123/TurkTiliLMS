@@ -719,25 +719,25 @@ PostgreSQL is the planned transactional source of truth. The following modules
 describe data ownership only; this document intentionally defines no Prisma
 models.
 
-| Module           | Responsibility                                                             | Example data concepts                    |
-| ---------------- | -------------------------------------------------------------------------- | ---------------------------------------- |
-| Identity         | Accounts, credentials, sessions, verification, and external identity links | Account, session, verification challenge |
-| Access control   | Roles, permissions, assignments, and scoped grants                         | Role, permission, role assignment        |
-| Learning content | Courses, modules, lessons, content blocks, and publication lifecycle       | Course, lesson, content version          |
-| Enrollment       | Course access and cohort or class membership                               | Enrollment, class, teacher assignment    |
-| Progress         | Lesson completion, resume position, mastery, and learning streaks          | Progress record, activity event          |
-| Assessment       | Tests, questions, answer options, attempts, grading, and feedback          | Assessment, question, attempt            |
-| Dictionary       | Words, meanings, examples, pronunciation, tags, and saved vocabulary       | Entry, translation, favorite             |
-| Media            | Upload metadata, processing status, variants, and access policy            | Asset, media variant, processing job     |
-| Notification     | Preferences, templates, deliveries, and read state                         | Notification, delivery, preference       |
-| Statistics       | Events, aggregates, snapshots, and reporting dimensions                    | Learning event, daily aggregate          |
-| Certificate      | Eligibility, issuance, revocation, template, and verification              | Certificate, verification record         |
-| AI assistant     | Conversations, messages, usage limits, and safety metadata                 | Conversation, message, usage ledger      |
-| Localization     | Supported locales and translatable domain content                          | Locale, content translation              |
-| Audit            | Security-sensitive and administrative activity                             | Audit event                              |
-| Website content  | Typed sections, navigation, banners, contact details, and publication      | Content section, navigation item         |
-| Design settings  | Allowlisted brand assets and theme tokens                                  | Brand configuration, theme version       |
-| Configuration    | Typed owner-editable business settings                                     | Setting definition, setting value        |
+| Module           | Responsibility                                                                | Example data concepts                           |
+| ---------------- | ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| Identity         | Accounts, credentials, sessions, verification, and external identity links    | Account, session, verification challenge        |
+| Access control   | Roles, permissions, assignments, and scoped grants                            | Role, permission, role assignment               |
+| Learning content | Courses, modules, lessons, content blocks, and publication lifecycle          | Course, lesson, content version                 |
+| Enrollment       | Course access and cohort or class membership                                  | Enrollment, class, teacher assignment           |
+| Progress         | Enrollment-bound completion, aggregates, lesson resume, and future extensions | Progress root, completion state, activity event |
+| Assessment       | Tests, questions, answer options, attempts, grading, and feedback             | Assessment, question, attempt                   |
+| Dictionary       | Words, meanings, examples, pronunciation, tags, and saved vocabulary          | Entry, translation, favorite                    |
+| Media            | Upload metadata, processing status, variants, and access policy               | Asset, media variant, processing job            |
+| Notification     | Preferences, templates, deliveries, and read state                            | Notification, delivery, preference              |
+| Statistics       | Events, aggregates, snapshots, and reporting dimensions                       | Learning event, daily aggregate                 |
+| Certificate      | Eligibility, issuance, revocation, template, and verification                 | Certificate, verification record                |
+| AI assistant     | Conversations, messages, usage limits, and safety metadata                    | Conversation, message, usage ledger             |
+| Localization     | Supported locales and translatable domain content                             | Locale, content translation                     |
+| Audit            | Security-sensitive and administrative activity                                | Audit event                                     |
+| Website content  | Typed sections, navigation, banners, contact details, and publication         | Content section, navigation item                |
+| Design settings  | Allowlisted brand assets and theme tokens                                     | Brand configuration, theme version              |
+| Configuration    | Typed owner-editable business settings                                        | Setting definition, setting value               |
 
 ### 9.1 Data design principles
 
@@ -1120,10 +1120,16 @@ flowchart LR
 
 ### 15.2 Learning progress
 
-Clients should report bounded progress events rather than sending an event for
-every playback tick. The backend should validate position, duration, lesson
-access, and plausible progression. Resume position and completion policy are
-domain data, not properties of the video file.
+Initial Module #8 uses explicit block and lesson completion plus a
+backend-selected lesson resume target. It excludes playback seconds, watch
+percentages, and per-tick reporting. Completion, aggregates, curriculum
+versions, capabilities, and resume selection are authoritative backend domain
+data. See [Progress Tracking Contract](./PROGRESS_TRACKING_CONTRACT.md).
+
+Future media engagement may report bounded playback checkpoints rather than
+every tick. That later contract must validate position, duration, access, and
+plausible progression and must not silently change core Module #8 completion
+semantics.
 
 Captions and transcripts should be first-class assets with locale and review
 status. Automatic transcription may assist teachers but should not be published
@@ -1239,8 +1245,9 @@ flowchart LR
 
 ### 18.2 Statistical views
 
-- **Student:** personal progress, time spent, mastery, streaks, test history,
-  and vocabulary growth
+- **Student:** initial canonical progress and completion, with time spent,
+  mastery, streaks, test history, and vocabulary growth deferred to separately
+  approved analytics contracts
 - **Teacher:** course engagement, lesson completion, question difficulty,
   score distribution, and at-risk learners
 - **Admin:** active users, retention, content usage, system adoption, and
