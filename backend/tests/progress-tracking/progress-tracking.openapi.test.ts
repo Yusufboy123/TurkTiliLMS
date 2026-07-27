@@ -6,12 +6,10 @@ const contractPath = fileURLToPath(
 );
 
 describe('Progress Tracking OpenAPI implementation markers', () => {
-  it('marks exactly the nine student operations implemented and keeps reporting unavailable', async () => {
+  it('marks all student and reporting operations implemented', async () => {
     const contract = await readFile(contractPath, 'utf8');
-    expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(9);
-    expect(contract.match(/x-implementation-status: future-boundary-not-available/g)).toHaveLength(
-      4,
-    );
+    expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(13);
+    expect(contract).not.toContain('x-implementation-status: future-boundary-not-available');
     expect(contract).toContain('version: 1.0.0');
     expect(contract).not.toContain('version: 1.0.0-contract-candidate');
   });
@@ -28,6 +26,10 @@ describe('Progress Tracking OpenAPI implementation markers', () => {
       'completeOwnLesson',
       'reopenOwnLesson',
       'recordOwnLastVisitedLesson',
+      'listTeacherCourseProgress',
+      'getTeacherStudentProgress',
+      'listAdministratorProgress',
+      'getAdministratorEnrollmentProgress',
     ]) {
       expect(contract).toContain(`operationId: ${operationId}`);
     }

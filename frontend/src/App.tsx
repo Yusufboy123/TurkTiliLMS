@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { RequireAuthentication } from './features/auth';
+import { RequireAuthentication, RequireAuthorization } from './features/auth';
 import { ProgressSkeleton } from './features/progress/components';
 import { progressRouteSegments, progressPaths } from './features/progress/progress.routes';
+import { progressReportingPaths } from './features/progress-reporting/progress-reporting.routes';
+import { ReportingLayout } from './layouts/ReportingLayout';
 import { StudentLayout } from './layouts/StudentLayout';
 import { HomePage } from './pages/HomePage';
 
@@ -12,6 +14,15 @@ const CourseProgressPage = lazy(() => import('./features/progress/pages/CoursePr
 const CompletedCoursesPage = lazy(() => import('./features/progress/pages/CompletedCoursesPage'));
 const ResumeLearningPage = lazy(() => import('./features/progress/pages/ResumeLearningPage'));
 const LessonProgressPage = lazy(() => import('./features/progress/pages/LessonProgressPage'));
+const TeacherCourseProgressPage = lazy(
+  () => import('./features/progress-reporting/pages/TeacherCourseProgressPage'),
+);
+const AdminProgressPage = lazy(
+  () => import('./features/progress-reporting/pages/AdminProgressPage'),
+);
+const ProgressReportingDetailPage = lazy(
+  () => import('./features/progress-reporting/pages/ProgressReportingDetailPage'),
+);
 
 function App() {
   return (
@@ -33,6 +44,36 @@ function App() {
             <Route path={progressRouteSegments.resume} element={<ResumeLearningPage />} />
           </Route>
           <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={['progress.course.read']}
+                roles={['ADMIN', 'TEACHER']}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route
+                path={progressReportingPaths.teacherCoursePattern}
+                element={<TeacherCourseProgressPage />}
+              />
+              <Route
+                path={progressReportingPaths.teacherEnrollmentPattern}
+                element={<ProgressReportingDetailPage />}
+              />
+            </Route>
+          </Route>
+          <Route
+            element={<RequireAuthorization permissions={['progress.read']} roles={['ADMIN']} />}
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={progressReportingPaths.admin} element={<AdminProgressPage />} />
+              <Route
+                path={progressReportingPaths.adminEnrollmentPattern}
+                element={<ProgressReportingDetailPage admin />}
+              />
+            </Route>
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

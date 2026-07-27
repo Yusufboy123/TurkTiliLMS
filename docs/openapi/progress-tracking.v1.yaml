@@ -5,8 +5,8 @@ info:
   description: |
     Backend-authoritative progress contract approved in Module 8.1A. Student
     operations are implemented by Module 8.2. Teacher and administrator
-    reporting boundaries are planned for Module 8.4. Export is intentionally unavailable.
-    Route middleware and the future service layer must both enforce documented
+    reporting boundaries are implemented by Module 8.4. Export is intentionally unavailable.
+    Route middleware and the service layer both enforce documented
     role, permission, ownership, enrollment-state, and resource-scope policies.
 servers:
   - url: http://localhost:5000/api/v1
@@ -385,11 +385,10 @@ paths:
       operationId: listTeacherCourseProgress
       summary: List student progress for a teacher-owned course
       description: |
-        Future Module 8.4 boundary. Requires ADMIN or TEACHER,
+        Implemented in Module 8.4. Requires ADMIN or TEACHER,
         `progress.course.read`, and for a teacher the current course owner scope.
-        This operation is not available in Module 8.1A, 8.1B, 8.2, or 8.3.
       x-implementation-phase: Module 8.4
-      x-implementation-status: future-boundary-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN, TEACHER]
       x-required-permissions: [progress.course.read]
       security:
@@ -429,11 +428,11 @@ paths:
       operationId: getTeacherStudentProgress
       summary: Retrieve one student's progress in a teacher-owned course
       description: |
-        Future Module 8.4 boundary. Requires ADMIN or TEACHER,
+        Implemented in Module 8.4. Requires ADMIN or TEACHER,
         `progress.course.read`, course ownership for a teacher, and an enrollment
-        belonging to the path course. This operation is not currently available.
+        belonging to the path course.
       x-implementation-phase: Module 8.4
-      x-implementation-status: future-boundary-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN, TEACHER]
       x-required-permissions: [progress.course.read]
       security:
@@ -465,10 +464,10 @@ paths:
       operationId: listAdministratorProgress
       summary: Search permission-scoped progress records
       description: |
-        Future Module 8.4 boundary. Requires ADMIN and `progress.read`. It is not
-        an export endpoint and is not currently available.
+        Implemented in Module 8.4. Requires ADMIN and `progress.read`. It is not
+        an export endpoint.
       x-implementation-phase: Module 8.4
-      x-implementation-status: future-boundary-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN]
       x-required-permissions: [progress.read]
       security:
@@ -515,11 +514,10 @@ paths:
       operationId: getAdministratorEnrollmentProgress
       summary: Retrieve one permission-scoped enrollment progress detail
       description: |
-        Future Module 8.4 boundary. Requires ADMIN and `progress.read`. This
-        operation exposes no internal progress events and is not currently
-        available.
+        Implemented in Module 8.4. Requires ADMIN and `progress.read`. This
+        operation exposes no internal progress events.
       x-implementation-phase: Module 8.4
-      x-implementation-status: future-boundary-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN]
       x-required-permissions: [progress.read]
       security:

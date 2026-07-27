@@ -16,6 +16,7 @@ export { Textarea, type TextareaProps } from './primitives/Textarea';
 
 export { Skeleton, type SkeletonProps } from './feedback/Skeleton';
 export { Spinner, type SpinnerProps, type SpinnerSize } from './feedback/Spinner';
+export { PermissionDeniedState } from './feedback/PermissionDeniedState';
 export { ToastProvider, type ToastProviderProps } from './feedback/Toast';
 export {
   useToast,
