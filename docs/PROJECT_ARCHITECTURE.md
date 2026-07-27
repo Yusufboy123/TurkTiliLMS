@@ -1318,6 +1318,16 @@ flowchart LR
 Certificates represent verified completion and must be reproducible,
 auditable, and revocable.
 
+The
+[Course Completion and Certificate Eligibility Contract](./COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
+and
+[ADR-003](./design-system/decisions/ADR-003-course-completion-certificate-eligibility.md)
+are the implementation authority for the boundary between canonical progress
+completion, eligibility evidence, and the future certificate lifecycle.
+Completion, eligibility, and certificate issuance are separate authoritative
+states; a displayed 100 percent value must never be treated as certificate
+eligibility by a client.
+
 ### 20.1 Issuance flow
 
 1. A course or program defines an eligibility policy.
@@ -1648,7 +1658,12 @@ operational runbooks where appropriate.
 
 - Publish versioned learning events through a transactional outbox.
 - Build student, teacher, and admin aggregates.
-- Define certificate eligibility, generation, verification, and revocation.
+- Approve the course-completion and certificate-eligibility contract before
+  schema or runtime work.
+- Implement additive eligibility evidence and read-only eligibility status
+  before certificate issuance.
+- Define certificate generation, verification, revocation, reissue, and
+  expiration separately; expiry is not part of certificate eligibility v1.
 - Deliver permission-scoped admin dashboards, asynchronous report export,
   certificate-template versioning, issuance, reissuance, and revocation.
 - Establish privacy and retention controls for analytics.

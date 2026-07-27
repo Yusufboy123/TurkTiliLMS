@@ -138,8 +138,9 @@ resume are unavailable. Copy uses `Kursdan chiqilgan`.
 Canonical completion is terminal and read-only in v1. Content may remain
 available through separate content-access capabilities. Revisiting content uses
 `Qayta ko‘rish`, changes no progress or activity state, and is not a
-`Qayta ochish` transition. Certificate UI appears only after a future
-certificate eligibility DTO confirms it.
+`Qayta ochish` transition. Certificate UI appears only after the
+[Course Completion and Certificate Eligibility Contract](../COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
+is approved and an implemented certificate-eligibility DTO confirms it.
 
 ## Mutation and reconciliation contract
 
@@ -304,8 +305,10 @@ Design System approval is recorded.
 
 ## Future compatibility
 
-- Quiz, assignment, and certificate milestones require their own approved
-  contracts.
+- Quiz and assignment milestones require their own approved contracts.
+  Certificate milestones follow the
+  [Course Completion and Certificate Eligibility Contract](../COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
+  and remain blocked until its relevant runtime milestone is implemented.
 - Streaks and achievements may be considered after Module #8; no locally inferred
   streak is allowed.
 - Video playback position is a separate future media-engagement capability and

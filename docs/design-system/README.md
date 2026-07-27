@@ -102,31 +102,34 @@ implementation.
 
 ## Document index
 
-| Document                                                          | Authority                                            |
-| ----------------------------------------------------------------- | ---------------------------------------------------- |
-| [ADR-001](./decisions/ADR-001-semantic-tokens-and-role-shells.md) | Semantic-token and role-shell architectural decision |
-| [ADR-002](./decisions/ADR-002-progress-tracking-contract.md)      | Proposed Module #8 architecture; approval pending    |
-| [Foundations](./foundations.md)                                   | Normative tokens, contrast, type, layout, stack      |
-| [Accessibility](./accessibility.md)                               | Normative WCAG and acceptance contract               |
-| [Components](./components.md)                                     | Component layers and public contracts                |
-| [Interaction Patterns](./patterns.md)                             | Cross-feature interaction and security UX            |
-| [Page Specifications](./page-specifications.md)                   | Route-level implementation contracts                 |
-| [Responsive Design](./responsive.md)                              | Breakpoints, role navigation, player reflow          |
-| [Content Guidelines](./content-guidelines.md)                     | Uzbek terminology and i18n                           |
-| [Art Direction](./art-direction.md)                               | Original visual identity and media composition       |
-| [Product Decisions](./product-decisions.md)                       | Settled v1 scope and approval dependencies           |
-| [Progress Tracking UI](./progress-tracking-ui.md)                 | Module #8 presentation and contract gate             |
-| [Implementation Guidelines](./implementation-guidelines.md)       | Tailwind/React mapping and performance               |
-| [Component Inventory](./component-inventory.md)                   | Canonical component names and ownership              |
-| [Page Inventory](./page-inventory.md)                             | Route status and traceability                        |
-| [Personas and IA](./personas-and-information-architecture.md)     | Audiences and navigation model                       |
-| [Quality Checklist](./quality-checklist.md)                       | Release and review evidence                          |
-| [Roadmap](./roadmap.md)                                           | Dependency-aware delivery order                      |
+| Document                                                                    | Authority                                            |
+| --------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [ADR-001](./decisions/ADR-001-semantic-tokens-and-role-shells.md)           | Semantic-token and role-shell architectural decision |
+| [ADR-002](./decisions/ADR-002-progress-tracking-contract.md)                | Proposed Module #8 architecture; approval pending    |
+| [ADR-003](./decisions/ADR-003-course-completion-certificate-eligibility.md) | Proposed completion/eligibility lifecycle decision   |
+| [Foundations](./foundations.md)                                             | Normative tokens, contrast, type, layout, stack      |
+| [Accessibility](./accessibility.md)                                         | Normative WCAG and acceptance contract               |
+| [Components](./components.md)                                               | Component layers and public contracts                |
+| [Interaction Patterns](./patterns.md)                                       | Cross-feature interaction and security UX            |
+| [Page Specifications](./page-specifications.md)                             | Route-level implementation contracts                 |
+| [Responsive Design](./responsive.md)                                        | Breakpoints, role navigation, player reflow          |
+| [Content Guidelines](./content-guidelines.md)                               | Uzbek terminology and i18n                           |
+| [Art Direction](./art-direction.md)                                         | Original visual identity and media composition       |
+| [Product Decisions](./product-decisions.md)                                 | Settled v1 scope and approval dependencies           |
+| [Progress Tracking UI](./progress-tracking-ui.md)                           | Module #8 presentation and contract gate             |
+| [Implementation Guidelines](./implementation-guidelines.md)                 | Tailwind/React mapping and performance               |
+| [Component Inventory](./component-inventory.md)                             | Canonical component names and ownership              |
+| [Page Inventory](./page-inventory.md)                                       | Route status and traceability                        |
+| [Personas and IA](./personas-and-information-architecture.md)               | Audiences and navigation model                       |
+| [Quality Checklist](./quality-checklist.md)                                 | Release and review evidence                          |
+| [Roadmap](./roadmap.md)                                                     | Dependency-aware delivery order                      |
 
-Project-level Module #8 review candidates:
+Project-level contract review candidates:
 
 - [Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md)
 - [Progress Tracking OpenAPI](../openapi/progress-tracking.v1.yaml)
+- [Course Completion and Certificate Eligibility Contract](../COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
+- [Certificate Eligibility OpenAPI](../openapi/course-completion-certificate-eligibility.v1.yaml)
 
 The existing `design-system-v1.0` Git tag does not override this directory's
 status vocabulary or approval markers. Module 8.1A contract review may proceed.

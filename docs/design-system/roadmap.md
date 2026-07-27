@@ -197,5 +197,11 @@ audit, destructive confirmation, and tests.
 - Video playback-position/media engagement.
 - Notifications.
 - Broad teacher/system analytics.
-- Certificates and certificate revocation UX.
+- Module 8.5A: approve the completion and certificate-eligibility contract.
+- Module 8.5B: add the approved eligibility schema, migration, permission seed,
+  preflight, and evidence-safe backfill.
+- Module 8.5C: implement eligibility evaluation, approved read APIs, and
+  read-only completion/eligibility UI.
+- Module 8.6: separately approve and implement certificate issuance,
+  revocation, templates, artifacts, verification, and delivery.
 - Public registration, if later approved.

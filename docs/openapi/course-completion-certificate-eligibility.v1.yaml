@@ -1,0 +1,797 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Course Completion and Certificate Eligibility API
+  version: 1.0.0
+  description: |
+    Documentation-only Module 8.5A contract. No operation in this file is
+    implemented by Module 8.5A. Eligibility reads are planned for Module 8.5C.
+    Issuance and revocation are future Module 8.6 boundaries and remain blocked
+    by their separate step-up, template, numbering, artifact, and verification
+    contracts.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development base path
+tags:
+  - name: Student Certificate Eligibility
+  - name: Course Certificate Eligibility
+  - name: Certificate Administration
+paths:
+  /me/enrollments/{enrollmentId}/certificate-eligibility:
+    get:
+      tags: [Student Certificate Eligibility]
+      operationId: getOwnCertificateEligibility
+      summary: Get certificate eligibility for the authenticated student's enrollment
+      description: |
+        Contract-only Module 8.5C boundary. Requires the STUDENT role,
+        `certificate_eligibility.self_read`, and ownership of the enrollment.
+        A valid incomplete enrollment returns HTTP 200 with `NOT_COMPLETED`.
+      x-implementation-phase: Module 8.5C
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [STUDENT]
+      x-required-permissions: [certificate_eligibility.self_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Eligibility status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateEligibilityResponse'
+              examples:
+                eligible:
+                  $ref: '#/components/examples/EligibleResponseExample'
+                notCompleted:
+                  $ref: '#/components/examples/NotCompletedResponseExample'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/EnrollmentNotFound'
+        '409':
+          $ref: '#/components/responses/CompletionEvidenceConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/enrollments/{enrollmentId}/certificate-status:
+    get:
+      tags: [Student Certificate Eligibility]
+      operationId: getOwnCertificateStatus
+      summary: Get certificate status for the authenticated student's enrollment
+      description: |
+        Contract-only Module 8.5C read boundary. Requires the STUDENT role,
+        `certificates.self_read`, and ownership of the enrollment. Module 8.5C
+        may return `NOT_ISSUED`; issuance remains unavailable until Module 8.6.
+      x-implementation-phase: Module 8.5C
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [STUDENT]
+      x-required-permissions: [certificates.self_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Certificate status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateStatusResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/EnrollmentNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /courses/{courseId}/enrollments/{enrollmentId}/certificate-eligibility:
+    get:
+      tags: [Course Certificate Eligibility]
+      operationId: getCourseEnrollmentCertificateEligibility
+      summary: Get eligibility for an enrollment in an assigned course
+      description: |
+        Contract-only Module 8.5C boundary. Requires ADMIN or TEACHER,
+        `certificate_eligibility.course_read`, an enrollment belonging to the
+        path course, and current course assignment for a teacher. Route and
+        service policies must both enforce the scope.
+      x-implementation-phase: Module 8.5C
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [ADMIN, TEACHER]
+      x-required-permissions: [certificate_eligibility.course_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Eligibility status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateEligibilityResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/CourseScopeDenied'
+        '404':
+          $ref: '#/components/responses/CourseOrEnrollmentNotFound'
+        '409':
+          $ref: '#/components/responses/CompletionEvidenceConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /courses/{courseId}/enrollments/{enrollmentId}/certificate-status:
+    get:
+      tags: [Course Certificate Eligibility]
+      operationId: getCourseEnrollmentCertificateStatus
+      summary: Get certificate status for an enrollment in an assigned course
+      description: |
+        Contract-only Module 8.5C boundary. Requires ADMIN or TEACHER,
+        `certificates.course_read`, an enrollment belonging to the path course,
+        and current course assignment for a teacher.
+      x-implementation-phase: Module 8.5C
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [ADMIN, TEACHER]
+      x-required-permissions: [certificates.course_read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/EnrollmentId'
+      responses:
+        '200':
+          description: Certificate status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateStatusResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/CourseScopeDenied'
+        '404':
+          $ref: '#/components/responses/CourseOrEnrollmentNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /enrollments/{enrollmentId}/certificates:
+    post:
+      tags: [Certificate Administration]
+      operationId: issueEnrollmentCertificate
+      summary: Issue a certificate from an eligible enrollment
+      description: |
+        Future Module 8.6 boundary only. It is not available in Module 8.5A,
+        8.5B, or 8.5C. Requires ADMIN, `certificates.issue`, a current eligible
+        evidence evaluation, Idempotency-Key, audit, explicit confirmation, and
+        an approved recent-authentication/step-up contract. This operation does
+        not itself define PDF, template, numbering, signing, storage, delivery,
+        or public-verification behavior.
+      x-implementation-phase: Module 8.6
+      x-implementation-status: future-boundary-not-available
+      x-required-roles: [ADMIN]
+      x-required-permissions: [certificates.issue]
+      x-step-up-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueCertificateRequest'
+      responses:
+        '201':
+          description: Certificate issued
+          headers:
+            Location:
+              description: Versioned API location of the issued certificate resource
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateStatusResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/EnrollmentNotFound'
+        '409':
+          $ref: '#/components/responses/CertificateConflict'
+        '422':
+          $ref: '#/components/responses/CertificateNotEligible'
+        '428':
+          $ref: '#/components/responses/StepUpRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /certificates/{certificateId}/revoke:
+    post:
+      tags: [Certificate Administration]
+      operationId: revokeCertificate
+      summary: Revoke an issued certificate
+      description: |
+        Future Module 8.6 boundary only. Requires ADMIN,
+        `certificates.revoke`, explicit confirmation, optimistic concurrency,
+        audit, and an approved recent-authentication/step-up contract.
+        Revocation preserves completion, eligibility evidence, and the
+        certificate record.
+      x-implementation-phase: Module 8.6
+      x-implementation-status: future-boundary-not-available
+      x-required-roles: [ADMIN]
+      x-required-permissions: [certificates.revoke]
+      x-step-up-required: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeCertificateRequest'
+      responses:
+        '200':
+          description: Certificate revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateStatusResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/CertificateNotFound'
+        '409':
+          $ref: '#/components/responses/CertificateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '428':
+          $ref: '#/components/responses/StepUpRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EnrollmentId:
+      name: enrollmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CertificateId:
+      name: certificateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Actor-scoped key for one logical mutation. Reusing the key with a
+        different request is rejected.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+  schemas:
+    CourseReference:
+      type: object
+      additionalProperties: false
+      required: [id, title, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+    CompletionStatus:
+      type: string
+      enum: [NOT_COMPLETED, COMPLETED]
+    EligibilityStatus:
+      type: string
+      description: |
+        NOT_ELIGIBLE is reserved for a future approved policy with requirements
+        beyond completion. V1 completion-only evaluation emits NOT_COMPLETED or
+        ELIGIBLE.
+      enum: [NOT_COMPLETED, NOT_ELIGIBLE, ELIGIBLE]
+    EligibilityPolicyCode:
+      type: string
+      enum: [COURSE_COMPLETION_ONLY]
+    EligibilityReasonCode:
+      type: string
+      enum:
+        - COURSE_NOT_COMPLETED
+        - ZERO_ELIGIBLE_LESSONS
+        - COMPLETION_EVIDENCE_UNAVAILABLE
+        - POLICY_REQUIREMENTS_NOT_MET
+    CertificateLifecycleStatus:
+      type: string
+      enum: [NOT_ISSUED, ISSUED, REVOKED]
+    RevocationReasonCode:
+      type: string
+      enum:
+        - FRAUD
+        - ADMINISTRATIVE_ERROR
+        - DUPLICATE_ISSUANCE
+        - POLICY_VIOLATION
+        - OTHER
+    CompletionEvidenceSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - completedAt
+        - completionCurriculumVersion
+        - completionVersion
+        - completedLessons
+        - totalEligibleLessons
+        - percentage
+      properties:
+        status:
+          $ref: '#/components/schemas/CompletionStatus'
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        completionCurriculumVersion:
+          type: [integer, 'null']
+          minimum: 1
+        completionVersion:
+          type: [integer, 'null']
+          minimum: 0
+        completedLessons:
+          type: integer
+          minimum: 0
+        totalEligibleLessons:
+          type: integer
+          minimum: 0
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+    EligibilityDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - status
+        - policyCode
+        - policyVersion
+        - evaluationVersion
+        - evaluatedAt
+        - reasonCodes
+      properties:
+        id:
+          type: [string, 'null']
+          format: uuid
+        status:
+          $ref: '#/components/schemas/EligibilityStatus'
+        policyCode:
+          oneOf:
+            - $ref: '#/components/schemas/EligibilityPolicyCode'
+            - type: 'null'
+        policyVersion:
+          type: [integer, 'null']
+          minimum: 1
+        evaluationVersion:
+          type: [integer, 'null']
+          minimum: 1
+        evaluatedAt:
+          type: [string, 'null']
+          format: date-time
+        reasonCodes:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/EligibilityReasonCode'
+    CertificateCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        - canReadEligibility
+        - canReadCertificateStatus
+        - canIssueCertificate
+        - canRevokeCertificate
+      properties:
+        canReadEligibility:
+          type: boolean
+        canReadCertificateStatus:
+          type: boolean
+        canIssueCertificate:
+          type: boolean
+        canRevokeCertificate:
+          type: boolean
+    CertificateEligibility:
+      type: object
+      additionalProperties: false
+      required: [enrollmentId, course, completion, eligibility, capabilities]
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        completion:
+          $ref: '#/components/schemas/CompletionEvidenceSummary'
+        eligibility:
+          $ref: '#/components/schemas/EligibilityDecision'
+        capabilities:
+          $ref: '#/components/schemas/CertificateCapabilities'
+    CertificateReference:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - certificateNumber
+        - status
+        - issuedAt
+        - revokedAt
+        - safeRevocationReasonCode
+        - version
+      properties:
+        id:
+          type: string
+          format: uuid
+        certificateNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/CertificateLifecycleStatus'
+        issuedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+        safeRevocationReasonCode:
+          oneOf:
+            - $ref: '#/components/schemas/RevocationReasonCode'
+            - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+    EnrollmentCertificateStatus:
+      type: object
+      additionalProperties: false
+      required: [enrollmentId, course, status, certificate, capabilities]
+      properties:
+        enrollmentId:
+          type: string
+          format: uuid
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        status:
+          $ref: '#/components/schemas/CertificateLifecycleStatus'
+        certificate:
+          oneOf:
+            - $ref: '#/components/schemas/CertificateReference'
+            - type: 'null'
+        capabilities:
+          $ref: '#/components/schemas/CertificateCapabilities'
+    CertificateEligibilityResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CertificateEligibility'
+    CertificateStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/EnrollmentCertificateStatus'
+    IssueCertificateRequest:
+      type: object
+      additionalProperties: false
+      required: [eligibilityEvaluationId, expectedEligibilityVersion]
+      properties:
+        eligibilityEvaluationId:
+          type: string
+          format: uuid
+        expectedEligibilityVersion:
+          type: integer
+          minimum: 1
+    RevokeCertificateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reasonCode, reason, confirmed]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        reasonCode:
+          $ref: '#/components/schemas/RevocationReasonCode'
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 500
+        confirmed:
+          type: boolean
+          const: true
+    ErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - INVALID_ACCESS_TOKEN
+        - ACCESS_DENIED
+        - COURSE_SCOPE_DENIED
+        - PROGRESS_SCOPE_DENIED
+        - COURSE_NOT_FOUND
+        - ENROLLMENT_NOT_FOUND
+        - CERTIFICATE_NOT_FOUND
+        - COMPLETION_EVIDENCE_CONFLICT
+        - ELIGIBILITY_VERSION_CONFLICT
+        - CERTIFICATE_ALREADY_ISSUED
+        - CERTIFICATE_ALREADY_REVOKED
+        - IDEMPOTENCY_KEY_REUSED
+        - COURSE_NOT_COMPLETED
+        - CERTIFICATE_NOT_ELIGIBLE
+        - VALIDATION_ERROR
+        - STEP_UP_REQUIRED
+        - RATE_LIMIT_EXCEEDED
+    FieldIssue:
+      type: object
+      additionalProperties: false
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldIssue'
+  responses:
+    AuthenticationRequired:
+      description: Authentication is required or the access token is invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          examples:
+            required:
+              value:
+                success: false
+                code: AUTHENTICATION_REQUIRED
+                message: Davom etish uchun tizimga kiring.
+            invalid:
+              value:
+                success: false
+                code: INVALID_ACCESS_TOKEN
+                message: Kirish seansi yaroqsiz yoki muddati tugagan.
+    AccessDenied:
+      description: Role, permission, or object policy denies access
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: ACCESS_DENIED
+            message: Bu amal uchun ruxsat yetarli emas.
+    CourseScopeDenied:
+      description: Teacher is not assigned to the requested course
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: COURSE_SCOPE_DENIED
+            message: Bu kurs sizga biriktirilmagan.
+    EnrollmentNotFound:
+      description: Enrollment is absent or unavailable within the actor's scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: ENROLLMENT_NOT_FOUND
+            message: Kursga yozilish ma'lumoti topilmadi.
+    CourseOrEnrollmentNotFound:
+      description: Course or enrollment is absent or unavailable within the actor's scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          examples:
+            course:
+              value:
+                success: false
+                code: COURSE_NOT_FOUND
+                message: Kurs topilmadi.
+            enrollment:
+              value:
+                success: false
+                code: ENROLLMENT_NOT_FOUND
+                message: Kursga yozilish ma'lumoti topilmadi.
+    CertificateNotFound:
+      description: Certificate is absent or unavailable within the actor's scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: CERTIFICATE_NOT_FOUND
+            message: Sertifikat topilmadi.
+    CompletionEvidenceConflict:
+      description: Canonical completion evidence is internally inconsistent
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: COMPLETION_EVIDENCE_CONFLICT
+            message: Kursni yakunlash dalillarida nomuvofiqlik aniqlandi.
+    CertificateConflict:
+      description: Eligibility, idempotency, issuance, revocation, or version conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    CertificateNotEligible:
+      description: The enrollment is not eligible for certificate issuance
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: CERTIFICATE_NOT_ELIGIBLE
+            message: Bu kurs bo'yicha sertifikat olish shartlari bajarilmagan.
+    ValidationFailure:
+      description: Path, query, body, or header validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: VALIDATION_ERROR
+            message: Yuborilgan ma'lumotlarni tekshiring.
+    StepUpRequired:
+      description: Recent authentication is required for this high-risk future action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: STEP_UP_REQUIRED
+            message: Davom etish uchun shaxsingizni qayta tasdiqlang.
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: RATE_LIMIT_EXCEEDED
+            message: Juda ko'p so'rov yuborildi. Birozdan so'ng qayta urinib ko'ring.
+  examples:
+    EligibleResponseExample:
+      value:
+        success: true
+        message: Sertifikat olish huquqi aniqlandi.
+        data:
+          enrollmentId: 2d2bf4aa-848f-7d5f-9e6a-249679d868b7
+          course:
+            id: 2d2bf4aa-848f-7d5f-9e6a-249679d868b8
+            title: Boshlang'ich turk tili
+            slug: boshlangich-turk-tili
+          completion:
+            status: COMPLETED
+            completedAt: '2026-07-27T08:30:00.000Z'
+            completionCurriculumVersion: 4
+            completionVersion: 18
+            completedLessons: 12
+            totalEligibleLessons: 12
+            percentage: 100
+          eligibility:
+            id: 2d2bf4aa-848f-7d5f-9e6a-249679d868b9
+            status: ELIGIBLE
+            policyCode: COURSE_COMPLETION_ONLY
+            policyVersion: 1
+            evaluationVersion: 1
+            evaluatedAt: '2026-07-27T08:30:00.000Z'
+            reasonCodes: []
+          capabilities:
+            canReadEligibility: true
+            canReadCertificateStatus: true
+            canIssueCertificate: false
+            canRevokeCertificate: false
+    NotCompletedResponseExample:
+      value:
+        success: true
+        message: Kurs hali yakunlanmagan.
+        data:
+          enrollmentId: 2d2bf4aa-848f-7d5f-9e6a-249679d868b7
+          course:
+            id: 2d2bf4aa-848f-7d5f-9e6a-249679d868b8
+            title: Boshlang'ich turk tili
+            slug: boshlangich-turk-tili
+          completion:
+            status: NOT_COMPLETED
+            completedAt: null
+            completionCurriculumVersion: null
+            completionVersion: 7
+            completedLessons: 5
+            totalEligibleLessons: 12
+            percentage: 41
+          eligibility:
+            id: null
+            status: NOT_COMPLETED
+            policyCode: null
+            policyVersion: null
+            evaluationVersion: null
+            evaluatedAt: null
+            reasonCodes: [COURSE_NOT_COMPLETED]
+          capabilities:
+            canReadEligibility: true
+            canReadCertificateStatus: true
+            canIssueCertificate: false
+            canRevokeCertificate: false

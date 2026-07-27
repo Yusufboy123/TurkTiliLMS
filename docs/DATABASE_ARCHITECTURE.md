@@ -1232,6 +1232,15 @@ inside the approved serializable transaction.
 
 ### 4.5 Certificates
 
+The table descriptions in this section are a future blueprint, not an
+implementation contract. The
+[Course Completion and Certificate Eligibility Contract](./COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
+and
+[ADR-003](./design-system/decisions/ADR-003-course-completion-certificate-eligibility.md)
+govern future schema work for versioned eligibility policy, immutable evidence,
+and the separation of eligibility from certificate issuance. Module 8.5B must
+remain additive and must not generate certificate artifacts.
+
 #### `certificates`
 
 - **Purpose:** Stores verified course achievement, issuance, artifact, and
