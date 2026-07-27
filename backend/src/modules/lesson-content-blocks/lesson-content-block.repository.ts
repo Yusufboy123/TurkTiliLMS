@@ -10,6 +10,10 @@ import {
   assertLessonBlockMediaCompatibility,
   mediaFileNotFound,
 } from './lesson-content-block.media-policy.js';
+import {
+  bumpPublishedCourseCurriculumVersion,
+  isLessonInPublishedCurriculum,
+} from '../progress-tracking/curriculum-version.repository.js';
 import type {
   CreateLessonContentBlockData,
   LessonBlockAuditContext,
@@ -372,6 +376,9 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
         },
         select: blockSelect,
       });
+      if (data.isVisible && (await isLessonInPublishedCurriculum(transaction, lessonId))) {
+        await bumpPublishedCourseCurriculumVersion(transaction, context.courseId);
+      }
       await transaction.auditLog.create({
         data: {
           ...auditFields(context),
@@ -432,6 +439,15 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
         },
         select: blockSelect,
       });
+      if (
+        data.isRequired !== undefined &&
+        data.isRequired !== before.isRequired &&
+        before.isVisible &&
+        before.deletedAt === null &&
+        (await isLessonInPublishedCurriculum(transaction, lessonId))
+      ) {
+        await bumpPublishedCourseCurriculumVersion(transaction, context.courseId);
+      }
       await transaction.auditLog.create({
         data: {
           ...auditFields(context),
@@ -498,6 +514,12 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
         data: { position, deletedAt: null },
         select: blockSelect,
       });
+      if (
+        position !== before.position &&
+        (await isLessonInPublishedCurriculum(transaction, lessonId))
+      ) {
+        await bumpPublishedCourseCurriculumVersion(transaction, context.courseId);
+      }
       await transaction.auditLog.create({
         data: {
           ...auditFields(context),
@@ -530,6 +552,13 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
         data: { isVisible },
         select: blockSelect,
       });
+      if (
+        isVisible !== before.isVisible &&
+        before.deletedAt === null &&
+        (await isLessonInPublishedCurriculum(transaction, lessonId))
+      ) {
+        await bumpPublishedCourseCurriculumVersion(transaction, context.courseId);
+      }
       await transaction.auditLog.create({
         data: {
           ...auditFields(context),
@@ -562,6 +591,9 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
         data: { deletedAt: new Date() },
         select: blockSelect,
       });
+      if (await isLessonInPublishedCurriculum(transaction, lessonId)) {
+        await bumpPublishedCourseCurriculumVersion(transaction, context.courseId);
+      }
       await shiftPositionsDown(transaction, lessonId, before.position);
       await transaction.auditLog.create({
         data: {
@@ -601,6 +633,9 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
         data: { deletedAt: null, position },
         select: blockSelect,
       });
+      if (await isLessonInPublishedCurriculum(transaction, lessonId)) {
+        await bumpPublishedCourseCurriculumVersion(transaction, context.courseId);
+      }
       await transaction.auditLog.create({
         data: {
           ...auditFields(context),

@@ -228,6 +228,7 @@ export class CourseEnrollmentService implements CourseEnrollmentUseCases {
         await transaction.lockEnrollment(enrollmentId);
         const enrollment = await transaction.findById(enrollmentId);
         if (!enrollment || enrollment.studentId !== actor.userId) throw enrollmentNotFound();
+        await transaction.lockCourse(enrollment.courseId);
         if (enrollment.status !== CourseEnrollmentStatus.ACTIVE) {
           throw new AppError(
             'Faqat faol enrollmentni bekor qilish mumkin.',

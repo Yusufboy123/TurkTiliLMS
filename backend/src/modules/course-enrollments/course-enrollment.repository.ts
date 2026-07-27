@@ -6,6 +6,7 @@ import {
   type PrismaClient,
 } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
+import { freezeExistingProgressSnapshot } from '../progress-tracking/curriculum-version.repository.js';
 import type {
   CourseEnrollmentRecord,
   CreateEnrollmentData,
@@ -318,6 +319,12 @@ class PrismaCourseEnrollmentTransactionRepository implements CourseEnrollmentTra
     context: EnrollmentAuditContext,
   ): Promise<CourseEnrollmentRecord> {
     const now = new Date();
+    if (
+      status === CourseEnrollmentStatus.CANCELLED ||
+      status === CourseEnrollmentStatus.COMPLETED
+    ) {
+      await freezeExistingProgressSnapshot(this.transaction, existing.id, now);
+    }
     const lifecycleDates =
       status === CourseEnrollmentStatus.ACTIVE
         ? { suspendedAt: null, cancelledAt: null, completedAt: null }

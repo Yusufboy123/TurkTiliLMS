@@ -1,5 +1,6 @@
 import { LessonStatus, Prisma, type LessonType, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
+import { bumpPublishedCourseCurriculumVersion } from '../progress-tracking/curriculum-version.repository.js';
 import type {
   CatalogCurriculum,
   CatalogLesson,
@@ -392,6 +393,13 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           ...(data.isPublished !== undefined ? { isPublished: data.isPublished } : {}),
         },
       });
+      if (
+        data.isPublished !== undefined &&
+        data.isPublished !== before.isPublished &&
+        before.deletedAt === null
+      ) {
+        await bumpPublishedCourseCurriculumVersion(tx, courseId);
+      }
       await tx.auditLog.create({
         data: {
           ...auditFields(context),
@@ -439,6 +447,9 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
             where: { id: sectionId },
             data: { position, deletedAt: null },
           });
+          if (section.isPublished) {
+            await bumpPublishedCourseCurriculumVersion(tx, courseId);
+          }
         }
         const updated = await tx.courseSection.findUniqueOrThrow({ where: { id: sectionId } });
         await tx.auditLog.create({
@@ -476,6 +487,9 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           where: { id: sectionId },
           data: { deletedAt: new Date(), isPublished: false },
         });
+        if (section.isPublished) {
+          await bumpPublishedCourseCurriculumVersion(tx, courseId);
+        }
         await shiftSectionPositionsDown(tx, courseId, section.position);
         await tx.auditLog.create({
           data: {
@@ -698,6 +712,15 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
         data: { status, ...dates },
         select: lessonSelect,
       });
+      if (
+        before.status !== status &&
+        (before.status === LessonStatus.PUBLISHED || status === LessonStatus.PUBLISHED) &&
+        before.deletedAt === null &&
+        before.section.isPublished &&
+        before.section.deletedAt === null
+      ) {
+        await bumpPublishedCourseCurriculumVersion(tx, courseId);
+      }
       await tx.auditLog.create({
         data: {
           ...auditFields(context),
@@ -774,6 +797,13 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           data: { sectionId: targetSectionId, position, deletedAt: null },
           select: lessonSelect,
         });
+        if (
+          before.status === LessonStatus.PUBLISHED &&
+          (before.section.isPublished || updated.section.isPublished) &&
+          (before.section.id !== updated.section.id || before.position !== updated.position)
+        ) {
+          await bumpPublishedCourseCurriculumVersion(tx, courseId);
+        }
         await tx.auditLog.create({
           data: {
             ...auditFields(context),
@@ -809,6 +839,9 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
           data: { deletedAt: new Date() },
           select: lessonSelect,
         });
+        if (before.status === LessonStatus.PUBLISHED && before.section.isPublished) {
+          await bumpPublishedCourseCurriculumVersion(tx, courseId);
+        }
         await shiftLessonPositionsDown(tx, before.section.id, before.position);
         await tx.auditLog.create({
           data: {

@@ -52,6 +52,25 @@ describeDatabase('Course enrollment PostgreSQL integration', () => {
   let studentRoleId = '';
   let courseId = '';
 
+  async function deleteCourseEnrollmentProgress(): Promise<void> {
+    const enrollmentIds = (
+      await client.courseEnrollment.findMany({
+        where: { courseId },
+        select: { id: true },
+      })
+    ).map((enrollment) => enrollment.id);
+    if (enrollmentIds.length === 0) return;
+
+    const enrollmentFilter = { enrollmentId: { in: enrollmentIds } };
+    await client.progressEvent.deleteMany({ where: enrollmentFilter });
+    await client.idempotencyRecord.deleteMany({ where: enrollmentFilter });
+    await client.blockProgress.deleteMany({ where: enrollmentFilter });
+    await client.lessonProgress.deleteMany({ where: enrollmentFilter });
+    await client.enrollmentProgressRoot.deleteMany({
+      where: { enrollmentId: { in: enrollmentIds } },
+    });
+  }
+
   const service = new CourseEnrollmentService(new PrismaCourseEnrollmentRepository(client));
   const studentActor = () => ({
     userId: studentId,
@@ -129,6 +148,7 @@ describeDatabase('Course enrollment PostgreSQL integration', () => {
         actorUserId: { in: [studentId, adminId, teacherId] },
       },
     });
+    await deleteCourseEnrollmentProgress();
     await client.courseEnrollment.deleteMany({ where: { courseId } });
     await client.course.update({
       where: { id: courseId },
@@ -154,6 +174,7 @@ describeDatabase('Course enrollment PostgreSQL integration', () => {
     await client.auditLog.deleteMany({
       where: { actorUserId: { in: [studentId, adminId, teacherId] } },
     });
+    await deleteCourseEnrollmentProgress();
     await client.courseEnrollment.deleteMany({ where: { courseId } });
     await client.course.deleteMany({ where: { id: courseId } });
     await client.userRole.deleteMany({ where: { userId: studentId, roleId: studentRoleId } });

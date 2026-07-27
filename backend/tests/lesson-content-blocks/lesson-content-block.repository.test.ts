@@ -159,6 +159,7 @@ function orderingHarness(initialBlocks: DatabaseBlock[], failOnUpdate?: number) 
     ),
   };
   const transaction = {
+    lesson: { findFirst: vi.fn().mockResolvedValue(null) },
     lessonContentBlock,
     auditLog: { create: vi.fn().mockResolvedValue({}) },
   };
@@ -190,6 +191,7 @@ function orderingHarness(initialBlocks: DatabaseBlock[], failOnUpdate?: number) 
 describe('PrismaLessonContentBlockRepository', () => {
   it('creates at the next position in a serializable transaction', async () => {
     const transaction = {
+      lesson: { findFirst: vi.fn().mockResolvedValue(null) },
       lessonContentBlock: {
         count: vi.fn().mockResolvedValue(3),
         findMany: vi.fn().mockResolvedValue([]),
@@ -241,6 +243,7 @@ describe('PrismaLessonContentBlockRepository', () => {
   it('creates a compatible media relation without selecting internal storage fields', async () => {
     const mediaFile = databaseMediaReference();
     const transaction = {
+      lesson: { findFirst: vi.fn().mockResolvedValue(null) },
       mediaFile: {
         findUnique: vi.fn().mockResolvedValue(mediaFile),
       },

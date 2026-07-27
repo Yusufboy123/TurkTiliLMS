@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false && tsc -p tsconfig.tools.json --noEmit --pretty false",
     "lint": "eslint .",
     "test": "vitest run --configLoader runner",
-    "test:integration": "vitest run --configLoader runner tests/lesson-content-blocks/lesson-content-block.database.integration.test.ts tests/course-enrollments/course-enrollment.database.integration.test.ts tests/prisma/seed.database.integration.test.ts",
+    "test:integration": "vitest run --configLoader runner tests/lesson-content-blocks/lesson-content-block.database.integration.test.ts tests/course-enrollments/course-enrollment.database.integration.test.ts tests/progress-tracking/progress-tracking.database.integration.test.ts tests/prisma/seed.database.integration.test.ts",
     "test:watch": "vitest --configLoader runner",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",

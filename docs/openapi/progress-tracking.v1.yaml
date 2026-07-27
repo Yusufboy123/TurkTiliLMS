@@ -1,12 +1,11 @@
 openapi: 3.1.0
 info:
   title: Turk Tili LMS Progress Tracking API
-  version: 1.0.0-contract-candidate
+  version: 1.0.0
   description: |
-    Module 8.1A contract-only baseline for backend-authoritative progress.
-    No operation in this document is implemented by Module 8.1A. Student
-    operations are planned for Module 8.2. Teacher and administrator reporting
-    boundaries are planned for Module 8.4. Export is intentionally unavailable.
+    Backend-authoritative progress contract approved in Module 8.1A. Student
+    operations are implemented by Module 8.2. Teacher and administrator
+    reporting boundaries are planned for Module 8.4. Export is intentionally unavailable.
     Route middleware and the future service layer must both enforce documented
     role, permission, ownership, enrollment-state, and resource-scope policies.
 servers:
@@ -25,9 +24,9 @@ paths:
       description: |
         Requires the STUDENT role and `progress.self_read`. Returns only the
         authenticated student's progress and a backend-selected global resume
-        target. This operation is planned for Module 8.2.
+        target. This operation is implemented by Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_read]
       security:
@@ -62,7 +61,7 @@ paths:
         terminal completion snapshots only. This operation is planned for
         Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_read]
       security:
@@ -106,7 +105,7 @@ paths:
         has no mutation or resume capabilities. This operation is planned for
         Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_read]
       security:
@@ -140,9 +139,9 @@ paths:
         Requires the STUDENT role, `progress.self_read`, and ownership. The
         result is null for non-ACTIVE enrollment, unavailable course, completed
         curriculum, or no eligible incomplete lesson. No playback position or
-        block offset is returned. This operation is planned for Module 8.2.
+        block offset is returned. This operation is implemented by Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_read]
       security:
@@ -181,9 +180,9 @@ paths:
         Requires the STUDENT role, `progress.self_complete`, ownership, ACTIVE
         enrollment, current curriculum version, expected completion version,
         and an Idempotency-Key. Repeating the same effective operation succeeds
-        with changed=false. This operation is planned for Module 8.2.
+        with changed=false. This operation is implemented by Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_complete]
       x-idempotency-required: true
@@ -221,7 +220,7 @@ paths:
         completed content is not this operation. This operation is planned for
         Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_reopen]
       x-idempotency-required: true
@@ -260,7 +259,7 @@ paths:
         atomically complete the enrollment. This operation is planned for
         Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_complete]
       x-idempotency-required: true
@@ -298,7 +297,7 @@ paths:
         COMPLETED enrollment cannot reopen in v1. This operation is planned for
         Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_reopen]
       x-idempotency-required: true
@@ -335,9 +334,9 @@ paths:
         ACTIVE enrollment, current curriculum version, and an Idempotency-Key.
         It increments activityVersion but not completionVersion and never
         completes content. Legitimate concurrent visits use last-committed server
-        order. This operation is planned for Module 8.2.
+        order. This operation is implemented by Module 8.2.
       x-implementation-phase: Module 8.2
-      x-implementation-status: contract-only
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [progress.self_record_visit]
       x-idempotency-required: true
