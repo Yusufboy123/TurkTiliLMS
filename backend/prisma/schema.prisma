@@ -120,6 +120,44 @@ enum IdempotencyOperation {
   @@map("idempotency_operation")
 }
 
+enum CertificateEligibilityPolicyCode {
+  COURSE_COMPLETION_ONLY
+
+  @@map("certificate_eligibility_policy_code")
+}
+
+enum CertificateEligibilityAssessmentRule {
+  NONE
+
+  @@map("certificate_eligibility_assessment_rule")
+}
+
+/// NOT_COMPLETED is derived and intentionally absent from persisted evidence.
+/// NOT_ELIGIBLE is reserved for a future approved policy and is blocked by the
+/// v1 PostgreSQL CHECK constraint.
+enum CertificateEligibilityStatus {
+  ELIGIBLE
+  NOT_ELIGIBLE
+
+  @@map("certificate_eligibility_status")
+}
+
+enum CertificateEligibilityReasonCode {
+  COURSE_NOT_COMPLETED
+  ZERO_ELIGIBLE_LESSONS
+  COMPLETION_EVIDENCE_UNAVAILABLE
+  POLICY_REQUIREMENTS_NOT_MET
+
+  @@map("certificate_eligibility_reason_code")
+}
+
+enum CertificateEligibilityEvaluatorType {
+  SYSTEM
+  USER
+
+  @@map("certificate_eligibility_evaluator_type")
+}
+
 enum LessonType {
   TEXT
   VIDEO
@@ -170,34 +208,35 @@ enum MediaStorageProvider {
 }
 
 model User {
-  id                    String               @id @default(uuid(7)) @db.Uuid
-  email                 String               @unique(map: "users_email_key") @db.Citext
-  firstName             String?              @map("first_name") @db.VarChar(100)
-  lastName              String?              @map("last_name") @db.VarChar(100)
-  displayName           String?              @map("display_name") @db.VarChar(160)
-  status                UserStatus           @default(ACTIVE)
-  emailVerifiedAt       DateTime?            @map("email_verified_at") @db.Timestamptz(3)
-  lastLoginAt           DateTime?            @map("last_login_at") @db.Timestamptz(3)
-  deletedAt             DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  credential            UserCredential?
-  sessions              UserSession[]
-  roles                 UserRole[]           @relation("UserRoleUser")
-  roleAssignmentsMade   UserRole[]           @relation("UserRoleAssigner")
-  permissionGrantsMade  RolePermission[]     @relation("RolePermissionGranter")
-  auditLogs             AuditLog[]           @relation("AuditLogActor")
-  coursesCreated        Course[]             @relation("CourseCreator")
-  coursesTaught         Course[]             @relation("CourseTeacher")
-  courseSectionsCreated CourseSection[]      @relation("CourseSectionCreator")
-  lessonsCreated        Lesson[]             @relation("LessonCreator")
-  lessonsTaught         Lesson[]             @relation("LessonTeacher")
-  lessonBlocksCreated   LessonContentBlock[] @relation("LessonContentBlockCreator")
-  mediaFilesUploaded    MediaFile[]          @relation("MediaFileUploader")
-  courseEnrollments     CourseEnrollment[]   @relation("CourseEnrollmentStudent")
-  enrollmentsCreated    CourseEnrollment[]   @relation("CourseEnrollmentCreator")
-  progressEvents        ProgressEvent[]      @relation("ProgressEventActor")
-  idempotencyRecords    IdempotencyRecord[]  @relation("IdempotencyRecordActor")
+  id                         String                             @id @default(uuid(7)) @db.Uuid
+  email                      String                             @unique(map: "users_email_key") @db.Citext
+  firstName                  String?                            @map("first_name") @db.VarChar(100)
+  lastName                   String?                            @map("last_name") @db.VarChar(100)
+  displayName                String?                            @map("display_name") @db.VarChar(160)
+  status                     UserStatus                         @default(ACTIVE)
+  emailVerifiedAt            DateTime?                          @map("email_verified_at") @db.Timestamptz(3)
+  lastLoginAt                DateTime?                          @map("last_login_at") @db.Timestamptz(3)
+  deletedAt                  DateTime?                          @map("deleted_at") @db.Timestamptz(3)
+  createdAt                  DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  credential                 UserCredential?
+  sessions                   UserSession[]
+  roles                      UserRole[]                         @relation("UserRoleUser")
+  roleAssignmentsMade        UserRole[]                         @relation("UserRoleAssigner")
+  permissionGrantsMade       RolePermission[]                   @relation("RolePermissionGranter")
+  auditLogs                  AuditLog[]                         @relation("AuditLogActor")
+  coursesCreated             Course[]                           @relation("CourseCreator")
+  coursesTaught              Course[]                           @relation("CourseTeacher")
+  courseSectionsCreated      CourseSection[]                    @relation("CourseSectionCreator")
+  lessonsCreated             Lesson[]                           @relation("LessonCreator")
+  lessonsTaught              Lesson[]                           @relation("LessonTeacher")
+  lessonBlocksCreated        LessonContentBlock[]               @relation("LessonContentBlockCreator")
+  mediaFilesUploaded         MediaFile[]                        @relation("MediaFileUploader")
+  courseEnrollments          CourseEnrollment[]                 @relation("CourseEnrollmentStudent")
+  enrollmentsCreated         CourseEnrollment[]                 @relation("CourseEnrollmentCreator")
+  progressEvents             ProgressEvent[]                    @relation("ProgressEventActor")
+  idempotencyRecords         IdempotencyRecord[]                @relation("IdempotencyRecordActor")
+  eligibilityEvaluationsMade CertificateEligibilityEvaluation[] @relation("CertificateEligibilityEvaluator")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -385,24 +424,26 @@ model Course {
 /// a later explicit re-enrollment creates a new row so historical events remain auditable.
 /// Current-membership uniqueness is enforced by a PostgreSQL partial unique index.
 model CourseEnrollment {
-  id           String                  @id @default(uuid(7)) @db.Uuid
-  courseId     String                  @map("course_id") @db.Uuid
-  studentId    String                  @map("student_id") @db.Uuid
-  status       CourseEnrollmentStatus  @default(ACTIVE)
-  source       CourseEnrollmentSource
-  enrolledAt   DateTime                @default(now()) @map("enrolled_at") @db.Timestamptz(3)
-  startedAt    DateTime?               @map("started_at") @db.Timestamptz(3)
-  completedAt  DateTime?               @map("completed_at") @db.Timestamptz(3)
-  cancelledAt  DateTime?               @map("cancelled_at") @db.Timestamptz(3)
-  suspendedAt  DateTime?               @map("suspended_at") @db.Timestamptz(3)
-  createdById  String?                 @map("created_by_id") @db.Uuid
-  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  course       Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  student      User                    @relation("CourseEnrollmentStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdBy    User?                   @relation("CourseEnrollmentCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  progressRoot EnrollmentProgressRoot?
+  id                     String                             @id @default(uuid(7)) @db.Uuid
+  courseId               String                             @map("course_id") @db.Uuid
+  studentId              String                             @map("student_id") @db.Uuid
+  status                 CourseEnrollmentStatus             @default(ACTIVE)
+  source                 CourseEnrollmentSource
+  enrolledAt             DateTime                           @default(now()) @map("enrolled_at") @db.Timestamptz(3)
+  startedAt              DateTime?                          @map("started_at") @db.Timestamptz(3)
+  completedAt            DateTime?                          @map("completed_at") @db.Timestamptz(3)
+  cancelledAt            DateTime?                          @map("cancelled_at") @db.Timestamptz(3)
+  suspendedAt            DateTime?                          @map("suspended_at") @db.Timestamptz(3)
+  createdById            String?                            @map("created_by_id") @db.Uuid
+  createdAt              DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  course                 Course                             @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student                User                               @relation("CourseEnrollmentStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy              User?                              @relation("CourseEnrollmentCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  progressRoot           EnrollmentProgressRoot?
+  eligibilityEvaluations CertificateEligibilityEvaluation[]
 
+  @@unique([id, courseId], map: "course_enrollments_id_course_id_key")
   @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
   @@index([courseId, status, enrolledAt], map: "course_enrollments_course_id_status_enrolled_at_idx")
   @@index([courseId, studentId, enrolledAt], map: "course_enrollments_course_id_student_id_enrolled_at_idx")
@@ -415,28 +456,29 @@ model CourseEnrollment {
 /// One root owns the authoritative snapshot and activity cursor for exactly one
 /// enrollment lifecycle. Progress records are intentionally not soft-deleted.
 model EnrollmentProgressRoot {
-  id                      String              @id @default(uuid(7)) @db.Uuid
-  enrollmentId            String              @unique(map: "enrollment_progress_roots_enrollment_id_key") @map("enrollment_id") @db.Uuid
-  lastVisitedLessonId     String?             @map("last_visited_lesson_id") @db.Uuid
-  lastVisitedAt           DateTime?           @map("last_visited_at") @db.Timestamptz(3)
-  firstActivityAt         DateTime?           @map("first_activity_at") @db.Timestamptz(3)
-  completionVersion       Int                 @default(0) @map("completion_version")
-  activityVersion         Int                 @default(0) @map("activity_version")
-  curriculumVersion       Int                 @default(1) @map("curriculum_version")
-  completedEligibleBlocks Int                 @default(0) @map("completed_eligible_blocks")
-  totalEligibleBlocks     Int                 @default(0) @map("total_eligible_blocks")
-  completedLessons        Int                 @default(0) @map("completed_lessons")
-  totalEligibleLessons    Int                 @default(0) @map("total_eligible_lessons")
-  coursePercentage        Int                 @default(0) @map("course_percentage")
-  frozenAt                DateTime?           @map("frozen_at") @db.Timestamptz(3)
-  createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  enrollment              CourseEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  lastVisitedLesson       Lesson?             @relation("EnrollmentProgressLastVisitedLesson", fields: [lastVisitedLessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id                      String                             @id @default(uuid(7)) @db.Uuid
+  enrollmentId            String                             @unique(map: "enrollment_progress_roots_enrollment_id_key") @map("enrollment_id") @db.Uuid
+  lastVisitedLessonId     String?                            @map("last_visited_lesson_id") @db.Uuid
+  lastVisitedAt           DateTime?                          @map("last_visited_at") @db.Timestamptz(3)
+  firstActivityAt         DateTime?                          @map("first_activity_at") @db.Timestamptz(3)
+  completionVersion       Int                                @default(0) @map("completion_version")
+  activityVersion         Int                                @default(0) @map("activity_version")
+  curriculumVersion       Int                                @default(1) @map("curriculum_version")
+  completedEligibleBlocks Int                                @default(0) @map("completed_eligible_blocks")
+  totalEligibleBlocks     Int                                @default(0) @map("total_eligible_blocks")
+  completedLessons        Int                                @default(0) @map("completed_lessons")
+  totalEligibleLessons    Int                                @default(0) @map("total_eligible_lessons")
+  coursePercentage        Int                                @default(0) @map("course_percentage")
+  frozenAt                DateTime?                          @map("frozen_at") @db.Timestamptz(3)
+  createdAt               DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  enrollment              CourseEnrollment                   @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lastVisitedLesson       Lesson?                            @relation("EnrollmentProgressLastVisitedLesson", fields: [lastVisitedLessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   lessonProgress          LessonProgress[]
   blockProgress           BlockProgress[]
   events                  ProgressEvent[]
   idempotencyRecords      IdempotencyRecord[]
+  eligibilityEvaluations  CertificateEligibilityEvaluation[]
 
   @@index([lastVisitedAt, enrollmentId], map: "enrollment_progress_roots_last_visited_at_enrollment_id_idx")
   @@index([frozenAt], map: "enrollment_progress_roots_frozen_at_idx")
@@ -548,6 +590,73 @@ model IdempotencyRecord {
   @@index([expiresAt], map: "idempotency_records_expires_at_idx")
   @@index([operation, createdAt], map: "idempotency_records_operation_created_at_idx")
   @@map("idempotency_records")
+}
+
+/// Policy versions are immutable. V1 supports only the completion-only policy
+/// with no assessment, attendance, or manual-approval requirements.
+model CertificateEligibilityPolicy {
+  id                     String                               @id @default(uuid(7)) @db.Uuid
+  code                   CertificateEligibilityPolicyCode
+  version                Int
+  assessmentRule         CertificateEligibilityAssessmentRule @default(NONE) @map("assessment_rule")
+  requiresAttendance     Boolean                              @default(false) @map("requires_attendance")
+  requiresManualApproval Boolean                              @default(false) @map("requires_manual_approval")
+  createdAt              DateTime                             @default(now()) @map("created_at") @db.Timestamptz(3)
+  evaluations            CertificateEligibilityEvaluation[]
+
+  @@unique([code, version], map: "certificate_eligibility_policies_code_version_key")
+  @@map("certificate_eligibility_policies")
+}
+
+/// Immutable enrollment-scoped eligibility evidence. Course and student
+/// identity are trusted through the enrollment relation; mutable profile data
+/// is deliberately not copied into this snapshot.
+model CertificateEligibilityEvaluation {
+  id                          String                              @id @default(uuid(7)) @db.Uuid
+  enrollmentId                String                              @map("enrollment_id") @db.Uuid
+  courseId                    String                              @map("course_id") @db.Uuid
+  policyId                    String                              @map("policy_id") @db.Uuid
+  status                      CertificateEligibilityStatus
+  evaluationVersion           Int                                 @map("evaluation_version")
+  evaluatedAt                 DateTime                            @map("evaluated_at") @db.Timestamptz(3)
+  completedAt                 DateTime                            @map("completed_at") @db.Timestamptz(3)
+  completionCurriculumVersion Int                                 @map("completion_curriculum_version")
+  completionVersion           Int                                 @map("completion_version")
+  completedLessons            Int                                 @map("completed_lessons")
+  totalEligibleLessons        Int                                 @map("total_eligible_lessons")
+  coursePercentage            Int                                 @map("course_percentage")
+  evaluatorType               CertificateEligibilityEvaluatorType @default(SYSTEM) @map("evaluator_type")
+  evaluatedByUserId           String?                             @map("evaluated_by_user_id") @db.Uuid
+  supersedesEvaluationId      String?                             @unique(map: "eligibility_evaluations_supersedes_id_key") @map("supersedes_evaluation_id") @db.Uuid
+  createdAt                   DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
+  enrollment                  CourseEnrollment                    @relation(fields: [enrollmentId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_evaluations_enrollment_course_fkey")
+  progressRoot                EnrollmentProgressRoot              @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_evaluations_progress_root_fkey")
+  policy                      CertificateEligibilityPolicy        @relation(fields: [policyId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_evaluations_policy_id_fkey")
+  evaluatedBy                 User?                               @relation("CertificateEligibilityEvaluator", fields: [evaluatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_evaluations_evaluated_by_fkey")
+  supersedes                  CertificateEligibilityEvaluation?   @relation("CertificateEligibilitySupersession", fields: [supersedesEvaluationId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_evaluations_supersedes_fkey")
+  supersededBy                CertificateEligibilityEvaluation?   @relation("CertificateEligibilitySupersession")
+  reasons                     CertificateEligibilityReason[]
+
+  @@unique([enrollmentId, evaluationVersion], map: "eligibility_evaluations_enrollment_version_key")
+  @@unique([enrollmentId, policyId, completionVersion], map: "eligibility_evaluations_snapshot_key")
+  @@index([courseId, status, evaluatedAt], map: "eligibility_evaluations_course_status_at_idx")
+  @@index([enrollmentId, status, evaluatedAt], map: "eligibility_evaluations_enrollment_status_at_idx")
+  @@index([policyId, status, evaluatedAt], map: "eligibility_evaluations_policy_status_at_idx")
+  @@index([evaluatedByUserId, evaluatedAt], map: "eligibility_evaluations_evaluator_at_idx")
+  @@map("certificate_eligibility_evaluations")
+}
+
+/// Fixed reason codes remain normalized and contain no unrestricted metadata.
+/// The v1 database guard rejects reasons for its only persisted state, ELIGIBLE.
+model CertificateEligibilityReason {
+  evaluationId String                           @map("evaluation_id") @db.Uuid
+  code         CertificateEligibilityReasonCode
+  createdAt    DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  evaluation   CertificateEligibilityEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_reasons_evaluation_id_fkey")
+
+  @@id([evaluationId, code], map: "certificate_eligibility_reasons_pkey")
+  @@index([code, evaluationId], map: "certificate_eligibility_reasons_code_evaluation_id_idx")
+  @@map("certificate_eligibility_reasons")
 }
 
 model CourseSection {

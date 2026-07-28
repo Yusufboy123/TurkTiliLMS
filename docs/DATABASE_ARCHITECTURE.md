@@ -601,67 +601,70 @@ erDiagram
 
 ## 3. Table catalog
 
-This blueprint contains 52 tables. The short catalog is followed by detailed
+This blueprint contains 55 tables. The short catalog is followed by detailed
 specifications for every table.
 
-| Domain        | Table                                | Short description                            |
-| ------------- | ------------------------------------ | -------------------------------------------- |
-| Localization  | `locales`                            | Supported interface and content locales      |
-| Identity      | `users`                              | Platform account and lifecycle identity      |
-| Identity      | `user_credentials`                   | One-to-one local password credential         |
-| Identity      | `user_external_identities`           | Telegram and future provider identities      |
-| Access        | `roles`                              | Named authorization roles                    |
-| Access        | `permissions`                        | Atomic authorization capabilities            |
-| Access        | `user_roles`                         | User-to-role assignments                     |
-| Access        | `role_permissions`                   | Role-to-permission assignments               |
-| Identity      | `user_sessions`                      | Refresh sessions and device metadata         |
-| Learning      | `courses`                            | Language-neutral course records              |
-| Localization  | `course_translations`                | Localized course title and description       |
-| Learning      | `course_instructors`                 | Course-to-teacher assignments                |
-| Learning      | `course_enrollments`                 | Student course enrollment lifecycle          |
-| Learning      | `modules`                            | Ordered course sections                      |
-| Localization  | `module_translations`                | Localized module content                     |
-| Learning      | `lessons`                            | Ordered learning units                       |
-| Localization  | `lesson_translations`                | Localized lesson content                     |
-| Media         | `media_files`                        | Object-storage asset metadata                |
-| Media         | `lesson_videos`                      | Video attachments and playback metadata      |
-| Media         | `lesson_documents`                   | Document attachments                         |
-| Media         | `lesson_audio`                       | Audio attachments                            |
-| Progress      | `enrollment_progress_roots`          | Per-enrollment aggregate and resume root     |
-| Progress      | `lesson_progress`                    | Enrollment-scoped persisted lesson state     |
-| Progress      | `block_progress`                     | Sparse enrollment-scoped block state         |
-| Progress      | `progress_events`                    | Fixed-column append-only progress history    |
-| Progress      | `idempotency_records`                | Actor-isolated mutation replay records       |
-| Assessment    | `tests`                              | Test policies and lifecycle                  |
-| Localization  | `test_translations`                  | Localized test text                          |
-| Assessment    | `questions`                          | Reusable course question bank                |
-| Localization  | `question_translations`              | Localized prompts and explanations           |
-| Assessment    | `question_options`                   | Answer options and scoring identity          |
-| Localization  | `question_option_translations`       | Localized option text                        |
-| Assessment    | `test_questions`                     | Ordered test question composition            |
-| Assessment    | `test_attempts`                      | Student attempt lifecycle and score          |
-| Assessment    | `test_answers`                       | One answer per attempted question            |
-| Assessment    | `test_answer_options`                | Selected options for an answer               |
-| Certificates  | `certificates`                       | Issued and revocable achievement records     |
-| Dictionary    | `dictionary_categories`              | Hierarchical dictionary taxonomy             |
-| Localization  | `dictionary_category_translations`   | Localized category labels                    |
-| Dictionary    | `dictionary_words`                   | Canonical word or phrase entries             |
-| Localization  | `dictionary_word_translations`       | Meanings in explanation locales              |
-| Dictionary    | `dictionary_word_categories`         | Word-to-category classification              |
-| Dictionary    | `dictionary_examples`                | Source-language example sentences            |
-| Localization  | `dictionary_example_translations`    | Localized example translations               |
-| Dictionary    | `dictionary_favorites`               | Student saved vocabulary                     |
-| Notifications | `notification_templates`             | Stable notification definitions              |
-| Localization  | `notification_template_translations` | Localized notification templates             |
-| Notifications | `notifications`                      | Immutable notification instances             |
-| Notifications | `user_notifications`                 | Recipient delivery and read state            |
-| Configuration | `settings`                           | Typed platform configuration                 |
-| Audit         | `audit_logs`                         | Immutable security and administrative audit  |
-| Analytics     | `learning_events`                    | Append-only canonical learning events        |
-| Analytics     | `daily_learning_statistics`          | Per-user daily aggregates                    |
-| AI            | `ai_conversations`                   | User-owned AI conversation context           |
-| AI            | `ai_messages`                        | Ordered AI conversation messages             |
-| AI            | `ai_usage_ledger`                    | Provider usage, latency, and cost accounting |
+| Domain        | Table                                 | Short description                            |
+| ------------- | ------------------------------------- | -------------------------------------------- |
+| Localization  | `locales`                             | Supported interface and content locales      |
+| Identity      | `users`                               | Platform account and lifecycle identity      |
+| Identity      | `user_credentials`                    | One-to-one local password credential         |
+| Identity      | `user_external_identities`            | Telegram and future provider identities      |
+| Access        | `roles`                               | Named authorization roles                    |
+| Access        | `permissions`                         | Atomic authorization capabilities            |
+| Access        | `user_roles`                          | User-to-role assignments                     |
+| Access        | `role_permissions`                    | Role-to-permission assignments               |
+| Identity      | `user_sessions`                       | Refresh sessions and device metadata         |
+| Learning      | `courses`                             | Language-neutral course records              |
+| Localization  | `course_translations`                 | Localized course title and description       |
+| Learning      | `course_instructors`                  | Course-to-teacher assignments                |
+| Learning      | `course_enrollments`                  | Student course enrollment lifecycle          |
+| Learning      | `modules`                             | Ordered course sections                      |
+| Localization  | `module_translations`                 | Localized module content                     |
+| Learning      | `lessons`                             | Ordered learning units                       |
+| Localization  | `lesson_translations`                 | Localized lesson content                     |
+| Media         | `media_files`                         | Object-storage asset metadata                |
+| Media         | `lesson_videos`                       | Video attachments and playback metadata      |
+| Media         | `lesson_documents`                    | Document attachments                         |
+| Media         | `lesson_audio`                        | Audio attachments                            |
+| Progress      | `enrollment_progress_roots`           | Per-enrollment aggregate and resume root     |
+| Progress      | `lesson_progress`                     | Enrollment-scoped persisted lesson state     |
+| Progress      | `block_progress`                      | Sparse enrollment-scoped block state         |
+| Progress      | `progress_events`                     | Fixed-column append-only progress history    |
+| Progress      | `idempotency_records`                 | Actor-isolated mutation replay records       |
+| Assessment    | `tests`                               | Test policies and lifecycle                  |
+| Localization  | `test_translations`                   | Localized test text                          |
+| Assessment    | `questions`                           | Reusable course question bank                |
+| Localization  | `question_translations`               | Localized prompts and explanations           |
+| Assessment    | `question_options`                    | Answer options and scoring identity          |
+| Localization  | `question_option_translations`        | Localized option text                        |
+| Assessment    | `test_questions`                      | Ordered test question composition            |
+| Assessment    | `test_attempts`                       | Student attempt lifecycle and score          |
+| Assessment    | `test_answers`                        | One answer per attempted question            |
+| Assessment    | `test_answer_options`                 | Selected options for an answer               |
+| Certificates  | `certificate_eligibility_policies`    | Immutable typed eligibility policy versions  |
+| Certificates  | `certificate_eligibility_evaluations` | Immutable enrollment completion evidence     |
+| Certificates  | `certificate_eligibility_reasons`     | Fixed normalized eligibility reason codes    |
+| Certificates  | `certificates`                        | Issued and revocable achievement records     |
+| Dictionary    | `dictionary_categories`               | Hierarchical dictionary taxonomy             |
+| Localization  | `dictionary_category_translations`    | Localized category labels                    |
+| Dictionary    | `dictionary_words`                    | Canonical word or phrase entries             |
+| Localization  | `dictionary_word_translations`        | Meanings in explanation locales              |
+| Dictionary    | `dictionary_word_categories`          | Word-to-category classification              |
+| Dictionary    | `dictionary_examples`                 | Source-language example sentences            |
+| Localization  | `dictionary_example_translations`     | Localized example translations               |
+| Dictionary    | `dictionary_favorites`                | Student saved vocabulary                     |
+| Notifications | `notification_templates`              | Stable notification definitions              |
+| Localization  | `notification_template_translations`  | Localized notification templates             |
+| Notifications | `notifications`                       | Immutable notification instances             |
+| Notifications | `user_notifications`                  | Recipient delivery and read state            |
+| Configuration | `settings`                            | Typed platform configuration                 |
+| Audit         | `audit_logs`                          | Immutable security and administrative audit  |
+| Analytics     | `learning_events`                     | Append-only canonical learning events        |
+| Analytics     | `daily_learning_statistics`           | Per-user daily aggregates                    |
+| AI            | `ai_conversations`                    | User-owned AI conversation context           |
+| AI            | `ai_messages`                         | Ordered AI conversation messages             |
+| AI            | `ai_usage_ledger`                     | Provider usage, latency, and cost accounting |
 
 ---
 
@@ -1232,14 +1235,62 @@ inside the approved serializable transaction.
 
 ### 4.5 Certificates
 
-The table descriptions in this section are a future blueprint, not an
-implementation contract. The
+The Module 8.5B eligibility foundation is implemented as described in
+[Certificate Eligibility Database Foundation](./CERTIFICATE_ELIGIBILITY_DATABASE_FOUNDATION.md).
+The later `certificates` table remains a future blueprint, not an implementation
+contract. The
 [Course Completion and Certificate Eligibility Contract](./COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
 and
 [ADR-003](./design-system/decisions/ADR-003-course-completion-certificate-eligibility.md)
 govern future schema work for versioned eligibility policy, immutable evidence,
 and the separation of eligibility from certificate issuance. Module 8.5B must
 remain additive and must not generate certificate artifacts.
+
+#### `certificate_eligibility_policies`
+
+- **Purpose:** Stores immutable, typed eligibility policy versions. Module 8.5B
+  supports only `COURSE_COMPLETION_ONLY`, version `1`, with assessment,
+  attendance, and manual approval disabled.
+- **Primary key:** `id`, UUID.
+- **Important fields:** `code`, `version`, `assessment_rule`,
+  `requires_attendance`, `requires_manual_approval`, and `created_at`.
+- **Relationships:** One policy version may support many immutable eligibility
+  evaluations.
+- **Indexes:** Unique `(code, version)`.
+
+#### `certificate_eligibility_evaluations`
+
+- **Purpose:** Stores one immutable eligibility decision over one canonical,
+  frozen enrollment-completion snapshot.
+- **Primary key:** `id`, UUID.
+- **Important fields:** `enrollment_id`, trusted `course_id`, `policy_id`,
+  `status`, `evaluation_version`, `evaluated_at`, `completed_at`,
+  `completion_curriculum_version`, `completion_version`, completed and eligible
+  lesson counts, `course_percentage`, evaluator attribution, optional future
+  supersession linkage, and `created_at`.
+- **Foreign keys:** Composite `(enrollment_id, course_id)` references the
+  enrollment and prevents course mismatch; `enrollment_id` also references the
+  progress root; `policy_id` references the immutable policy; optional evaluator
+  and supersession identifiers use restrictive foreign keys.
+- **Relationships:** The enrollment remains the trusted source of student
+  identity. The progress root remains the source of canonical completion. No
+  mutable learner profile data is duplicated.
+- **Indexes:** Unique `(enrollment_id, evaluation_version)` and
+  `(enrollment_id, policy_id, completion_version)`; course-, enrollment-,
+  policy-, evaluator-, status-, and evaluation-time query indexes.
+
+#### `certificate_eligibility_reasons`
+
+- **Purpose:** Normalizes fixed eligibility reason codes without unrestricted
+  JSON or free text.
+- **Primary key:** Composite `(evaluation_id, code)`.
+- **Foreign keys:** `evaluation_id` references an immutable eligibility
+  evaluation with `RESTRICT` deletion.
+- **Relationships:** An evaluation may have fixed reasons only when a later
+  approved policy supports a persisted non-eligible decision. V1 `ELIGIBLE`
+  evidence cannot have reason rows.
+- **Indexes:** Primary key `(evaluation_id, code)` and reverse
+  `(code, evaluation_id)` index.
 
 #### `certificates`
 

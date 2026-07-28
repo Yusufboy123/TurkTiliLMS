@@ -32,6 +32,13 @@ const rollbackScriptPath = resolve(
   '20260726190508_add_progress_tracking_schema',
   'rollback.sql',
 );
+const certificateEligibilityRollbackScriptPath = resolve(
+  backendRoot,
+  'prisma',
+  'migrations',
+  '20260728120000_add_certificate_eligibility_foundation',
+  'rollback.sql',
+);
 
 const expectedTables = [
   'block_progress',
@@ -529,6 +536,26 @@ describeDatabase('Module 8.1B progress schema PostgreSQL integration', () => {
   it('rolls back only the additive Module 8.1B objects in an isolated schema', async () => {
     await client.$disconnect();
     clientDisconnected = true;
+
+    // Later additive modules must be rolled back before the progress foundation
+    // whose keys they reference.
+    await execFileAsync(
+      process.execPath,
+      [
+        prismaCliPath,
+        'db',
+        'execute',
+        '--file',
+        certificateEligibilityRollbackScriptPath,
+        '--url',
+        isolatedDatabaseUrl,
+      ],
+      {
+        cwd: backendRoot,
+        env: { ...process.env, DATABASE_URL: isolatedDatabaseUrl },
+        windowsHide: true,
+      },
+    );
 
     await execFileAsync(
       process.execPath,

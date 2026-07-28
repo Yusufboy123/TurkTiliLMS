@@ -3,7 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { PrismaClient, RoleCode, UserStatus } from '@prisma/client';
+import {
+  CertificateEligibilityAssessmentRule,
+  CertificateEligibilityPolicyCode,
+  PrismaClient,
+  RoleCode,
+  UserStatus,
+} from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const execFileAsync = promisify(execFile);
@@ -50,6 +56,18 @@ const expectedProgressPermissions = {
     'progress.self_record_visit',
     'progress.self_reopen',
   ],
+} as const;
+const expectedCertificatePermissions = {
+  [RoleCode.ADMIN]: [
+    'certificate_eligibility.course_read',
+    'certificate_eligibility.self_read',
+    'certificates.course_read',
+    'certificates.issue',
+    'certificates.revoke',
+    'certificates.self_read',
+  ],
+  [RoleCode.TEACHER]: ['certificate_eligibility.course_read', 'certificates.course_read'],
+  [RoleCode.STUDENT]: ['certificate_eligibility.self_read', 'certificates.self_read'],
 } as const;
 
 describeDatabase('development user seed PostgreSQL integration', () => {
@@ -157,6 +175,53 @@ describeDatabase('development user seed PostgreSQL integration', () => {
     await expect(
       client.permission.count({ where: { code: { startsWith: 'progress.' } } }),
     ).resolves.toBe(7);
+  });
+
+  it('seeds certificate permissions and the immutable v1 policy idempotently', async () => {
+    await runSeed('test', false);
+    await runSeed('test', false);
+
+    const roles = await client.role.findMany({
+      where: { code: { in: [RoleCode.ADMIN, RoleCode.TEACHER, RoleCode.STUDENT] } },
+      select: {
+        code: true,
+        permissions: {
+          where: { permission: { code: { startsWith: 'certificate' } } },
+          select: { permission: { select: { code: true } } },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    expect(roles).toHaveLength(3);
+    for (const role of roles) {
+      expect(role.permissions.map(({ permission }) => permission.code).sort()).toEqual([
+        ...expectedCertificatePermissions[role.code],
+      ]);
+    }
+
+    await expect(
+      client.permission.count({ where: { code: { startsWith: 'certificate' } } }),
+    ).resolves.toBe(6);
+    await expect(
+      client.certificateEligibilityPolicy.findMany({
+        select: {
+          code: true,
+          version: true,
+          assessmentRule: true,
+          requiresAttendance: true,
+          requiresManualApproval: true,
+        },
+      }),
+    ).resolves.toEqual([
+      {
+        code: CertificateEligibilityPolicyCode.COURSE_COMPLETION_ONLY,
+        version: 1,
+        assessmentRule: CertificateEligibilityAssessmentRule.NONE,
+        requiresAttendance: false,
+        requiresManualApproval: false,
+      },
+    ]);
   });
 
   it('creates opt-in development users idempotently with exactly the expected roles', async () => {

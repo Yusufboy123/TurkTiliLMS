@@ -1,5 +1,12 @@
 import 'dotenv/config';
-import { PrismaClient, RoleCode, UserStatus, type Role } from '@prisma/client';
+import {
+  CertificateEligibilityAssessmentRule,
+  CertificateEligibilityPolicyCode,
+  PrismaClient,
+  RoleCode,
+  UserStatus,
+  type Role,
+} from '@prisma/client';
 import { z } from 'zod';
 import { BcryptPasswordService } from '../src/modules/auth/password.service.js';
 
@@ -60,6 +67,14 @@ const developmentUserDefinitions = [
     role: RoleCode.STUDENT,
   },
 ] as const;
+
+const certificateEligibilityPolicyDefinition = {
+  code: CertificateEligibilityPolicyCode.COURSE_COMPLETION_ONLY,
+  version: 1,
+  assessmentRule: CertificateEligibilityAssessmentRule.NONE,
+  requiresAttendance: false,
+  requiresManualApproval: false,
+} as const;
 
 const permissionDefinitions = [
   {
@@ -452,6 +467,42 @@ const permissionDefinitions = [
     action: 'export',
     description: 'Authorize a future approved, step-up-protected progress export.',
   },
+  {
+    code: 'certificate_eligibility.self_read',
+    resource: 'certificate_eligibility',
+    action: 'self_read',
+    description: 'View certificate eligibility for the current student enrollment.',
+  },
+  {
+    code: 'certificate_eligibility.course_read',
+    resource: 'certificate_eligibility',
+    action: 'course_read',
+    description: 'View certificate eligibility within an assigned or permitted course.',
+  },
+  {
+    code: 'certificates.self_read',
+    resource: 'certificates',
+    action: 'self_read',
+    description: 'View certificate status for the current student enrollment.',
+  },
+  {
+    code: 'certificates.course_read',
+    resource: 'certificates',
+    action: 'course_read',
+    description: 'View certificate status within an assigned or permitted course.',
+  },
+  {
+    code: 'certificates.issue',
+    resource: 'certificates',
+    action: 'issue',
+    description: 'Authorize future step-up-protected certificate issuance.',
+  },
+  {
+    code: 'certificates.revoke',
+    resource: 'certificates',
+    action: 'revoke',
+    description: 'Authorize future step-up-protected certificate revocation.',
+  },
 ] as const;
 
 const teacherPermissionCodes = [
@@ -491,6 +542,8 @@ const teacherPermissionCodes = [
   'enrollments.read',
   'enrollments.update_status',
   'progress.course.read',
+  'certificate_eligibility.course_read',
+  'certificates.course_read',
 ] as const;
 
 const studentPermissionCodes = [
@@ -501,7 +554,39 @@ const studentPermissionCodes = [
   'progress.self_complete',
   'progress.self_reopen',
   'progress.self_record_visit',
+  'certificate_eligibility.self_read',
+  'certificates.self_read',
 ] as const;
+
+async function seedCertificateEligibilityPolicy(): Promise<void> {
+  const existing = await prisma.certificateEligibilityPolicy.findUnique({
+    where: {
+      code_version: {
+        code: certificateEligibilityPolicyDefinition.code,
+        version: certificateEligibilityPolicyDefinition.version,
+      },
+    },
+  });
+
+  if (!existing) {
+    await prisma.certificateEligibilityPolicy.create({
+      data: certificateEligibilityPolicyDefinition,
+    });
+    return;
+  }
+
+  const matchesApprovedV1Policy =
+    existing.assessmentRule === certificateEligibilityPolicyDefinition.assessmentRule &&
+    existing.requiresAttendance === certificateEligibilityPolicyDefinition.requiresAttendance &&
+    existing.requiresManualApproval ===
+      certificateEligibilityPolicyDefinition.requiresManualApproval;
+
+  if (!matchesApprovedV1Policy) {
+    throw new Error(
+      'Certificate eligibility v1 policy does not match the approved immutable definition.',
+    );
+  }
+}
 
 async function seedDevelopmentUsers(roles: Role[]): Promise<void> {
   if (!seedConfiguration.SEED_DEVELOPMENT_USERS) {
@@ -738,6 +823,7 @@ async function seedIdentityAndAccess(): Promise<void> {
     );
 
   await prisma.$transaction([...adminAssignments, ...teacherAssignments, ...studentAssignments]);
+  await seedCertificateEligibilityPolicy();
   await seedDevelopmentUsers(roles);
 }
 
