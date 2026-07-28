@@ -36,6 +36,7 @@ export const userAccessSelect = {
   credential: {
     select: {
       passwordHash: true,
+      passwordChangedAt: true,
       failedLoginCount: true,
       lockedUntil: true,
       requiresPasswordChange: true,

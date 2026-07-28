@@ -1,5 +1,9 @@
 import { RoleCode, SessionClientType, UserStatus } from '@prisma/client';
-import type { AuthRepository, SessionForRefresh } from '../../src/modules/auth/auth.repository.js';
+import {
+  LoginCredentialConflictError,
+  type AuthRepository,
+  type SessionForRefresh,
+} from '../../src/modules/auth/auth.repository.js';
 import type {
   AccessTokenClaims,
   AccessTokenService,
@@ -26,6 +30,7 @@ export function createTestUser(overrides: Partial<UserAccessRecord> = {}): UserA
     lastLoginAt: null,
     credential: {
       passwordHash: 'hashed:ValidPassword1!',
+      passwordChangedAt: new Date('2026-07-23T10:00:00.000Z'),
       failedLoginCount: 0,
       lockedUntil: null,
       requiresPasswordChange: false,
@@ -118,6 +123,7 @@ export class FakeAuthRepository implements AuthRepository {
   logoutAllCalls = 0;
   passwordChanges = 0;
   reuseDetections = 0;
+  rejectLoginForCredentialConflict = false;
 
   constructor(private readonly users: FakeUserRepository) {}
 
@@ -142,11 +148,16 @@ export class FakeAuthRepository implements AuthRepository {
 
   completeLogin(input: {
     userId: string;
+    expectedPasswordHash: string;
+    expectedCredentialEpoch: Date;
     refreshTokenHash: string;
     tokenFamilyId: string;
     expiresAt: Date;
     metadata: RequestMetadata;
   }): Promise<string> {
+    if (this.rejectLoginForCredentialConflict) {
+      throw new LoginCredentialConflictError();
+    }
     const session: StoredSession = {
       id: TEST_SESSION_ID,
       userId: input.userId,

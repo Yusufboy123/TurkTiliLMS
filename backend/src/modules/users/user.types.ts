@@ -2,6 +2,7 @@ import type { RoleCode, UserStatus } from '@prisma/client';
 
 export interface UserCredentialRecord {
   passwordHash: string;
+  passwordChangedAt: Date;
   failedLoginCount: number;
   lockedUntil: Date | null;
   requiresPasswordChange: boolean;

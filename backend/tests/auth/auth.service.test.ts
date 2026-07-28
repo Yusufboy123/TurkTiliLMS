@@ -93,6 +93,16 @@ describe('AuthService', () => {
     expect(error.message).toBe('Email yoki parol noto‘g‘ri.');
   });
 
+  it('rejects login generically when the credential changes after password verification', async () => {
+    const { service, auth } = setup();
+    auth.rejectLoginForCredentialConflict = true;
+
+    const error = await expectAppError(service.login(validLogin, metadata), 'INVALID_CREDENTIALS');
+
+    expect(error.statusCode).toBe(401);
+    expect(auth.sessions.size).toBe(0);
+  });
+
   it('locks an active account after the configured failed-attempt limit', async () => {
     const { service, users } = setup();
     const invalidLogin = { ...validLogin, password: 'WrongPassword1!' };

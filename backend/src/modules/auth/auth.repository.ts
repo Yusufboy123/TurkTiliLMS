@@ -9,6 +9,13 @@ export class SessionRotationConflictError extends Error {
   }
 }
 
+export class LoginCredentialConflictError extends Error {
+  constructor() {
+    super('The credential changed after password verification.');
+    this.name = 'LoginCredentialConflictError';
+  }
+}
+
 export interface SessionForRefresh {
   id: string;
   userId: string;
@@ -28,6 +35,8 @@ export interface AuthRepository {
   ): Promise<void>;
   completeLogin(input: {
     userId: string;
+    expectedPasswordHash: string;
+    expectedCredentialEpoch: Date;
     refreshTokenHash: string;
     tokenFamilyId: string;
     expiresAt: Date;
@@ -117,13 +126,39 @@ export class PrismaAuthRepository implements AuthRepository {
 
   async completeLogin(input: {
     userId: string;
+    expectedPasswordHash: string;
+    expectedCredentialEpoch: Date;
     refreshTokenHash: string;
     tokenFamilyId: string;
     expiresAt: Date;
     metadata: RequestMetadata;
   }): Promise<string> {
     return this.client.$transaction(async (transaction) => {
-      const now = new Date();
+      const databaseClock = await transaction.$queryRaw<{ currentTime: Date }[]>`
+        SELECT clock_timestamp() AS "currentTime"
+      `;
+      const now = databaseClock[0]?.currentTime;
+      if (!now) throw new Error('Database timestamp could not be read.');
+      const credentialRows = await transaction.$queryRaw<
+        { passwordHash: string; credentialEpoch: Date; lockedUntil: Date | null }[]
+      >`
+        SELECT
+          "password_hash" AS "passwordHash",
+          "password_changed_at" AS "credentialEpoch",
+          "locked_until" AS "lockedUntil"
+        FROM "user_credentials"
+        WHERE "user_id" = ${input.userId}::uuid
+        FOR UPDATE
+      `;
+      const credential = credentialRows[0];
+      if (
+        !credential ||
+        credential.passwordHash !== input.expectedPasswordHash ||
+        credential.credentialEpoch.getTime() !== input.expectedCredentialEpoch.getTime() ||
+        (credential.lockedUntil !== null && credential.lockedUntil > now)
+      ) {
+        throw new LoginCredentialConflictError();
+      }
       const session = await transaction.userSession.create({
         data: {
           userId: input.userId,
@@ -131,6 +166,7 @@ export class PrismaAuthRepository implements AuthRepository {
           tokenFamilyId: input.tokenFamilyId,
           expiresAt: input.expiresAt,
           lastActivityAt: now,
+          lastAuthenticatedAt: now,
           ...metadataFields(input.metadata),
         },
         select: { id: true },

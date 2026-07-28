@@ -4,10 +4,10 @@ info:
   version: 1.1.0-rc.1
   description: |
     Module 8.5A defines completion and eligibility; its four read operations
-    are implemented by Module 8.5C. Module 8.6A adds the documentation-only
-    issuance, lifecycle, step-up, private artifact, download, and public
-    verification contracts. Every new Module 8.6 operation remains
-    contract-only and unavailable until its named implementation phase ships.
+    are implemented by Module 8.5C. Module 8.6A adds issuance, lifecycle,
+    step-up, private artifact, download, and public verification contracts.
+    Module 8.6C implements only the two step-up operations; later Module 8.6
+    operations remain contract-only until their named implementation phase.
 servers:
   - url: http://localhost:5000/api/v1
     description: Local development base path
@@ -284,13 +284,18 @@ paths:
       operationId: createStepUpChallenge
       summary: Create a target-bound step-up challenge
       description: |
-        Module 8.6A contract only. The server revalidates the current session,
-        role, permission, and object scope before creating a five-minute
-        challenge. It never accepts an arbitrary return URL.
+        Module 8.6C runtime. The server revalidates the current session, role,
+        action-specific permission, and object scope before atomically creating
+        and auditing a five-minute challenge. It never accepts an arbitrary
+        return URL.
       x-implementation-phase: Module 8.6C
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-rate-limit: 5 requests per 15 minutes per user and session
       x-audit-event: security.step_up.challenge_created
+      x-required-roles: [ADMIN]
+      x-required-permissions-by-action:
+        CERTIFICATE_ISSUE: [certificates.issue]
+        CERTIFICATE_REVOKE: [certificates.revoke]
       security:
         - bearerAuth: []
       requestBody:
@@ -320,13 +325,17 @@ paths:
       operationId: verifyStepUpChallenge
       summary: Verify identity and create a single-use proof
       description: |
-        Module 8.6A contract only. A password is required when the current
-        session does not satisfy the ten-minute recent-authentication window.
-        Success returns a two-minute opaque proof once; only its hash persists.
+        Module 8.6C runtime. A password is required when the current session
+        does not satisfy the ten-minute recent-authentication window. Success
+        returns a two-minute opaque proof once; only its hash persists.
       x-implementation-phase: Module 8.6C
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-rate-limit: 10 requests per 15 minutes per user and privacy-safe IP key
       x-audit-events: [security.step_up.succeeded, security.step_up.failed]
+      x-required-roles: [ADMIN]
+      x-required-permissions-by-action:
+        CERTIFICATE_ISSUE: [certificates.issue]
+        CERTIFICATE_REVOKE: [certificates.revoke]
       security:
         - bearerAuth: []
       parameters:
@@ -1447,15 +1456,22 @@ components:
             code: CERTIFICATE_VERIFICATION_NOT_FOUND
             message: Sertifikatni tasdiqlash ma'lumoti topilmadi.
     StepUpInvalid:
-      description: Password verification failed or the challenge is locked
+      description: Access denied, password verification failed, or the challenge is locked
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorBody'
-          example:
-            success: false
-            code: STEP_UP_VERIFICATION_FAILED
-            message: Shaxsni tasdiqlab bo'lmadi.
+          examples:
+            accessDenied:
+              value:
+                success: false
+                code: ACCESS_DENIED
+                message: Bu amal uchun ruxsat yetarli emas.
+            verificationFailed:
+              value:
+                success: false
+                code: STEP_UP_VERIFICATION_FAILED
+                message: Shaxsni tasdiqlab bo'lmadi.
     CertificatePdf:
       description: Immutable private certificate PDF
       headers:

@@ -20,12 +20,14 @@ import {
 import { mediaRouter } from '../modules/media/media.routes.js';
 import { progressReportingRouter } from '../modules/progress-reporting/progress-reporting.routes.js';
 import { progressTrackingRouter } from '../modules/progress-tracking/progress-tracking.routes.js';
+import { stepUpAuthenticationRouter } from '../modules/step-up-authentication/step-up-authentication.routes.js';
 import { userManagementRouter } from '../modules/users/user-management.routes.js';
 
 export const apiV1Router = Router();
 
 apiV1Router.use('/health', healthRouter);
 apiV1Router.use('/auth', authRouter);
+apiV1Router.use('/auth/step-up', stepUpAuthenticationRouter);
 apiV1Router.use('/users', userManagementRouter);
 apiV1Router.use('/media', mediaRouter);
 apiV1Router.use(certificateEligibilityRouter);

@@ -2,7 +2,11 @@ import { SessionClientType, UserStatus, type RoleCode } from '@prisma/client';
 import { AppError } from '../../utils/app-error.js';
 import type { UserRepository } from '../users/user.repository.js';
 import type { SafeUserProfile, UserAccessRecord } from '../users/user.types.js';
-import { type AuthRepository, SessionRotationConflictError } from './auth.repository.js';
+import {
+  type AuthRepository,
+  LoginCredentialConflictError,
+  SessionRotationConflictError,
+} from './auth.repository.js';
 import type {
   AccessTokenService,
   AuthenticationResult,
@@ -111,17 +115,25 @@ export class AuthService implements AuthenticationService {
     }
 
     const refreshToken = this.refreshTokens.generate();
-    const sessionId = await this.auth.completeLogin({
-      userId: user.id,
-      refreshTokenHash: this.refreshTokens.hash(refreshToken),
-      tokenFamilyId: this.refreshTokens.createFamilyId(),
-      expiresAt: new Date(now.getTime() + this.configuration.refreshTokenExpiresInMs),
-      metadata: {
-        ...metadata,
-        clientType: input.clientType,
-        ...(input.deviceName ? { deviceName: input.deviceName } : {}),
-      },
-    });
+    let sessionId: string;
+    try {
+      sessionId = await this.auth.completeLogin({
+        userId: user.id,
+        expectedPasswordHash: user.credential.passwordHash,
+        expectedCredentialEpoch: user.credential.passwordChangedAt,
+        refreshTokenHash: this.refreshTokens.hash(refreshToken),
+        tokenFamilyId: this.refreshTokens.createFamilyId(),
+        expiresAt: new Date(now.getTime() + this.configuration.refreshTokenExpiresInMs),
+        metadata: {
+          ...metadata,
+          clientType: input.clientType,
+          ...(input.deviceName ? { deviceName: input.deviceName } : {}),
+        },
+      });
+    } catch (error: unknown) {
+      if (error instanceof LoginCredentialConflictError) throw invalidCredentialsError();
+      throw error;
+    }
     const accessToken = this.accessTokens.sign({
       sub: user.id,
       sessionId,
