@@ -129,9 +129,18 @@ recovery, or flows that cannot safely fit a dialog. It:
 It follows the same focus, form-error, secret-retention, timeout, and audit
 contract as `StepUpAuthenticationDialog`.
 
-**Missing dependency:** The challenge, proof, recent-auth lifetime, provider,
-error, and return-context OpenAPI/DTO contract is not approved. The route must
-not be treated as implementation-ready until that contract exists.
+Logout, session replacement, password change/reset, account deactivation, or
+authorization loss discards the local challenge/proof and returns to a safe
+reauthentication state. Passwords and raw proofs are never persisted in browser
+storage, URLs, analytics, or error telemetry.
+
+**Approval dependency:** Module 8.6A now defines the password-based challenge,
+ten-minute recent-auth determination, five-minute challenge, two-minute
+single-use proof, user/session/action/target binding, verification and expiry
+errors, allowlisted continuation context, rate limits, and audit events in the
+[Certificate Issuance and Lifecycle Contract](../CERTIFICATE_ISSUANCE_LIFECYCLE_CONTRACT.md).
+That contract is a Review Candidate. The route remains Partially Specified and
+must not be implemented until Module 8.6A architecture approval.
 
 ### Managed public content — Partially Specified
 
@@ -145,6 +154,28 @@ not be treated as implementation-ready until that contract exists.
 
 These pages use one 720 px reading column, print cleanly, support deep links to
 headings, and never ship placeholder legal or support commitments.
+
+### Public certificate verification — Partially Specified
+
+`/verify/certificates/:verificationToken` uses a focused public shell with the
+platform identity, one `h1`, verification status, certificate number, approved
+recipient-name disclosure, course and organization snapshots, issue date, and
+optional revoked date/reason code. Valid and revoked results use text plus icon,
+not color alone. Unknown and malformed tokens share one generic not-found state.
+An approved recipient-name suppression returns a valid status with the name
+omitted rather than exposing mutable profile data.
+
+The page does not expose internal IDs, email, enrollment data, actor data,
+artifact access, audit detail, or the raw token in its title, telemetry, or
+visible debug output. It is excluded from search indexing, sets
+`Referrer-Policy: no-referrer`, loads no third-party resources or analytics,
+never forwards the token-bearing route into telemetry, supports retry after
+network failure, and uses a single 720 px reading column down to 320 px.
+
+**Approval dependency:** The route, privacy DTO, 256-bit token, hash-only
+storage, rate limit, revoked projection, no-store caching, and QR deferral are
+defined by the Module 8.6A Review Candidate. Implementation remains blocked
+until Module 8.6A architecture and privacy-disclosure approval.
 
 ## Student pages
 
@@ -243,6 +274,26 @@ preference read/write DTOs and capability behavior are not approved.
 No routes, navigation, fake counters, or placeholder data ship until their
 module contracts are approved.
 
+### Certificate detail — Partially Specified
+
+`/app/certificates/:certificateId` presents the authenticated student's own
+certificate snapshot, issued or revoked status, certificate number, course,
+organization, issue date, and server-provided capabilities. An issued
+certificate offers `Sertifikatni yuklab olish`; a revoked certificate removes
+student download and explains that the credential is invalid.
+
+Loading, background refresh, offline-stale, not found, forbidden, revoked,
+artifact unavailable, and download failure are distinct. Download never exposes
+a provider URL or storage path. Success/failure is announced once; focus moves
+to the updated status heading. At 320 px, actions stack and long certificate
+numbers wrap without horizontal page scroll.
+
+**Approval dependency:** The private detail/download DTOs, ownership policy,
+artifact delivery headers, revoked-download behavior, and React Query
+invalidation are defined by the Module 8.6A Review Candidate. Implementation
+remains blocked until Module 8.6A approval and the 8.6E runtime contract is
+available.
+
 ## Teacher pages
 
 ### Dashboard — Partially Specified
@@ -300,6 +351,18 @@ metric definitions, and accessible visualization needs are approved.
 
 Self profile, locale, theme, notifications, and session entry points are
 anticipated. Exact notification and session DTOs remain blocking.
+
+### Teacher certificate detail — Partially Specified
+
+`/teacher/courses/:courseId/certificates/:certificateId` is a read-only,
+course-scoped status surface linked from progress reporting. It shows only the
+management DTO fields permitted to an assigned teacher and never renders issue,
+revoke, reissue, or artifact-download controls.
+
+**Approval dependency:** The course-scoped read DTO, assignment check, audit
+event, and teacher download prohibition are defined by the Module 8.6A Review
+Candidate. Implementation remains blocked until Module 8.6A approval and the
+8.6E runtime contract is available.
 
 ## Admin pages
 
@@ -390,3 +453,25 @@ presets, and safe business settings. Security-sensitive changes use step-up and
 audit. Secrets, infrastructure settings, arbitrary CSS/JavaScript, code, and
 unvalidated key/value editing are prohibited. Exact typed schemas and
 environment-owned boundary must be approved before implementation.
+
+### Admin certificate detail and actions — Partially Specified
+
+`/admin/courses/:courseId/certificates/:certificateId` presents immutable
+snapshot, evidence and template references, lifecycle version, artifact
+availability, and capability-driven actions. Issuance begins from an eligible
+enrollment detail and shows recipient, course, evidence, and template snapshots
+before explicit confirmation. Revocation uses a danger confirmation with typed
+reason, optional bounded note, and expected version. Both protected actions
+invoke step-up and return to a fresh confirmation; neither trusts page-derived
+eligibility.
+
+Administrators with the dedicated download permission may retrieve issued or
+revoked artifacts for an audited operational purpose. The UI offers no delete,
+restore, arbitrary template code, reissue, PDF edit, or QR action in the initial
+release.
+
+**Approval dependency:** The issue/revoke/download API, step-up contract,
+idempotency behavior, immutable lifecycle, capability matrix, confirmations,
+error catalog, and audit events are defined by the Module 8.6A Review Candidate.
+Implementation remains blocked until Module 8.6A approval and the relevant
+8.6C–8.6F runtime phase is available.

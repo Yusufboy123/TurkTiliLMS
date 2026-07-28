@@ -1328,29 +1328,49 @@ Completion, eligibility, and certificate issuance are separate authoritative
 states; a displayed 100 percent value must never be treated as certificate
 eligibility by a client.
 
+The Module 8.6A
+[Certificate Issuance and Lifecycle Contract](./CERTIFICATE_ISSUANCE_LIFECYCLE_CONTRACT.md)
+and
+[ADR-004](./design-system/decisions/ADR-004-certificate-issuance-lifecycle.md)
+are Review Candidates for issuance, artifact, verification, and revocation.
+They are documentation only until architecture approval and phased
+implementation.
+
 ### 20.1 Issuance flow
 
 1. A course or program defines an eligibility policy.
 2. The certificate service evaluates canonical progress and assessment data.
-3. An issuance record captures recipient, achievement, template version,
-   issuance time, and verification identifier.
-4. A worker generates a PDF artifact.
-5. The artifact is stored privately and made available through authorized
-   download.
-6. A public verification endpoint exposes only approved certificate details.
+3. An administrator completes target-bound step-up authentication and confirms
+   the exact eligible evidence.
+4. The service renders, stages, and finalizes an immutable private PDF outside
+   the serializable issuance transaction.
+5. The transaction revalidates all evidence and captures recipient/course
+   snapshots, template version, number, token hash, issuance time, and artifact
+   checksum.
+6. The committed artifact is made available through authorized download.
+7. A public verification endpoint exposes only approved certificate details.
 
-Certificates should contain a QR code or URL referencing an opaque verification
-identifier, not private student data embedded in query parameters.
+The initial Module 8.6 contract permits a textual URL referencing an opaque
+verification token. QR generation is deferred and must never embed private
+student data, sessions, or internal identifiers.
 
 ### 20.2 Integrity and lifecycle
 
-- Certificate numbers must be unique and non-guessable.
+- Certificate numbers are unique, human-readable public identifiers and are not
+  authentication secrets; public verification uses a separate high-entropy
+  token stored only as a hash.
 - Generated documents should include a cryptographic digest or verifiable
   signature if external authenticity is important.
 - Template versions must be retained for historical reproducibility.
 - Revocation records should preserve reason, actor, and timestamp.
-- Reissued certificates should retain a relationship to the original.
+- Reissue is deferred; a future contract must preserve the original and link a
+  new certificate through explicit supersession.
 - Public verification must reveal the minimum required information.
+- Public verification pages use no-referrer/noindex controls, no third-party
+  resources, and infrastructure path redaction; recipient-name suppression is
+  separate from immutable certificate history.
+- Generated certificate PDFs are private, immutable, checksum-verified, and
+  capped at 10 MiB.
 
 ---
 

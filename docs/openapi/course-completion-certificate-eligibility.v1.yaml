@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
-  title: Turk Tili LMS Course Completion and Certificate Eligibility API
-  version: 1.0.0
+  title: Turk Tili LMS Course Completion and Certificate Lifecycle API
+  version: 1.1.0-rc.1
   description: |
-    Module 8.5A defines the canonical contract. The four eligibility and
-    certificate-status read operations are implemented by Module 8.5C.
-    Issuance and revocation are future Module 8.6 boundaries and remain blocked
-    by their separate step-up, template, numbering, artifact, and verification
-    contracts.
+    Module 8.5A defines completion and eligibility; its four read operations
+    are implemented by Module 8.5C. Module 8.6A adds the documentation-only
+    issuance, lifecycle, step-up, private artifact, download, and public
+    verification contracts. Every new Module 8.6 operation remains
+    contract-only and unavailable until its named implementation phase ships.
 servers:
   - url: http://localhost:5000/api/v1
     description: Local development base path
@@ -15,6 +15,9 @@ tags:
   - name: Student Certificate Eligibility
   - name: Course Certificate Eligibility
   - name: Certificate Administration
+  - name: Certificate Delivery
+  - name: Public Certificate Verification
+  - name: Step-up Authentication
 paths:
   /me/enrollments/{enrollmentId}/certificate-eligibility:
     get:
@@ -172,22 +175,24 @@ paths:
       operationId: issueEnrollmentCertificate
       summary: Issue a certificate from an eligible enrollment
       description: |
-        Future Module 8.6 boundary only. It is not available in Module 8.5A,
-        8.5B, or 8.5C. Requires ADMIN, `certificates.issue`, a current eligible
-        evidence evaluation, Idempotency-Key, audit, explicit confirmation, and
-        an approved recent-authentication/step-up contract. This operation does
-        not itself define PDF, template, numbering, signing, storage, delivery,
-        or public-verification behavior.
-      x-implementation-phase: Module 8.6
-      x-implementation-status: future-boundary-not-available
+        Module 8.6A contract only. Requires ADMIN, `certificates.issue`, the
+        exact eligible evidence and completion/curriculum versions,
+        Idempotency-Key, X-Step-Up-Proof, explicit confirmation, synchronous
+        staged PDF finalization, audit, and serializable duplicate protection.
+        The response never exposes the verification token or storage path.
+      x-implementation-phase: Module 8.6E
+      x-implementation-status: contract-only-not-available
       x-required-roles: [ADMIN]
       x-required-permissions: [certificates.issue]
       x-step-up-required: true
+      x-rate-limit: 5 requests per 15 minutes per actor and enrollment
+      x-audit-events: [certificate.issue_requested, certificate.issued]
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/EnrollmentId'
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/StepUpProof'
       requestBody:
         required: true
         content:
@@ -205,7 +210,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CertificateStatusResponse'
+                $ref: '#/components/schemas/CertificateMutationResponse'
         '401':
           $ref: '#/components/responses/AuthenticationRequired'
         '403':
@@ -215,7 +220,9 @@ paths:
         '409':
           $ref: '#/components/responses/CertificateConflict'
         '422':
-          $ref: '#/components/responses/CertificateNotEligible'
+          $ref: '#/components/responses/CertificateIssueUnprocessable'
+        '424':
+          $ref: '#/components/responses/CertificateArtifactFailure'
         '428':
           $ref: '#/components/responses/StepUpRequired'
         '429':
@@ -226,21 +233,24 @@ paths:
       operationId: revokeCertificate
       summary: Revoke an issued certificate
       description: |
-        Future Module 8.6 boundary only. Requires ADMIN,
-        `certificates.revoke`, explicit confirmation, optimistic concurrency,
-        audit, and an approved recent-authentication/step-up contract.
-        Revocation preserves completion, eligibility evidence, and the
-        certificate record.
-      x-implementation-phase: Module 8.6
-      x-implementation-status: future-boundary-not-available
+        Module 8.6A contract only. Requires ADMIN, `certificates.revoke`,
+        Idempotency-Key, a certificate-bound X-Step-Up-Proof, explicit
+        confirmation, optimistic concurrency, and audit. Revocation preserves
+        completion, eligibility evidence, the immutable certificate record, and
+        artifact.
+      x-implementation-phase: Module 8.6F
+      x-implementation-status: contract-only-not-available
       x-required-roles: [ADMIN]
       x-required-permissions: [certificates.revoke]
       x-step-up-required: true
+      x-rate-limit: 5 requests per 15 minutes per actor and certificate
+      x-audit-event: certificate.revoked
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CertificateId'
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/StepUpProof'
       requestBody:
         required: true
         content:
@@ -253,7 +263,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CertificateStatusResponse'
+                $ref: '#/components/schemas/CertificateMutationResponse'
         '401':
           $ref: '#/components/responses/AuthenticationRequired'
         '403':
@@ -266,6 +276,260 @@ paths:
           $ref: '#/components/responses/ValidationFailure'
         '428':
           $ref: '#/components/responses/StepUpRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/step-up/challenges:
+    post:
+      tags: [Step-up Authentication]
+      operationId: createStepUpChallenge
+      summary: Create a target-bound step-up challenge
+      description: |
+        Module 8.6A contract only. The server revalidates the current session,
+        role, permission, and object scope before creating a five-minute
+        challenge. It never accepts an arbitrary return URL.
+      x-implementation-phase: Module 8.6C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit: 5 requests per 15 minutes per user and session
+      x-audit-event: security.step_up.challenge_created
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStepUpChallengeRequest'
+      responses:
+        '201':
+          description: Challenge created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepUpChallengeResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/step-up/challenges/{challengeId}/verify:
+    post:
+      tags: [Step-up Authentication]
+      operationId: verifyStepUpChallenge
+      summary: Verify identity and create a single-use proof
+      description: |
+        Module 8.6A contract only. A password is required when the current
+        session does not satisfy the ten-minute recent-authentication window.
+        Success returns a two-minute opaque proof once; only its hash persists.
+      x-implementation-phase: Module 8.6C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit: 10 requests per 15 minutes per user and privacy-safe IP key
+      x-audit-events: [security.step_up.succeeded, security.step_up.failed]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ChallengeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyStepUpChallengeRequest'
+      responses:
+        '200':
+          description: Challenge verified and proof returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepUpProofResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/StepUpInvalid'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '428':
+          $ref: '#/components/responses/StepUpRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/certificates/{certificateId}:
+    get:
+      tags: [Certificate Delivery]
+      operationId: getOwnCertificate
+      summary: Get the authenticated student's certificate
+      description: |
+        Module 8.6A contract only. Requires STUDENT,
+        `certificates.self_read`, and ownership through the certificate's
+        enrollment.
+      x-implementation-phase: Module 8.6E
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [STUDENT]
+      x-required-permissions: [certificates.self_read]
+      x-rate-limit: 60 requests per minute per actor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          description: Private certificate detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateCertificateResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/CertificateNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me/certificates/{certificateId}/download:
+    get:
+      tags: [Certificate Delivery]
+      operationId: downloadOwnCertificate
+      summary: Download the authenticated student's issued PDF
+      description: |
+        Module 8.6A contract only. Requires STUDENT,
+        `certificates.self_download`, ownership, and ISSUED status. Range
+        requests are not supported in v1.
+      x-implementation-phase: Module 8.6E
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [STUDENT]
+      x-required-permissions: [certificates.self_download]
+      x-rate-limit: 20 requests per minute per actor and 5 per minute per certificate
+      x-audit-event: certificate.download_started
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          $ref: '#/components/responses/CertificatePdf'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/CertificateNotFound'
+        '409':
+          $ref: '#/components/responses/CertificateDownloadConflict'
+        '424':
+          $ref: '#/components/responses/CertificateArtifactUnavailable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /courses/{courseId}/certificates/{certificateId}:
+    get:
+      tags: [Certificate Delivery]
+      operationId: getCourseCertificate
+      summary: Get certificate detail in an authorized course scope
+      description: |
+        Module 8.6A contract only. Requires ADMIN or TEACHER,
+        `certificates.course_read`, a certificate belonging to the path course,
+        and current course assignment for a teacher. This privileged read is
+        audited.
+      x-implementation-phase: Module 8.6E
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [ADMIN, TEACHER]
+      x-required-permissions: [certificates.course_read]
+      x-audit-event: certificate.privileged_viewed
+      x-rate-limit: 60 requests per minute per actor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          description: Scoped management detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateCertificateResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/CourseScopeDenied'
+        '404':
+          $ref: '#/components/responses/CertificateNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /courses/{courseId}/certificates/{certificateId}/download:
+    get:
+      tags: [Certificate Delivery]
+      operationId: downloadCourseCertificate
+      summary: Download a certificate PDF for an administrative purpose
+      description: |
+        Module 8.6A contract only. Requires ADMIN and
+        `certificates.download`. Revoked artifacts may be retrieved by this
+        endpoint for investigation. Every successful access is audited. Teachers
+        cannot download certificate artifacts in v1.
+      x-implementation-phase: Module 8.6E
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [ADMIN]
+      x-required-permissions: [certificates.download]
+      x-audit-event: certificate.download_started
+      x-rate-limit: 20 requests per minute per actor and 5 per minute per certificate
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          $ref: '#/components/responses/CertificatePdf'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/CertificateNotFound'
+        '424':
+          $ref: '#/components/responses/CertificateArtifactUnavailable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /public/certificates/verify/{verificationToken}:
+    get:
+      tags: [Public Certificate Verification]
+      operationId: verifyPublicCertificate
+      summary: Verify a certificate through its opaque public token
+      description: |
+        Module 8.6A contract only. Authentication is not required. Unknown and
+        malformed tokens receive the same generic 404. An approved
+        recipient-name suppression returns a valid status with a null name.
+        The raw token must not be logged or copied into analytics.
+      x-implementation-phase: Module 8.6F
+      x-implementation-status: contract-only-not-available
+      x-rate-limit: 20 requests per minute per privacy-safe IP key plus a global abuse limit
+      x-audit-event: certificate.verification_viewed
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/VerificationToken'
+      responses:
+        '200':
+          description: Privacy-limited verification result returned
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+            Referrer-Policy:
+              schema:
+                type: string
+                const: no-referrer
+            X-Robots-Tag:
+              schema:
+                type: string
+                const: noindex, nofollow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCertificateVerificationResponse'
+        '404':
+          $ref: '#/components/responses/CertificateVerificationNotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
 components:
@@ -296,6 +560,21 @@ components:
       schema:
         type: string
         format: uuid
+    ChallengeId:
+      name: challengeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    VerificationToken:
+      name: verificationToken
+      in: path
+      required: true
+      description: Unpadded base64url encoding of 32 random bytes
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{43}$'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -307,6 +586,18 @@ components:
         type: string
         minLength: 16
         maxLength: 128
+    StepUpProof:
+      name: X-Step-Up-Proof
+      in: header
+      required: true
+      description: |
+        Opaque, single-use proof bound to the authenticated user, session,
+        protected action, and target. It expires two minutes after verification.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
+        pattern: '^[A-Za-z0-9_-]{43}$'
   schemas:
     CourseReference:
       type: object
@@ -343,6 +634,9 @@ components:
     CertificateLifecycleStatus:
       type: string
       enum: [NOT_ISSUED, ISSUED, REVOKED]
+    PersistedCertificateLifecycleStatus:
+      type: string
+      enum: [ISSUED, REVOKED]
     RevocationReasonCode:
       type: string
       enum:
@@ -470,7 +764,7 @@ components:
         certificateNumber:
           type: string
         status:
-          $ref: '#/components/schemas/CertificateLifecycleStatus'
+          $ref: '#/components/schemas/PersistedCertificateLifecycleStatus'
         issuedAt:
           type: string
           format: date-time
@@ -529,31 +823,369 @@ components:
     IssueCertificateRequest:
       type: object
       additionalProperties: false
-      required: [eligibilityEvaluationId, expectedEligibilityVersion]
+      required:
+        - eligibilityEvaluationId
+        - eligibilityEvaluationVersion
+        - completionVersion
+        - curriculumVersion
+        - confirmed
       properties:
         eligibilityEvaluationId:
           type: string
           format: uuid
-        expectedEligibilityVersion:
+        eligibilityEvaluationVersion:
           type: integer
           minimum: 1
+        completionVersion:
+          type: integer
+          minimum: 1
+        curriculumVersion:
+          type: integer
+          minimum: 1
+        confirmed:
+          type: boolean
+          const: true
     RevokeCertificateRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, reasonCode, reason, confirmed]
+      required: [expectedVersion, reasonCode, confirmed]
       properties:
         expectedVersion:
           type: integer
           minimum: 1
         reasonCode:
           $ref: '#/components/schemas/RevocationReasonCode'
-        reason:
+        reasonNote:
           type: string
           minLength: 10
           maxLength: 500
         confirmed:
           type: boolean
           const: true
+    StepUpAction:
+      type: string
+      enum:
+        - CERTIFICATE_ISSUE
+        - CERTIFICATE_REVOKE
+    StepUpTargetType:
+      type: string
+      enum: [ENROLLMENT, CERTIFICATE]
+    StepUpContinuation:
+      type: string
+      enum:
+        - CERTIFICATE_ISSUE_CONFIRMATION
+        - CERTIFICATE_REVOKE_CONFIRMATION
+    CreateStepUpChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [action, targetType, targetId, continuation]
+      properties:
+        action:
+          $ref: '#/components/schemas/StepUpAction'
+        targetType:
+          $ref: '#/components/schemas/StepUpTargetType'
+        targetId:
+          type: string
+          format: uuid
+        continuation:
+          $ref: '#/components/schemas/StepUpContinuation'
+    VerifyStepUpChallengeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        password:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          writeOnly: true
+        confirmRecentAuthentication:
+          type: boolean
+          const: true
+      oneOf:
+        - required: [password]
+        - required: [confirmRecentAuthentication]
+    StepUpChallenge:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - action
+        - targetType
+        - targetId
+        - verificationRequired
+        - expiresAt
+        - continuationId
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          $ref: '#/components/schemas/StepUpAction'
+        targetType:
+          $ref: '#/components/schemas/StepUpTargetType'
+        targetId:
+          type: string
+          format: uuid
+        verificationRequired:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        continuationId:
+          type: string
+          format: uuid
+    StepUpProof:
+      type: object
+      additionalProperties: false
+      required: [proof, expiresAt, action, targetType, targetId, continuationId]
+      properties:
+        proof:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+        expiresAt:
+          type: string
+          format: date-time
+        action:
+          $ref: '#/components/schemas/StepUpAction'
+        targetType:
+          $ref: '#/components/schemas/StepUpTargetType'
+        targetId:
+          type: string
+          format: uuid
+        continuationId:
+          type: string
+          format: uuid
+    StepUpChallengeResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/StepUpChallenge'
+    StepUpProofResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/StepUpProof'
+    CertificateActionCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        - canDownload
+        - canIssue
+        - canRevoke
+        - canReissue
+      properties:
+        canDownload:
+          type: boolean
+        canIssue:
+          type: boolean
+        canRevoke:
+          type: boolean
+        canReissue:
+          type: boolean
+          const: false
+    CertificateArtifactSummary:
+      type: object
+      additionalProperties: false
+      required: [available, mimeType, sizeBytes]
+      properties:
+        available:
+          type: boolean
+        mimeType:
+          type: string
+          const: application/pdf
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+    PrivateCertificate:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - certificateNumber
+        - enrollmentId
+        - course
+        - recipientDisplayName
+        - organizationName
+        - locale
+        - status
+        - version
+        - issuedAt
+        - revokedAt
+        - safeRevocationReasonCode
+        - templateVersion
+        - artifact
+        - capabilities
+      properties:
+        id:
+          type: string
+          format: uuid
+        certificateNumber:
+          type: string
+          pattern: '^TTL-[0-9]{4}-[0-9]{10}$'
+        enrollmentId:
+          type: string
+          format: uuid
+        course:
+          $ref: '#/components/schemas/CourseReference'
+        recipientDisplayName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        organizationName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        locale:
+          type: string
+          enum: [uz-Latn]
+        status:
+          $ref: '#/components/schemas/PersistedCertificateLifecycleStatus'
+        version:
+          type: integer
+          minimum: 1
+        issuedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+        safeRevocationReasonCode:
+          oneOf:
+            - $ref: '#/components/schemas/RevocationReasonCode'
+            - type: 'null'
+        templateVersion:
+          type: integer
+          minimum: 1
+        artifact:
+          $ref: '#/components/schemas/CertificateArtifactSummary'
+        capabilities:
+          $ref: '#/components/schemas/CertificateActionCapabilities'
+    PrivateCertificateResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PrivateCertificate'
+    CertificateMutationReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - operation
+        - certificateId
+        - enrollmentId
+        - certificateNumber
+        - resultingStatus
+        - resultingVersion
+        - occurredAt
+      properties:
+        operation:
+          type: string
+          enum: [ISSUE, REVOKE]
+        certificateId:
+          type: string
+          format: uuid
+        enrollmentId:
+          type: string
+          format: uuid
+        certificateNumber:
+          type: string
+          pattern: '^TTL-[0-9]{4}-[0-9]{10}$'
+        resultingStatus:
+          $ref: '#/components/schemas/PersistedCertificateLifecycleStatus'
+        resultingVersion:
+          type: integer
+          minimum: 1
+        occurredAt:
+          type: string
+          format: date-time
+    CertificateMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CertificateMutationReceipt'
+    PublicCertificateStatus:
+      type: string
+      enum: [VALID, REVOKED]
+    PublicCertificateVerification:
+      type: object
+      additionalProperties: false
+      required:
+        - certificateNumber
+        - status
+        - recipientDisplayName
+        - courseTitle
+        - organizationName
+        - issuedAt
+        - revokedAt
+        - safeRevocationReasonCode
+      properties:
+        certificateNumber:
+          type: string
+          pattern: '^TTL-[0-9]{4}-[0-9]{10}$'
+        status:
+          $ref: '#/components/schemas/PublicCertificateStatus'
+        recipientDisplayName:
+          type: [string, 'null']
+          maxLength: 160
+          description: Null when an approved privacy workflow suppresses public identity
+        courseTitle:
+          type: string
+          maxLength: 200
+        organizationName:
+          type: string
+          maxLength: 200
+        issuedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+        safeRevocationReasonCode:
+          oneOf:
+            - $ref: '#/components/schemas/RevocationReasonCode'
+            - type: 'null'
+    PublicCertificateVerificationResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PublicCertificateVerification'
     ErrorCode:
       type: string
       enum:
@@ -565,15 +1197,28 @@ components:
         - COURSE_NOT_FOUND
         - ENROLLMENT_NOT_FOUND
         - CERTIFICATE_NOT_FOUND
+        - CERTIFICATE_VERIFICATION_NOT_FOUND
         - COMPLETION_EVIDENCE_CONFLICT
         - ELIGIBILITY_VERSION_CONFLICT
+        - CERTIFICATE_EVIDENCE_CONFLICT
         - CERTIFICATE_ALREADY_ISSUED
+        - CERTIFICATE_ISSUANCE_CONFLICT
         - CERTIFICATE_ALREADY_REVOKED
+        - CERTIFICATE_VERSION_CONFLICT
+        - CERTIFICATE_REVOKED
         - IDEMPOTENCY_KEY_REUSED
+        - CERTIFICATE_NUMBERING_CONFLICT
         - COURSE_NOT_COMPLETED
         - CERTIFICATE_NOT_ELIGIBLE
+        - CERTIFICATE_TEMPLATE_UNAVAILABLE
+        - CERTIFICATE_ARTIFACT_GENERATION_FAILED
+        - CERTIFICATE_ARTIFACT_STORAGE_FAILED
+        - CERTIFICATE_ARTIFACT_UNAVAILABLE
         - VALIDATION_ERROR
         - STEP_UP_REQUIRED
+        - STEP_UP_VERIFICATION_FAILED
+        - STEP_UP_PROOF_EXPIRED
+        - STEP_UP_PROOF_INVALID
         - RATE_LIMIT_EXCEEDED
     FieldIssue:
       type: object
@@ -701,6 +1346,32 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorBody'
+          examples:
+            alreadyIssued:
+              value:
+                success: false
+                code: CERTIFICATE_ALREADY_ISSUED
+                message: Bu kurs yoziluvi uchun sertifikat allaqachon berilgan.
+            evidenceConflict:
+              value:
+                success: false
+                code: CERTIFICATE_EVIDENCE_CONFLICT
+                message: Sertifikat dalillari joriy yakunlash ma'lumotiga mos emas.
+            idempotencyConflict:
+              value:
+                success: false
+                code: IDEMPOTENCY_KEY_REUSED
+                message: Bu takrorlanmas so'rov kaliti boshqa amal uchun ishlatilgan.
+            alreadyRevoked:
+              value:
+                success: false
+                code: CERTIFICATE_ALREADY_REVOKED
+                message: Sertifikat allaqachon bekor qilingan.
+            versionConflict:
+              value:
+                success: false
+                code: CERTIFICATE_VERSION_CONFLICT
+                message: Sertifikat holati o'zgargan. Ma'lumotni yangilang.
     CertificateNotEligible:
       description: The enrollment is not eligible for certificate issuance
       content:
@@ -711,6 +1382,108 @@ components:
             success: false
             code: CERTIFICATE_NOT_ELIGIBLE
             message: Bu kurs bo'yicha sertifikat olish shartlari bajarilmagan.
+    CertificateIssueUnprocessable:
+      description: Eligibility or a compatible active template is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          examples:
+            notEligible:
+              value:
+                success: false
+                code: CERTIFICATE_NOT_ELIGIBLE
+                message: Bu kurs bo'yicha sertifikat olish shartlari bajarilmagan.
+            templateUnavailable:
+              value:
+                success: false
+                code: CERTIFICATE_TEMPLATE_UNAVAILABLE
+                message: Mos sertifikat shabloni hozir mavjud emas.
+    CertificateArtifactFailure:
+      description: Certificate PDF generation or storage failed before issuance committed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          examples:
+            generation:
+              value:
+                success: false
+                code: CERTIFICATE_ARTIFACT_GENERATION_FAILED
+                message: Sertifikat faylini yaratib bo'lmadi.
+            storage:
+              value:
+                success: false
+                code: CERTIFICATE_ARTIFACT_STORAGE_FAILED
+                message: Sertifikat faylini xavfsiz saqlab bo'lmadi.
+    CertificateArtifactUnavailable:
+      description: Persisted certificate artifact is missing or failed integrity verification
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: CERTIFICATE_ARTIFACT_UNAVAILABLE
+            message: Sertifikat fayli hozir mavjud emas.
+    CertificateDownloadConflict:
+      description: The student's certificate is revoked and cannot be downloaded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: CERTIFICATE_REVOKED
+            message: Bekor qilingan sertifikatni yuklab bo'lmaydi.
+    CertificateVerificationNotFound:
+      description: Public token is unknown or malformed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: CERTIFICATE_VERIFICATION_NOT_FOUND
+            message: Sertifikatni tasdiqlash ma'lumoti topilmadi.
+    StepUpInvalid:
+      description: Password verification failed or the challenge is locked
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            success: false
+            code: STEP_UP_VERIFICATION_FAILED
+            message: Shaxsni tasdiqlab bo'lmadi.
+    CertificatePdf:
+      description: Immutable private certificate PDF
+      headers:
+        Content-Disposition:
+          description: Sanitized server-generated attachment filename
+          schema:
+            type: string
+        Content-Length:
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10485760
+        ETag:
+          schema:
+            type: string
+        Cache-Control:
+          schema:
+            type: string
+            const: private, no-store
+        X-Content-Type-Options:
+          schema:
+            type: string
+            const: nosniff
+      content:
+        application/pdf:
+          schema:
+            type: string
+            format: binary
     ValidationFailure:
       description: Path, query, body, or header validation failed
       content:
@@ -722,15 +1495,27 @@ components:
             code: VALIDATION_ERROR
             message: Yuborilgan ma'lumotlarni tekshiring.
     StepUpRequired:
-      description: Recent authentication is required for this high-risk future action
+      description: Recent authentication or a valid target-bound proof is required
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorBody'
-          example:
-            success: false
-            code: STEP_UP_REQUIRED
-            message: Davom etish uchun shaxsingizni qayta tasdiqlang.
+          examples:
+            required:
+              value:
+                success: false
+                code: STEP_UP_REQUIRED
+                message: Davom etish uchun shaxsingizni qayta tasdiqlang.
+            expired:
+              value:
+                success: false
+                code: STEP_UP_PROOF_EXPIRED
+                message: Shaxsni tasdiqlash muddati tugagan.
+            invalid:
+              value:
+                success: false
+                code: STEP_UP_PROOF_INVALID
+                message: Shaxsni tasdiqlash ma'lumoti yaroqsiz.
     RateLimited:
       description: Too many requests
       content:

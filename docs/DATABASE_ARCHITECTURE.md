@@ -53,6 +53,17 @@ historical progress rows. See
 verification, backfill, and rollback boundaries. Other domain sections of this
 database blueprint remain unaffected.
 
+### Module 8.6 certificate issuance blueprint notice
+
+Module 8.6A defines Review Candidate concepts for immutable certificates,
+template versions, dedicated private PDF artifacts, hashed public verification
+tokens, and target-bound step-up authentication. See the
+[Certificate Issuance and Lifecycle Contract](./CERTIFICATE_ISSUANCE_LIFECYCLE_CONTRACT.md)
+and
+[ADR-004](./design-system/decisions/ADR-004-certificate-issuance-lifecycle.md).
+These concepts are documentation only. They do not assert that Prisma models,
+migrations, permissions, or runtime behavior exist.
+
 ---
 
 ## 1. Database overview
@@ -64,7 +75,9 @@ dictionary, notification, certificate, audit, analytics, and AI usage metadata.
 Binary files are not stored in PostgreSQL. Images, documents, audio, videos,
 captions, and generated certificate files belong in object storage. The
 `media_files` table stores metadata, ownership, lifecycle state, and the opaque
-object key required to locate each asset through authorized backend services.
+object key for user-uploaded learning assets. Certificate PDF metadata belongs
+to the dedicated immutable `certificate_artifacts` concept and is never exposed
+through generic media lifecycle endpoints.
 
 ### 1.1 Architectural goals
 
@@ -123,22 +136,23 @@ values such as `uz-Latn`, `tr`, and `en`.
 
 ### 1.4 Domain ownership
 
-| Domain         | Owned tables                                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Localization   | `locales` and all `*_translations` tables                                                                                |
-| Identity       | `users`, `user_credentials`, `user_external_identities`, `user_sessions`                                                 |
-| Access control | `roles`, `permissions`, `user_roles`, `role_permissions`                                                                 |
-| Learning       | `courses`, `course_instructors`, `course_enrollments`, `modules`, `lessons`                                              |
-| Media          | `media_files`, `lesson_videos`, `lesson_documents`, `lesson_audio`                                                       |
-| Progress       | `enrollment_progress_roots`, `lesson_progress`, `block_progress`, `progress_events`, `idempotency_records`               |
-| Assessment     | `tests`, `questions`, `question_options`, `test_questions`, `test_attempts`, `test_answers`, `test_answer_options`       |
-| Certificates   | `certificates`                                                                                                           |
-| Dictionary     | `dictionary_categories`, `dictionary_words`, `dictionary_word_categories`, `dictionary_examples`, `dictionary_favorites` |
-| Notifications  | `notification_templates`, `notifications`, `user_notifications`                                                          |
-| Configuration  | `settings`                                                                                                               |
-| Audit          | `audit_logs`                                                                                                             |
-| Analytics      | `learning_events`, `daily_learning_statistics`                                                                           |
-| AI assistance  | `ai_conversations`, `ai_messages`, `ai_usage_ledger`                                                                     |
+| Domain         | Owned tables                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Localization   | `locales` and all `*_translations` tables                                                                                   |
+| Identity       | `users`, `user_credentials`, `user_external_identities`, `user_sessions`, `step_up_challenges`, `step_up_proofs`            |
+| Access control | `roles`, `permissions`, `user_roles`, `role_permissions`                                                                    |
+| Learning       | `courses`, `course_instructors`, `course_enrollments`, `modules`, `lessons`                                                 |
+| Media          | `media_files`, `lesson_videos`, `lesson_documents`, `lesson_audio`                                                          |
+| Progress       | `enrollment_progress_roots`, `lesson_progress`, `block_progress`, `progress_events`                                         |
+| Operations     | Shared enrollment-scoped `idempotency_records`                                                                              |
+| Assessment     | `tests`, `questions`, `question_options`, `test_questions`, `test_attempts`, `test_answers`, `test_answer_options`          |
+| Certificates   | Eligibility policy/evidence, templates/versions, `certificates`, `certificate_artifacts`, `certificate_disclosure_controls` |
+| Dictionary     | `dictionary_categories`, `dictionary_words`, `dictionary_word_categories`, `dictionary_examples`, `dictionary_favorites`    |
+| Notifications  | `notification_templates`, `notifications`, `user_notifications`                                                             |
+| Configuration  | `settings`                                                                                                                  |
+| Audit          | `audit_logs`                                                                                                                |
+| Analytics      | `learning_events`, `daily_learning_statistics`                                                                              |
+| AI assistance  | `ai_conversations`, `ai_messages`, `ai_usage_ledger`                                                                        |
 
 ---
 
@@ -158,6 +172,10 @@ erDiagram
     users ||--o| user_credentials : "has local credential"
     users ||--o{ user_external_identities : "links"
     users ||--o{ user_sessions : "owns"
+    users ||--o{ step_up_challenges : "creates"
+    user_sessions ||--o{ step_up_challenges : "binds"
+    step_up_challenges ||--o| step_up_proofs : "verifies into"
+    user_sessions ||--o{ step_up_proofs : "binds"
     users ||--o{ user_roles : "receives"
     roles ||--o{ user_roles : "assigned through"
     roles ||--o{ role_permissions : "grants"
@@ -188,6 +206,24 @@ erDiagram
         uuid id PK
         uuid user_id FK
         string refresh_token_hash UK
+        timestamp last_authenticated_at
+    }
+    step_up_challenges {
+        uuid id PK
+        uuid user_id FK
+        uuid session_id FK
+        timestamp credential_epoch
+        string action
+        uuid target_id
+        timestamp expires_at
+    }
+    step_up_proofs {
+        uuid id PK
+        uuid challenge_id FK, UK
+        string proof_hash UK
+        timestamp credential_epoch
+        timestamp expires_at
+        timestamp consumed_at
     }
     roles {
         uuid id PK
@@ -239,7 +275,7 @@ erDiagram
     enrollment_progress_roots ||--o{ lesson_progress : "contains"
     enrollment_progress_roots ||--o{ block_progress : "contains"
     enrollment_progress_roots ||--o{ progress_events : "records"
-    enrollment_progress_roots ||--o{ idempotency_records : "scopes replay"
+    course_enrollments ||--o{ idempotency_records : "scopes replay"
     lessons ||--o{ lesson_progress : "tracked by"
     lessons ||--o{ enrollment_progress_roots : "last visited"
     lesson_content_blocks ||--o{ block_progress : "tracked by"
@@ -381,11 +417,13 @@ erDiagram
     test_answers ||--o{ test_answer_options : "selects through"
     question_options ||--o{ test_answer_options : "selected by"
 
-    users ||--o{ certificates : "earns"
-    courses ||--o{ certificates : "awards"
-    test_attempts ||--o{ certificates : "may qualify"
+    course_enrollments ||--o| certificates : "may receive"
+    certificate_eligibility_evaluations ||--o| certificates : "authorizes"
+    certificate_templates ||--o{ certificate_template_versions : "versions"
+    certificate_template_versions ||--o{ certificates : "renders"
+    certificates ||--|| certificate_artifacts : "owns"
+    certificates ||--o| certificate_disclosure_controls : "limits public identity"
     users ||--o{ certificates : "issues or revokes"
-    media_files ||--o| certificates : "stores artifact"
 
     tests {
         uuid id PK
@@ -441,10 +479,38 @@ erDiagram
     }
     certificates {
         uuid id PK
-        uuid user_id FK
+        uuid enrollment_id FK
         uuid course_id FK
-        uuid qualifying_attempt_id FK
-        uuid media_file_id FK
+        uuid eligibility_evaluation_id FK
+        uuid template_version_id FK
+        string certificate_number UK
+        string verification_token_hash UK
+        string status
+        int version
+    }
+    certificate_template_versions {
+        uuid id PK
+        uuid template_id FK
+        int version
+        string locale
+        string status
+    }
+    certificate_templates {
+        uuid id PK
+        string code UK
+    }
+    certificate_artifacts {
+        uuid id PK
+        uuid certificate_id FK, UK
+        string storage_provider
+        string storage_key UK
+        string checksum
+    }
+    certificate_disclosure_controls {
+        uuid id PK
+        uuid certificate_id FK, UK
+        timestamp recipient_name_suppressed_at
+        uuid suppressed_by_user_id FK
     }
 ```
 
@@ -601,8 +667,9 @@ erDiagram
 
 ## 3. Table catalog
 
-This blueprint contains 55 tables. The short catalog is followed by detailed
-specifications for every table.
+This evolving blueprint catalogs the domain tables below. The short catalog is
+followed by detailed specifications; Review Candidate concepts are not an
+implementation claim.
 
 | Domain        | Table                                 | Short description                            |
 | ------------- | ------------------------------------- | -------------------------------------------- |
@@ -615,6 +682,8 @@ specifications for every table.
 | Access        | `user_roles`                          | User-to-role assignments                     |
 | Access        | `role_permissions`                    | Role-to-permission assignments               |
 | Identity      | `user_sessions`                       | Refresh sessions and device metadata         |
+| Identity      | `step_up_challenges`                  | Target-bound recent-auth challenges          |
+| Identity      | `step_up_proofs`                      | Hashed single-use protected-action proofs    |
 | Learning      | `courses`                             | Language-neutral course records              |
 | Localization  | `course_translations`                 | Localized course title and description       |
 | Learning      | `course_instructors`                  | Course-to-teacher assignments                |
@@ -631,7 +700,7 @@ specifications for every table.
 | Progress      | `lesson_progress`                     | Enrollment-scoped persisted lesson state     |
 | Progress      | `block_progress`                      | Sparse enrollment-scoped block state         |
 | Progress      | `progress_events`                     | Fixed-column append-only progress history    |
-| Progress      | `idempotency_records`                 | Actor-isolated mutation replay records       |
+| Operations    | `idempotency_records`                 | Actor-isolated mutation replay records       |
 | Assessment    | `tests`                               | Test policies and lifecycle                  |
 | Localization  | `test_translations`                   | Localized test text                          |
 | Assessment    | `questions`                           | Reusable course question bank                |
@@ -645,7 +714,11 @@ specifications for every table.
 | Certificates  | `certificate_eligibility_policies`    | Immutable typed eligibility policy versions  |
 | Certificates  | `certificate_eligibility_evaluations` | Immutable enrollment completion evidence     |
 | Certificates  | `certificate_eligibility_reasons`     | Fixed normalized eligibility reason codes    |
+| Certificates  | `certificate_templates`               | Stable typed template identities             |
+| Certificates  | `certificate_template_versions`       | Immutable localized rendering definitions    |
 | Certificates  | `certificates`                        | Issued and revocable achievement records     |
+| Certificates  | `certificate_artifacts`               | Immutable private PDF object metadata        |
+| Certificates  | `certificate_disclosure_controls`     | Separate public identity suppression         |
 | Dictionary    | `dictionary_categories`               | Hierarchical dictionary taxonomy             |
 | Localization  | `dictionary_category_translations`    | Localized category labels                    |
 | Dictionary    | `dictionary_words`                    | Canonical word or phrase entries             |
@@ -790,13 +863,54 @@ specifications for every table.
 - **Primary key:** `id`, UUID.
 - **Important fields:** `refresh_token_hash`, `token_family_id`, `client_type`,
   `device_name`, `ip_hash`, `user_agent_summary`, `last_used_at`, `expires_at`,
-  `revoked_at`, `revocation_reason`, `created_at`.
+  `last_authenticated_at`, `revoked_at`, `revocation_reason`, `created_at`.
 - **Foreign keys:** `user_id` references `users.id`; `replaced_by_session_id`
   may self-reference `user_sessions.id`.
 - **Relationships:** Many sessions belong to one user; a rotated session may
   point to its replacement.
 - **Indexes:** Unique `refresh_token_hash`; index on `(user_id, revoked_at,
 expires_at)`; index on `token_family_id`; index on `expires_at` for cleanup.
+
+`last_authenticated_at` is a Module 8.6A Review Candidate extension. It advances
+only after successful password login or approved step-up verification; refresh
+rotation and ordinary activity do not make authentication recent.
+
+#### `step_up_challenges`
+
+- **Purpose:** Stores a short-lived, target-bound challenge for one protected
+  action without persisting a password or raw nonce.
+- **Primary key:** `id`, UUID.
+- **Important fields:** `user_id`, `session_id`, typed `action`,
+  `credential_epoch` copied from `password_changed_at`, `target_type`,
+  `target_id`, hashed nonce, `continuation_id`, attempt count, `expires_at`,
+  optional `verified_at` and `locked_at`, `created_at`.
+- **Foreign keys:** User and session references use `RESTRICT`; the polymorphic
+  target is validated transactionally and is not a generic cascading FK.
+- **Relationships:** One active session may create many historical challenges;
+  one verified challenge creates at most one proof.
+- **Indexes:** `(user_id, session_id, expires_at)`, `(expires_at, locked_at)`,
+  target/action lookup, and unique hashed nonce.
+
+#### `step_up_proofs`
+
+- **Purpose:** Stores only the hash and immutable bindings of a random,
+  single-use protected-action proof.
+- **Primary key:** `id`, UUID.
+- **Important fields:** unique `proof_hash`, `challenge_id`, `user_id`,
+  `session_id`, `credential_epoch`, typed action/target binding, `expires_at`,
+  optional `consumed_at`, and `created_at`.
+- **Foreign keys:** Challenge, user, and session references use `RESTRICT`.
+- **Relationships:** Exactly one proof may belong to a verified challenge; the
+  protected mutation consumes it atomically.
+- **Indexes:** Unique `challenge_id`; unique `proof_hash`; active lookup on
+  `(user_id, session_id, expires_at, consumed_at)`; expiry cleanup index.
+
+Challenges expire after five minutes and proofs after two. Both use database
+time. Cleanup may hard-delete expired records only after a short approved
+security-retention window; audit events remain independent and redact raw
+security values. Session invalidation, password change/reset, account
+deactivation, and RBAC loss invalidate authorization; password change/reset
+expires outstanding rows transactionally, including the current session's.
 
 ### 4.2 Learning content and enrollment
 
@@ -992,7 +1106,8 @@ expires_at)`; index on `token_family_id`; index on `expires_at` for cleanup.
 - **Foreign keys:** `enrollment_id` references `course_enrollments.id`;
   `last_visited_lesson_id` references `lessons.id`.
 - **Relationships:** One enrollment has at most one root. One root owns many
-  lesson states, block states, progress events, and idempotency records.
+  lesson states, block states, and progress events. Shared idempotency records
+  scope directly to the same enrollment.
 - **Indexes:** Unique enrollment ID; `(last_visited_at, enrollment_id)` for
   global resume; `frozen_at` for retention/review.
 - **Constraints:** Versions and counts are nonnegative, curriculum version is
@@ -1059,19 +1174,26 @@ expires_at)`; index on `token_family_id`; index on `expires_at` for cleanup.
 #### `idempotency_records`
 
 - **Purpose:** Stores a successful response for actor-isolated replay of
-  progress mutations.
+  enrollment-scoped progress and certificate mutations.
 - **Primary key:** `id`, UUIDv7 generated by Prisma.
 - **Important fields:** `actor_user_id`, `enrollment_id`, `key`, operation,
-  SHA-256 request fingerprint, successful response status/envelope, one
-  resulting version, `created_at`, and `expires_at`.
-- **Foreign keys:** Actor references `users`; enrollment identity references
-  `enrollment_progress_roots.enrollment_id`.
-- **Relationships:** Many records belong to an actor and progress root; one
-  record may relate to multiple progress events.
+  SHA-256 request fingerprint, successful response status/envelope, resulting
+  progress versions or certificate reference/version as appropriate,
+  `created_at`, and `expires_at`.
+- **Foreign keys:** Actor references `users`; Module 8.6B promotes this table to
+  shared infrastructure by replacing the existing progress-root FK with
+  `enrollment_id -> course_enrollments.id`. All existing values are preserved.
+- **Relationships:** Many records belong to an actor and enrollment; one record
+  may relate to multiple progress events or one certificate mutation. Progress
+  transactions continue to require their root independently.
 - **Indexes:** Unique `(actor_user_id, key)`; indexes on
   `(enrollment_id, created_at)`, `expires_at`, and `(operation, created_at)`.
 - **Constraints:** Key length/characters, lowercase SHA-256 shape, successful
-  HTTP status, operation-specific result version, and future expiry are checked.
+  HTTP status, operation-specific result shape/version, and future expiry are
+  checked. Module 8.6B may add `ISSUE_CERTIFICATE` and `REVOKE_CERTIFICATE`
+  operations without creating a second idempotency table. Certificate runtime
+  is blocked until the FK/ownership promotion is complete and regression-tested
+  against all existing progress operations.
 
 Progress foreign keys use `RESTRICT` to preserve academic history except the
 nullable progress-event actor and idempotency-record references, which use
@@ -1237,14 +1359,16 @@ inside the approved serializable transaction.
 
 The Module 8.5B eligibility foundation is implemented as described in
 [Certificate Eligibility Database Foundation](./CERTIFICATE_ELIGIBILITY_DATABASE_FOUNDATION.md).
-The later `certificates` table remains a future blueprint, not an implementation
-contract. The
+The Module 8.6A
+[Certificate Issuance and Lifecycle Contract](./CERTIFICATE_ISSUANCE_LIFECYCLE_CONTRACT.md)
+and
+[ADR-004](./design-system/decisions/ADR-004-certificate-issuance-lifecycle.md)
+are Review Candidates for the conceptual issuance tables below. They are not
+implemented schema and do not authorize a migration. The
 [Course Completion and Certificate Eligibility Contract](./COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
 and
 [ADR-003](./design-system/decisions/ADR-003-course-completion-certificate-eligibility.md)
-govern future schema work for versioned eligibility policy, immutable evidence,
-and the separation of eligibility from certificate issuance. Module 8.5B must
-remain additive and must not generate certificate artifacts.
+remain authoritative for versioned eligibility policy and immutable evidence.
 
 #### `certificate_eligibility_policies`
 
@@ -1292,26 +1416,109 @@ remain additive and must not generate certificate artifacts.
 - **Indexes:** Primary key `(evaluation_id, code)` and reverse
   `(code, evaluation_id)` index.
 
+#### `certificate_templates`
+
+- **Purpose:** Stores a stable typed certificate-template identity, not
+  executable template content.
+- **Primary key:** `id`, UUIDv7.
+- **Important fields:** unique `code`, safe administrative name, `created_at`,
+  and `updated_at`.
+- **Relationships:** One template has many immutable versions.
+- **Indexes:** Unique `code`.
+
+#### `certificate_template_versions`
+
+- **Purpose:** Stores one localized, typed rendering definition and approved
+  asset-version set.
+- **Primary key:** `id`, UUIDv7.
+- **Important fields:** `template_id`, positive `version`, BCP 47 `locale`,
+  lifecycle `DRAFT | ACTIVE | RETIRED`, renderer contract version, bounded
+  organization fields, immutable logo/seal/signatory/font asset identities and
+  SHA-256 values, font family/version/license provenance, `activated_at`,
+  `retired_at`, and timestamps.
+- **Foreign keys:** Template and approved asset references use `RESTRICT`.
+- **Relationships:** One version renders many certificates. DRAFT may be edited;
+  ACTIVE and RETIRED versions and assets are immutable.
+- **Indexes:** Unique `(template_id, version, locale)`; PostgreSQL partial unique
+  active `(template_id, locale) WHERE status = 'ACTIVE'`; status/locale lookup.
+
+Arbitrary HTML, CSS, JavaScript, remote URLs, executable expressions, and
+unrestricted JSON are forbidden. The initial seed is
+`STANDARD_COURSE_COMPLETION`, version 1, locale `uz-Latn`.
+
 #### `certificates`
 
-- **Purpose:** Stores verified course achievement, issuance, artifact, and
-  revocation state.
-- **Primary key:** `id`, UUID.
-- **Important fields:** `certificate_number`, `verification_code`,
-  `recipient_name_snapshot`, `course_title_snapshot`, `template_version`,
-  `status`, `issued_at`, `revoked_at`, `revocation_reason`,
-  `artifact_checksum`, `created_at`, `updated_at`.
-- **Foreign keys:** `user_id` references `users.id`; `course_id` references
-  `courses.id`; optional `qualifying_attempt_id` references
-  `test_attempts.id`; optional `media_file_id` references `media_files.id`;
-  optional `issued_by_user_id` and `revoked_by_user_id` reference `users.id`.
-- **Relationships:** A user and course may have multiple historical certificate
-  records because reissue and revocation are retained; a certificate has at
-  most one artifact file.
-- **Indexes:** Unique `certificate_number`; unique `verification_code`; unique
-  active issuance according to `(user_id, course_id, template_version)` policy;
-  indexes on `(user_id, status)`, `(course_id, status)`, `issued_at`,
-  `qualifying_attempt_id`, and `media_file_id`.
+- **Purpose:** Stores one immutable issued credential and its revocation
+  lifecycle independently from completion and eligibility.
+- **Primary key:** `id`, UUIDv7 internal identity.
+- **Important fields:** unique `certificate_number`; unique
+  `verification_token_hash`; `enrollment_id`; trusted `course_id`;
+  `eligibility_evaluation_id`; `template_version_id`; status `ISSUED |
+REVOKED`; positive optimistic `version`; immutable recipient, course,
+  organization, locale, and issue-date snapshots; `issued_at`,
+  `issued_by_user_id`, optional revocation timestamp/actor/typed reason/bounded
+  note, and timestamps. There is no `deleted_at`.
+- **Foreign keys:** Composite enrollment/course and evaluation/enrollment
+  relationships prevent identity mismatch. Eligibility evaluation, template
+  version, issuer, and revoker use `RESTRICT` and `ON UPDATE CASCADE`.
+- **Relationships:** An enrollment has zero or one certificate in v1. One exact
+  ELIGIBLE evaluation authorizes at most one certificate. One certificate owns
+  exactly one finalized artifact after successful issuance.
+- **Indexes:** Unique number and token hash; unique
+  `eligibility_evaluation_id`; unique `enrollment_id` because v1 permits no
+  second certificate after revocation; `(enrollment_id, status)`,
+  `(course_id, status, issued_at)`, issuer/time, and revoker/time indexes.
+
+Database checks pair revocation fields, allow only valid status field sets, and
+require positive versions. Trigger-reviewed immutable columns cannot change
+after insertion. Cross-table ELIGIBLE status, current RBAC, proof validity, and
+artifact existence remain serializable transaction invariants.
+
+The raw 256-bit public verification token is returned only into the rendering
+pipeline and never stored. Certificate number
+`TTL-{UTC_YEAR}-{10-digit sequence}` is public and immutable but is not a
+verification secret. Reissue/supersession is deferred and no corresponding
+column or state is required in the initial schema.
+
+#### `certificate_artifacts`
+
+- **Purpose:** Stores immutable metadata for the private canonical PDF bytes.
+- **Primary key:** `id`, UUIDv7.
+- **Important fields:** unique `certificate_id`, storage provider, unique opaque
+  provider-relative storage key, MIME fixed to `application/pdf`, positive byte
+  size capped at 10 MiB (`10,485,760` bytes), SHA-256 checksum, renderer
+  identifier/version, `finalized_at`, and `created_at`. There is no `deleted_at`
+  or restore state.
+- **Foreign keys:** `certificate_id` references `certificates.id` with
+  `RESTRICT`.
+- **Relationships:** Exactly one finalized artifact belongs to one certificate.
+  It is not a `media_files` upload and is not reachable through generic media
+  deletion, restore, or download.
+- **Indexes:** Unique certificate and storage key; checksum and provider lookup;
+  finalized-time index for integrity and operational reconciliation.
+
+Certificate artifact paths are secret implementation metadata. Storage staging
+objects have no domain row and are removed by transaction compensation or a
+minimum-age orphan reconciler. A referenced artifact is never automatically
+deleted or silently regenerated.
+
+#### `certificate_disclosure_controls`
+
+- **Purpose:** Suppresses public recipient-name disclosure without mutating the
+  immutable certificate snapshot, validity, or artifact.
+- **Primary key:** `id`, UUIDv7.
+- **Important fields:** unique `certificate_id`, optional
+  `recipient_name_suppressed_at`, required ADMIN actor and typed reason when
+  suppressed, `created_at`, and `updated_at`.
+- **Foreign keys:** Certificate and suppressing actor use `RESTRICT`.
+- **Relationships:** A certificate has zero or one disclosure-control row.
+  Absence means the approved public name projection remains enabled.
+- **Indexes:** Unique `certificate_id`; suppression timestamp and actor/time
+  indexes for privacy operations and audit reconciliation.
+
+Disclosure control never changes `ISSUED`/`REVOKED`, the verification token,
+private download policy, or stored PDF. Its future administrative mutation
+requires typed validation, least privilege, confirmation, and audit.
 
 ### 4.6 Dictionary
 
@@ -1617,8 +1824,10 @@ statistics_date)` and `(user_id, statistics_date)`.
   credential; a credential belongs to exactly one user.
 - `media_files` to a specialized asset row is logically one-to-zero-or-one per
   specialization through unique `media_file_id` values.
-- `certificates` to the generated `media_files` artifact is zero-or-one until
-  generation completes, then one while the certificate is active.
+- `certificates` to `certificate_artifacts` is exactly one after successful
+  staged issuance; neither side has a soft-delete/restore lifecycle.
+- `certificates` to `certificate_disclosure_controls` is zero-or-one.
+- `step_up_challenges` to `step_up_proofs` is zero-or-one.
 
 One-to-one relationships should use a unique foreign key. A shared primary key
 is preferred when the child has no identity outside the parent, as with
@@ -1631,6 +1840,8 @@ Key one-to-many relationships include:
 - Locale to translations
 - User to sessions and external identities
 - Course to modules, tests, enrollments, and certificates
+- Certificate template to immutable template versions
+- Certificate template version to issued certificates
 - Module to lessons
 - Lesson to video, document, audio, progress, test, and event rows
 - Test to attempts
@@ -1694,24 +1905,30 @@ Use restrictive behavior where history, integrity, or auditability matters:
 - Courses referenced by enrollments, attempts, certificates, or statistics
 - Tests referenced by attempts
 - Questions and options referenced by submitted answers or attempt snapshots
-- Media referenced by published content or certificates
+- Media referenced by published content
+- Enrollments, eligibility evaluations, template versions, actors, and
+  certificate artifacts referenced by certificates
 - Locales referenced by translations or user preferences
 
 The service must archive or anonymize these records instead of deleting them.
 
 ### 6.3 Set-null behavior
 
-Use nullable attribution fields with set-null behavior for:
+Use nullable attribution fields with set-null behavior for non-certificate
+draft/operational records such as:
 
-- `created_by_user_id`, `reviewed_by_user_id`, `graded_by_user_id`,
-  `issued_by_user_id`, and `revoked_by_user_id` when the actor account is later
-  anonymized
+- `created_by_user_id`, `reviewed_by_user_id`, and `graded_by_user_id` when the
+  actor account is later anonymized and the domain contract permits it
 - `audit_logs.actor_user_id`, while preserving the immutable actor snapshot or
   safe identifier in audit metadata
 - Optional contextual links in analytics or AI usage after retention-based
   cleanup
 
 Set-null must not erase the fact that an action occurred.
+
+Certificate issuer/revoker attribution uses restrictive history. A controlled
+account-anonymization workflow preserves a safe actor identity rather than
+silently nulling certificate attribution.
 
 ### 6.4 Object storage
 
@@ -1720,6 +1937,11 @@ two-phase lifecycle:
 
 1. Mark the asset deleted or pending deletion transactionally.
 2. Process object deletion asynchronously and record the outcome.
+
+Certificate artifacts are not generic deletable media. They use staging,
+atomic metadata finalization, failed-issuance compensation, and orphan
+reconciliation; a referenced certificate artifact is retained until a future
+approved legal retention process explicitly authorizes removal.
 
 ---
 
@@ -1787,8 +2009,9 @@ Hard deletion jobs must be bounded, observable, idempotent, and tested.
 - Pure join tables may use composite UUID foreign keys as their primary key.
 - Public verification and authentication tokens are separate random values and
   must not reuse database IDs.
-- `certificate_number`, `verification_code`, refresh tokens, reset tokens, and
-  idempotency keys have independent uniqueness and entropy requirements.
+- `certificate_number`, hashed public verification tokens, refresh tokens,
+  reset tokens, and idempotency keys have independent uniqueness and entropy
+  requirements.
 - UUID generation policy must be consistent across API and worker processes.
 
 Changing UUID strategy after production launch is a significant migration and

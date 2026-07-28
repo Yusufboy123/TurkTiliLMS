@@ -107,6 +107,7 @@ implementation.
 | [ADR-001](./decisions/ADR-001-semantic-tokens-and-role-shells.md)           | Semantic-token and role-shell architectural decision |
 | [ADR-002](./decisions/ADR-002-progress-tracking-contract.md)                | Proposed Module #8 architecture; approval pending    |
 | [ADR-003](./decisions/ADR-003-course-completion-certificate-eligibility.md) | Proposed completion/eligibility lifecycle decision   |
+| [ADR-004](./decisions/ADR-004-certificate-issuance-lifecycle.md)            | Review Candidate certificate issuance decision       |
 | [Foundations](./foundations.md)                                             | Normative tokens, contrast, type, layout, stack      |
 | [Accessibility](./accessibility.md)                                         | Normative WCAG and acceptance contract               |
 | [Components](./components.md)                                               | Component layers and public contracts                |
@@ -129,6 +130,7 @@ Project-level contract review candidates:
 - [Progress Tracking Contract](../PROGRESS_TRACKING_CONTRACT.md)
 - [Progress Tracking OpenAPI](../openapi/progress-tracking.v1.yaml)
 - [Course Completion and Certificate Eligibility Contract](../COURSE_COMPLETION_CERTIFICATE_ELIGIBILITY_CONTRACT.md)
+- [Certificate Issuance and Lifecycle Contract](../CERTIFICATE_ISSUANCE_LIFECYCLE_CONTRACT.md)
 - [Certificate Eligibility OpenAPI](../openapi/course-completion-certificate-eligibility.v1.yaml)
 
 The existing `design-system-v1.0` Git tag does not override this directory's
