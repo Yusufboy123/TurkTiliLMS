@@ -14,6 +14,8 @@ import {
 } from '@prisma/client';
 import { PrismaCourseEnrollmentRepository } from '../../src/modules/course-enrollments/course-enrollment.repository.js';
 import { CourseEnrollmentService } from '../../src/modules/course-enrollments/course-enrollment.service.js';
+import { PrismaCertificateEligibilityRepository } from '../../src/modules/certificate-eligibility/certificate-eligibility.repository.js';
+import { CertificateEligibilityService } from '../../src/modules/certificate-eligibility/certificate-eligibility.service.js';
 import { PrismaLessonContentBlockRepository } from '../../src/modules/lesson-content-blocks/lesson-content-block.repository.js';
 import { PrismaLessonManagementRepository } from '../../src/modules/lessons/lesson-management.repository.js';
 import { PrismaProgressTrackingRepository } from '../../src/modules/progress-tracking/progress-tracking.repository.js';
@@ -47,6 +49,9 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
   let enrollmentId = '';
 
   const service = new ProgressTrackingService(new PrismaProgressTrackingRepository(client));
+  const eligibilityService = new CertificateEligibilityService(
+    new PrismaCertificateEligibilityRepository(client),
+  );
   const actor = () => ({
     userId: studentId,
     roles: [RoleCode.STUDENT],
@@ -58,7 +63,46 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
     ],
   });
 
+  async function deleteEligibilityEvidence(): Promise<void> {
+    await client.$transaction(async (transaction) => {
+      // Eligibility evidence is immutable in application sessions. Tests use
+      // a local trigger bypass only to clean their uniquely owned fixture.
+      await transaction.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
+      await transaction.$executeRaw`
+        DELETE FROM "certificate_eligibility_reasons"
+        WHERE "evaluation_id" IN (
+          SELECT "id"
+          FROM "certificate_eligibility_evaluations"
+          WHERE "enrollment_id" = ${enrollmentId}::uuid
+        )
+      `;
+      await transaction.$executeRaw`
+        DELETE FROM "certificate_eligibility_evaluations"
+        WHERE "enrollment_id" = ${enrollmentId}::uuid
+      `;
+    });
+  }
+
   beforeAll(async () => {
+    const eligibilityPolicy = await client.certificateEligibilityPolicy.findUnique({
+      where: {
+        code_version: {
+          code: 'COURSE_COMPLETION_ONLY',
+          version: 1,
+        },
+      },
+    });
+    if (!eligibilityPolicy) {
+      await client.certificateEligibilityPolicy.create({
+        data: {
+          code: 'COURSE_COMPLETION_ONLY',
+          version: 1,
+          assessmentRule: 'NONE',
+          requiresAttendance: false,
+          requiresManualApproval: false,
+        },
+      });
+    }
     const studentRole = await client.role.upsert({
       where: { code: RoleCode.STUDENT },
       update: {},
@@ -154,6 +198,7 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
   });
 
   beforeEach(async () => {
+    await deleteEligibilityEvidence();
     await client.progressEvent.deleteMany({ where: { enrollmentId } });
     await client.idempotencyRecord.deleteMany({ where: { enrollmentId } });
     await client.blockProgress.deleteMany({ where: { enrollmentId } });
@@ -208,6 +253,7 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
   });
 
   afterAll(async () => {
+    await deleteEligibilityEvidence();
     await client.progressEvent.deleteMany({ where: { enrollmentId } });
     await client.idempotencyRecord.deleteMany({ where: { enrollmentId } });
     await client.blockProgress.deleteMany({ where: { enrollmentId } });
@@ -336,12 +382,14 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
       completedLessons: 2,
       totalEligibleLessons: 2,
     });
-    await expect(
-      client.courseEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } }),
-    ).resolves.toMatchObject({ status: CourseEnrollmentStatus.COMPLETED });
-    await expect(
-      client.enrollmentProgressRoot.findUniqueOrThrow({ where: { enrollmentId } }),
-    ).resolves.toMatchObject({
+    const completedEnrollment = await client.courseEnrollment.findUniqueOrThrow({
+      where: { id: enrollmentId },
+    });
+    const frozenRoot = await client.enrollmentProgressRoot.findUniqueOrThrow({
+      where: { enrollmentId },
+    });
+    expect(completedEnrollment).toMatchObject({ status: CourseEnrollmentStatus.COMPLETED });
+    expect(frozenRoot).toMatchObject({
       completionVersion: 3,
       completedLessons: 2,
       totalEligibleLessons: 2,
@@ -350,6 +398,68 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
     await expect(
       client.progressEvent.count({
         where: { enrollmentId, eventType: ProgressEventType.COURSE_COMPLETED },
+      }),
+    ).resolves.toBe(1);
+    const completionEvent = await client.progressEvent.findFirstOrThrow({
+      where: { enrollmentId, eventType: ProgressEventType.COURSE_COMPLETED },
+    });
+    const eligibilityEvaluation = await client.certificateEligibilityEvaluation.findUniqueOrThrow({
+      where: {
+        enrollmentId_evaluationVersion: { enrollmentId, evaluationVersion: 1 },
+      },
+    });
+    expect(eligibilityEvaluation).toMatchObject({
+      courseId,
+      status: 'ELIGIBLE',
+      completionCurriculumVersion: 1,
+      completionVersion: 3,
+      completedLessons: 2,
+      totalEligibleLessons: 2,
+      coursePercentage: 100,
+      evaluatorType: 'SYSTEM',
+      evaluatedByUserId: null,
+    });
+    expect(completedEnrollment.completedAt).toBeInstanceOf(Date);
+    expect(frozenRoot.frozenAt).toEqual(completedEnrollment.completedAt);
+    expect(completionEvent.occurredAt).toEqual(completedEnrollment.completedAt);
+    expect(eligibilityEvaluation.completedAt).toEqual(completedEnrollment.completedAt);
+
+    await expect(
+      eligibilityService.getOwnEligibility(enrollmentId, {
+        userId: studentId,
+        roles: [RoleCode.STUDENT],
+        permissions: ['certificate_eligibility.self_read'],
+      }),
+    ).resolves.toMatchObject({
+      completion: { status: 'COMPLETED', percentage: 100 },
+      eligibility: { status: 'ELIGIBLE', policyVersion: 1 },
+    });
+    await expect(
+      eligibilityService.getOwnCertificateStatus(enrollmentId, {
+        userId: studentId,
+        roles: [RoleCode.STUDENT],
+        permissions: ['certificates.self_read'],
+      }),
+    ).resolves.toMatchObject({ status: 'NOT_ISSUED', certificate: null });
+    await expect(
+      eligibilityService.getCourseEligibility(
+        courseId,
+        enrollmentId,
+        {
+          userId: adminId,
+          roles: [RoleCode.ADMIN],
+          permissions: ['certificate_eligibility.course_read'],
+        },
+        { actorUserId: adminId },
+      ),
+    ).resolves.toMatchObject({ eligibility: { status: 'ELIGIBLE' } });
+    await expect(
+      client.auditLog.count({
+        where: {
+          actorUserId: adminId,
+          subjectId: enrollmentId,
+          action: 'certificate_eligibility.privileged_viewed',
+        },
       }),
     ).resolves.toBe(1);
 
@@ -369,6 +479,78 @@ describeDatabase('Progress tracking PostgreSQL integration', () => {
       course: { id: courseId },
       percentage: 100,
     });
+  });
+
+  it('rolls back final completion in PostgreSQL when eligibility evaluation fails', async () => {
+    const failingService = new ProgressTrackingService(
+      new PrismaProgressTrackingRepository(client),
+      {
+        async evaluate() {
+          throw new AppError(
+            'Kurs yakunlanganini tasdiqlovchi ma\u2018lumotlar mos emas.',
+            409,
+            'COMPLETION_EVIDENCE_CONFLICT',
+          );
+        },
+      },
+    );
+    await failingService.completeBlock(
+      enrollmentId,
+      blockId,
+      { expectedCompletionVersion: 0, curriculumVersion: 1 },
+      actor(),
+      { idempotencyKey: randomUUID() },
+    );
+    await failingService.completeLesson(
+      enrollmentId,
+      lessonId,
+      { expectedCompletionVersion: 1, curriculumVersion: 1 },
+      actor(),
+      { idempotencyKey: randomUUID() },
+    );
+
+    await expect(
+      failingService.completeLesson(
+        enrollmentId,
+        secondLessonId,
+        { expectedCompletionVersion: 2, curriculumVersion: 1 },
+        actor(),
+        { idempotencyKey: randomUUID() },
+      ),
+    ).rejects.toSatisfy((error: unknown) =>
+      expectAppError(error, 'COMPLETION_EVIDENCE_CONFLICT', 409),
+    );
+
+    const [enrollment, root, secondLessonProgress, courseEvents, evaluations, idempotencyCount] =
+      await Promise.all([
+        client.courseEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } }),
+        client.enrollmentProgressRoot.findUniqueOrThrow({ where: { enrollmentId } }),
+        client.lessonProgress.findUnique({
+          where: {
+            enrollmentId_lessonId: { enrollmentId, lessonId: secondLessonId },
+          },
+        }),
+        client.progressEvent.count({
+          where: { enrollmentId, eventType: ProgressEventType.COURSE_COMPLETED },
+        }),
+        client.certificateEligibilityEvaluation.count({ where: { enrollmentId } }),
+        client.idempotencyRecord.count({ where: { enrollmentId } }),
+      ]);
+
+    expect(enrollment).toMatchObject({
+      status: CourseEnrollmentStatus.ACTIVE,
+      completedAt: null,
+    });
+    expect(root).toMatchObject({
+      completionVersion: 2,
+      completedLessons: 1,
+      totalEligibleLessons: 2,
+      frozenAt: null,
+    });
+    expect(secondLessonProgress).toBeNull();
+    expect(courseEvents).toBe(0);
+    expect(evaluations).toBe(0);
+    expect(idempotencyCount).toBe(2);
   });
 
   it('replays one committed response without duplicating state or events', async () => {

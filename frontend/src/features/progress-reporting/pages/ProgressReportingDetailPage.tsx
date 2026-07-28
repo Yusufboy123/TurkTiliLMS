@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Badge, Card } from '../../../components';
 import { progressMessages } from '../../../locales/uz-Latn/progress';
 import { progressReportingMessages } from '../../../locales/uz-Latn/progress-reporting';
+import { CertificateEligibilityPanel } from '../../certificate-eligibility';
 import { ProgressBar } from '../../progress/components';
 import { ReportingError, ReportingRefreshStatus, ReportingSkeleton } from '../components';
 import {
@@ -72,6 +73,10 @@ export default function ProgressReportingDetailPage({ admin = false }: { admin?:
           />
         </div>
       </Card>
+      <CertificateEligibilityPanel
+        enrollmentId={progress.enrollmentId}
+        scope={{ kind: 'course', courseId: progress.course.id }}
+      />
       <section aria-labelledby="lesson-breakdown-heading" className="mt-8">
         <h2 className="type-heading-2" id="lesson-breakdown-heading">
           {progressMessages.progress.sections}

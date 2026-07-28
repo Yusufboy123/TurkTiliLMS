@@ -3,8 +3,8 @@ info:
   title: Turk Tili LMS Course Completion and Certificate Eligibility API
   version: 1.0.0
   description: |
-    Documentation-only Module 8.5A contract. No operation in this file is
-    implemented by Module 8.5A. Eligibility reads are planned for Module 8.5C.
+    Module 8.5A defines the canonical contract. The four eligibility and
+    certificate-status read operations are implemented by Module 8.5C.
     Issuance and revocation are future Module 8.6 boundaries and remain blocked
     by their separate step-up, template, numbering, artifact, and verification
     contracts.
@@ -22,11 +22,11 @@ paths:
       operationId: getOwnCertificateEligibility
       summary: Get certificate eligibility for the authenticated student's enrollment
       description: |
-        Contract-only Module 8.5C boundary. Requires the STUDENT role,
+        Module 8.5C read boundary. Requires the STUDENT role,
         `certificate_eligibility.self_read`, and ownership of the enrollment.
         A valid incomplete enrollment returns HTTP 200 with `NOT_COMPLETED`.
       x-implementation-phase: Module 8.5C
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [certificate_eligibility.self_read]
       security:
@@ -63,11 +63,11 @@ paths:
       operationId: getOwnCertificateStatus
       summary: Get certificate status for the authenticated student's enrollment
       description: |
-        Contract-only Module 8.5C read boundary. Requires the STUDENT role,
+        Module 8.5C read boundary. Requires the STUDENT role,
         `certificates.self_read`, and ownership of the enrollment. Module 8.5C
         may return `NOT_ISSUED`; issuance remains unavailable until Module 8.6.
       x-implementation-phase: Module 8.5C
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [certificates.self_read]
       security:
@@ -97,14 +97,15 @@ paths:
       operationId: getCourseEnrollmentCertificateEligibility
       summary: Get eligibility for an enrollment in an assigned course
       description: |
-        Contract-only Module 8.5C boundary. Requires ADMIN or TEACHER,
+        Module 8.5C read boundary. Requires ADMIN or TEACHER,
         `certificate_eligibility.course_read`, an enrollment belonging to the
         path course, and current course assignment for a teacher. Route and
         service policies must both enforce the scope.
       x-implementation-phase: Module 8.5C
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN, TEACHER]
       x-required-permissions: [certificate_eligibility.course_read]
+      x-audit-event: certificate_eligibility.privileged_viewed
       security:
         - bearerAuth: []
       parameters:
@@ -135,13 +136,14 @@ paths:
       operationId: getCourseEnrollmentCertificateStatus
       summary: Get certificate status for an enrollment in an assigned course
       description: |
-        Contract-only Module 8.5C boundary. Requires ADMIN or TEACHER,
+        Module 8.5C read boundary. Requires ADMIN or TEACHER,
         `certificates.course_read`, an enrollment belonging to the path course,
         and current course assignment for a teacher.
       x-implementation-phase: Module 8.5C
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN, TEACHER]
       x-required-permissions: [certificates.course_read]
+      x-audit-event: certificate_eligibility.privileged_viewed
       security:
         - bearerAuth: []
       parameters:
@@ -630,15 +632,22 @@ components:
             code: ACCESS_DENIED
             message: Bu amal uchun ruxsat yetarli emas.
     CourseScopeDenied:
-      description: Teacher is not assigned to the requested course
+      description: Required role or permission is absent, or teacher is not assigned to the course
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorBody'
-          example:
-            success: false
-            code: COURSE_SCOPE_DENIED
-            message: Bu kurs sizga biriktirilmagan.
+          examples:
+            access:
+              value:
+                success: false
+                code: ACCESS_DENIED
+                message: Bu amal uchun ruxsat yetarli emas.
+            scope:
+              value:
+                success: false
+                code: COURSE_SCOPE_DENIED
+                message: Bu kurs sizga biriktirilmagan.
     EnrollmentNotFound:
       description: Enrollment is absent or unavailable within the actor's scope
       content:

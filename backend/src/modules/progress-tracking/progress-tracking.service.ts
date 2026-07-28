@@ -9,6 +9,7 @@ import {
   RoleCode,
 } from '@prisma/client';
 import { AppError } from '../../utils/app-error.js';
+import { CertificateEligibilityCompletionEvaluator } from '../certificate-eligibility/certificate-eligibility.completion.js';
 import {
   calculateProgressAggregate,
   isCourseAvailable,
@@ -234,7 +235,10 @@ export interface ProgressTrackingUseCases {
 }
 
 export class ProgressTrackingService implements ProgressTrackingUseCases {
-  constructor(private readonly repository: ProgressTrackingRepository) {}
+  constructor(
+    private readonly repository: ProgressTrackingRepository,
+    private readonly eligibilityEvaluator = new CertificateEligibilityCompletionEvaluator(),
+  ) {}
 
   async getOwnSummary(
     activeLimit: number,
@@ -419,7 +423,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
         .find((candidate) => candidate.id === input.lessonId);
       if (!lesson) throw lessonNotFound();
 
-      const occurredAt = new Date();
+      const occurredAt = await transaction.getDatabaseTimestamp();
       await transaction.lockLessonProgress(enrollmentId, lesson.id);
       await transaction.upsertLessonActivity(
         enrollmentId,
@@ -525,7 +529,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
       const changed = isComplete
         ? previousState !== BlockProgressState.COMPLETED
         : previousState === BlockProgressState.COMPLETED;
-      const occurredAt = new Date();
+      const occurredAt = await transaction.getDatabaseTimestamp();
       if (changed) {
         await transaction.setBlockState(
           enrollmentId,
@@ -630,7 +634,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
       const changed = isComplete
         ? previousState !== LessonProgressState.COMPLETED
         : previousState === LessonProgressState.COMPLETED;
-      const occurredAt = new Date();
+      const occurredAt = await transaction.getDatabaseTimestamp();
       if (changed) {
         await transaction.setLessonState(
           enrollmentId,
@@ -768,6 +772,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
         curriculumVersion: updatedRoot.curriculumVersion,
         resultingCompletionVersion: updatedRoot.completionVersion,
         idempotencyRecordId: idempotency.id,
+        occurredAt,
         ...(context.requestCorrelationId
           ? { requestCorrelationId: context.requestCorrelationId }
           : {}),
@@ -788,10 +793,23 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
         curriculumVersion: updatedRoot.curriculumVersion,
         resultingCompletionVersion: updatedRoot.completionVersion,
         idempotencyRecordId: idempotency.id,
+        occurredAt,
         ...(context.requestCorrelationId
           ? { requestCorrelationId: context.requestCorrelationId }
           : {}),
         snapshot: aggregate,
+      });
+      await this.eligibilityEvaluator.evaluate(transaction, {
+        enrollmentId: refreshed.id,
+        courseId: refreshed.course.id,
+        completedAt: occurredAt,
+        completionCurriculumVersion: updatedRoot.curriculumVersion,
+        completionVersion: updatedRoot.completionVersion,
+        completedLessons: aggregate.completedLessons,
+        totalEligibleLessons: aggregate.totalEligibleLessons,
+        coursePercentage: aggregate.coursePercentage,
+        completedEligibleBlocks: aggregate.completedEligibleBlocks,
+        totalEligibleBlocks: aggregate.totalEligibleBlocks,
       });
     }
     return { envelope, replayed: false };

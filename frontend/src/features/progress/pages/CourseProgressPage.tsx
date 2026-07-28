@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { progressMessages } from '../../../locales/uz-Latn/progress';
+import { CertificateEligibilityPanel } from '../../certificate-eligibility';
 import {
   LessonProgressCard,
   ProgressError,
@@ -32,6 +33,10 @@ export default function CourseProgressPage() {
         isFetching={progress.isFetching}
       />
       <ProgressSummary progress={progress.data} />
+      <CertificateEligibilityPanel
+        enrollmentId={progress.data.enrollmentId}
+        scope={{ kind: 'self' }}
+      />
 
       {progress.data.resumeTarget ? (
         <div className="mt-6">

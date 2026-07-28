@@ -327,6 +327,7 @@ export interface ProgressEventData {
   curriculumVersion: number;
   resultingCompletionVersion: number;
   idempotencyRecordId: string;
+  occurredAt: Date;
   requestCorrelationId?: string;
   snapshot?: ProgressAggregate;
 }

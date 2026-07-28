@@ -7,6 +7,13 @@ import {
   type PrismaClient,
 } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
+import { PrismaCertificateEligibilityCompletionRepository } from '../certificate-eligibility/certificate-eligibility.repository.js';
+import type {
+  CertificateEligibilityCompletionTransaction,
+  CourseCompletionEvidence,
+  EligibilityPolicyRecord,
+  ExistingEligibilitySnapshotRecord,
+} from '../certificate-eligibility/certificate-eligibility.types.js';
 import type {
   CompletedCourseQuery,
   IdempotencyRecordData,
@@ -85,7 +92,7 @@ function isRetryableProgressUniqueConflict(error: unknown): boolean {
 
 export class ProgressTransactionConflictError extends Error {}
 
-export interface ProgressTransactionRepository {
+export interface ProgressTransactionRepository extends CertificateEligibilityCompletionTransaction {
   lockEnrollment(enrollmentId: string): Promise<void>;
   lockCourse(courseId: string): Promise<void>;
   lockProgressRoot(enrollmentId: string): Promise<void>;
@@ -160,7 +167,59 @@ export interface ProgressTrackingRepository {
 }
 
 class PrismaProgressTransactionRepository implements ProgressTransactionRepository {
-  constructor(private readonly transaction: Prisma.TransactionClient) {}
+  private readonly eligibility: PrismaCertificateEligibilityCompletionRepository;
+
+  constructor(private readonly transaction: Prisma.TransactionClient) {
+    this.eligibility = new PrismaCertificateEligibilityCompletionRepository(transaction);
+  }
+
+  getDatabaseTimestamp(): Promise<Date> {
+    return this.eligibility.getDatabaseTimestamp();
+  }
+
+  findV1EligibilityPolicy(): Promise<EligibilityPolicyRecord | null> {
+    return this.eligibility.findV1EligibilityPolicy();
+  }
+
+  countCanonicalCompletionEvents(evidence: CourseCompletionEvidence): Promise<number> {
+    return this.eligibility.countCanonicalCompletionEvents(evidence);
+  }
+
+  hasCanonicalCompletionAuthority(evidence: CourseCompletionEvidence): Promise<boolean> {
+    return this.eligibility.hasCanonicalCompletionAuthority(evidence);
+  }
+
+  async findEligibilityEvaluationBySnapshot(
+    enrollmentId: string,
+    policyId: string,
+    completionVersion: number,
+  ): Promise<ExistingEligibilitySnapshotRecord | null> {
+    return this.eligibility.findEligibilityEvaluationBySnapshot(
+      enrollmentId,
+      policyId,
+      completionVersion,
+    );
+  }
+
+  getNextEligibilityEvaluationVersion(enrollmentId: string): Promise<number> {
+    return this.eligibility.getNextEligibilityEvaluationVersion(enrollmentId);
+  }
+
+  createEligibilityEvaluation(data: {
+    enrollmentId: string;
+    courseId: string;
+    policyId: string;
+    evaluationVersion: number;
+    evaluatedAt: Date;
+    completedAt: Date;
+    completionCurriculumVersion: number;
+    completionVersion: number;
+    completedLessons: number;
+    totalEligibleLessons: number;
+    coursePercentage: number;
+  }): Promise<{ id: string }> {
+    return this.eligibility.createEligibilityEvaluation(data);
+  }
 
   async lockEnrollment(enrollmentId: string): Promise<void> {
     await this.transaction.$queryRaw`
@@ -519,6 +578,7 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
         curriculumVersion: data.curriculumVersion,
         resultingCompletionVersion: data.resultingCompletionVersion,
         idempotencyRecordId: data.idempotencyRecordId,
+        occurredAt: data.occurredAt,
         ...(data.requestCorrelationId ? { requestCorrelationId: data.requestCorrelationId } : {}),
         ...(data.snapshot
           ? {

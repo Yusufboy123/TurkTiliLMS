@@ -7,6 +7,7 @@ import {
   ProgressEventType,
   RoleCode,
 } from '@prisma/client';
+import { CertificateEligibilityCompletionEvaluator } from '../../src/modules/certificate-eligibility/certificate-eligibility.completion.js';
 import { ProgressTrackingService } from '../../src/modules/progress-tracking/progress-tracking.service.js';
 import { AppError } from '../../src/utils/app-error.js';
 import {
@@ -250,6 +251,38 @@ describe('ProgressTrackingService', () => {
       ProgressEventType.LESSON_COMPLETED,
       ProgressEventType.COURSE_COMPLETED,
     ]);
+    const completedAt = repository.enrollment.completedAt;
+    const root = repository.enrollment.root;
+    const courseEvent = repository.events.find(
+      (event) => event.eventType === ProgressEventType.COURSE_COMPLETED,
+    );
+    expect(completedAt).toBeInstanceOf(Date);
+    expect(root?.frozenAt).toEqual(completedAt);
+    expect(courseEvent?.occurredAt).toEqual(completedAt);
+    expect(repository.eligibilityEvaluations).toHaveLength(1);
+
+    const evidence = {
+      enrollmentId: ENROLLMENT_ID,
+      courseId: repository.enrollment.course.id,
+      completedAt: completedAt!,
+      completionCurriculumVersion: root!.curriculumVersion,
+      completionVersion: root!.completionVersion,
+      completedLessons: root!.completedLessons,
+      totalEligibleLessons: root!.totalEligibleLessons,
+      coursePercentage: root!.coursePercentage,
+      completedEligibleBlocks: root!.completedEligibleBlocks,
+      totalEligibleBlocks: root!.totalEligibleBlocks,
+    };
+    const evaluator = new CertificateEligibilityCompletionEvaluator();
+    await expect(evaluator.evaluate(repository, evidence)).resolves.toBe(
+      repository.eligibilityEvaluations[0]?.id,
+    );
+    expect(repository.eligibilityEvaluations).toHaveLength(1);
+
+    repository.eligibilityEvaluations[0]!.coursePercentage = 99;
+    await expect(evaluator.evaluate(repository, evidence)).rejects.toSatisfy((error: unknown) =>
+      expectAppError(error, 'COMPLETION_EVIDENCE_CONFLICT', 409),
+    );
   });
 
   it('supports lesson reopen before terminal completion and keeps block state intact', async () => {
@@ -381,5 +414,42 @@ describe('ProgressTrackingService', () => {
     ).rejects.toSatisfy((error: unknown) =>
       expectAppError(error, 'INVALID_PROGRESS_TRANSITION', 409),
     );
+  });
+
+  it('rolls back final completion when canonical eligibility evidence cannot be created', async () => {
+    const repository = new FakeProgressTrackingRepository();
+    const service = new ProgressTrackingService(repository);
+    await service.completeBlock(
+      ENROLLMENT_ID,
+      BLOCK_ID,
+      { expectedCompletionVersion: 0, curriculumVersion: 1 },
+      actor(),
+      { idempotencyKey: COMPLETE_KEY },
+    );
+    repository.eligibilityPolicy = null;
+
+    await expect(
+      service.completeLesson(
+        ENROLLMENT_ID,
+        LESSON_ID,
+        { expectedCompletionVersion: 1, curriculumVersion: 1 },
+        actor(),
+        { idempotencyKey: '019d0000-0000-7000-8000-000000000104' },
+      ),
+    ).rejects.toSatisfy((error: unknown) =>
+      expectAppError(error, 'COMPLETION_EVIDENCE_CONFLICT', 409),
+    );
+
+    expect(repository.enrollment.status).toBe(CourseEnrollmentStatus.ACTIVE);
+    expect(repository.enrollment.completedAt).toBeNull();
+    expect(repository.enrollment.root).toMatchObject({
+      completionVersion: 1,
+      completedLessons: 0,
+      frozenAt: null,
+    });
+    expect(repository.events.map((event) => event.eventType)).toEqual([
+      ProgressEventType.BLOCK_COMPLETED,
+    ]);
+    expect(repository.eligibilityEvaluations).toHaveLength(0);
   });
 });

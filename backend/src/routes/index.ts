@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRouter } from '../modules/auth/auth.routes.js';
+import { certificateEligibilityRouter } from '../modules/certificate-eligibility/certificate-eligibility.routes.js';
 import { courseCatalogRouter, courseRouter } from '../modules/courses/course.routes.js';
 import {
   courseEnrollmentRouter,
@@ -27,6 +28,7 @@ apiV1Router.use('/health', healthRouter);
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/users', userManagementRouter);
 apiV1Router.use('/media', mediaRouter);
+apiV1Router.use(certificateEligibilityRouter);
 apiV1Router.use(progressTrackingRouter);
 apiV1Router.use(progressReportingRouter);
 apiV1Router.use('/courses/:courseId/enrollments', courseEnrollmentRouter);
