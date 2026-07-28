@@ -62,12 +62,18 @@ const expectedCertificatePermissions = {
     'certificate_eligibility.course_read',
     'certificate_eligibility.self_read',
     'certificates.course_read',
+    'certificates.download',
     'certificates.issue',
     'certificates.revoke',
+    'certificates.self_download',
     'certificates.self_read',
   ],
   [RoleCode.TEACHER]: ['certificate_eligibility.course_read', 'certificates.course_read'],
-  [RoleCode.STUDENT]: ['certificate_eligibility.self_read', 'certificates.self_read'],
+  [RoleCode.STUDENT]: [
+    'certificate_eligibility.self_read',
+    'certificates.self_download',
+    'certificates.self_read',
+  ],
 } as const;
 
 describeDatabase('development user seed PostgreSQL integration', () => {
@@ -202,7 +208,7 @@ describeDatabase('development user seed PostgreSQL integration', () => {
 
     await expect(
       client.permission.count({ where: { code: { startsWith: 'certificate' } } }),
-    ).resolves.toBe(6);
+    ).resolves.toBe(8);
     await expect(
       client.certificateEligibilityPolicy.findMany({
         select: {
@@ -220,6 +226,22 @@ describeDatabase('development user seed PostgreSQL integration', () => {
         assessmentRule: CertificateEligibilityAssessmentRule.NONE,
         requiresAttendance: false,
         requiresManualApproval: false,
+      },
+    ]);
+
+    await expect(
+      client.certificateTemplate.findMany({
+        select: {
+          code: true,
+          name: true,
+          versions: { select: { id: true } },
+        },
+      }),
+    ).resolves.toEqual([
+      {
+        code: 'STANDARD_COURSE_COMPLETION',
+        name: 'Standard Course Completion',
+        versions: [],
       },
     ]);
   });

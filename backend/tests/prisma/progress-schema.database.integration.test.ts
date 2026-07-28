@@ -39,6 +39,13 @@ const certificateEligibilityRollbackScriptPath = resolve(
   '20260728120000_add_certificate_eligibility_foundation',
   'rollback.sql',
 );
+const certificateLifecycleRollbackScriptPath = resolve(
+  backendRoot,
+  'prisma',
+  'migrations',
+  '20260728193000_add_certificate_lifecycle_foundation',
+  'rollback.sql',
+);
 
 const expectedTables = [
   'block_progress',
@@ -61,7 +68,7 @@ const expectedCheckConstraints = [
   'idempotency_records_fingerprint_check',
   'idempotency_records_key_check',
   'idempotency_records_response_status_check',
-  'idempotency_records_result_versions_check',
+  'idempotency_records_result_shape_check',
   'lesson_progress_curriculum_version_positive_check',
   'lesson_progress_state_completion_check',
   'lesson_progress_timestamps_check',
@@ -86,6 +93,7 @@ const expectedIndexes = [
   'idempotency_records_expires_at_idx',
   'idempotency_records_operation_created_at_idx',
   'idempotency_records_pkey',
+  'idempotency_records_resulting_certificate_id_idx',
   'lesson_progress_completed_at_idx',
   'lesson_progress_enrollment_id_last_activity_at_idx',
   'lesson_progress_enrollment_id_lesson_id_key',
@@ -296,7 +304,7 @@ describeDatabase('Module 8.1B progress schema PostgreSQL integration', () => {
           'idempotency_records'::REGCLASS
         )
     `;
-    expect(foreignKeys).toHaveLength(13);
+    expect(foreignKeys).toHaveLength(14);
     const setNullForeignKeys = foreignKeys
       .filter(({ confdeltype }) => confdeltype === 'n')
       .map(({ conname }) => conname)
@@ -546,6 +554,24 @@ describeDatabase('Module 8.1B progress schema PostgreSQL integration', () => {
         'db',
         'execute',
         '--file',
+        certificateLifecycleRollbackScriptPath,
+        '--url',
+        isolatedDatabaseUrl,
+      ],
+      {
+        cwd: backendRoot,
+        env: { ...process.env, DATABASE_URL: isolatedDatabaseUrl },
+        windowsHide: true,
+      },
+    );
+
+    await execFileAsync(
+      process.execPath,
+      [
+        prismaCliPath,
+        'db',
+        'execute',
+        '--file',
         certificateEligibilityRollbackScriptPath,
         '--url',
         isolatedDatabaseUrl,
@@ -612,5 +638,5 @@ describeDatabase('Module 8.1B progress schema PostgreSQL integration', () => {
       schemaName,
     );
     expect(curriculumColumns).toEqual([]);
-  });
+  }, 20_000);
 });

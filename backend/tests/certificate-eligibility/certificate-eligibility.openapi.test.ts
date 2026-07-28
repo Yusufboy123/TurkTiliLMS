@@ -12,9 +12,7 @@ describe('Certificate eligibility OpenAPI runtime markers', () => {
   it('marks exactly the four Module 8.5C reads available', async () => {
     const contract = await readFile(contractPath, 'utf8');
     expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(4);
-    expect(contract.match(/x-implementation-status: future-boundary-not-available/g)).toHaveLength(
-      2,
-    );
+    expect(contract.match(/x-implementation-status: contract-only-not-available/g)).toHaveLength(9);
     for (const operationId of [
       'getOwnCertificateEligibility',
       'getOwnCertificateStatus',

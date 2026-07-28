@@ -76,6 +76,15 @@ const certificateEligibilityPolicyDefinition = {
   requiresManualApproval: false,
 } as const;
 
+// Module 8.6B seeds only the stable template identity. The first immutable
+// version remains deferred until brand assets, bundled font provenance, and the
+// renderer contract are approved; no executable or fabricated template content
+// is introduced by this database-foundation seed.
+const certificateTemplateDefinition = {
+  code: 'STANDARD_COURSE_COMPLETION',
+  name: 'Standard Course Completion',
+} as const;
+
 const permissionDefinitions = [
   {
     code: 'users.read',
@@ -503,6 +512,18 @@ const permissionDefinitions = [
     action: 'revoke',
     description: 'Authorize future step-up-protected certificate revocation.',
   },
+  {
+    code: 'certificates.self_download',
+    resource: 'certificates',
+    action: 'self_download',
+    description: 'Download the current student own issued certificate artifact.',
+  },
+  {
+    code: 'certificates.download',
+    resource: 'certificates',
+    action: 'download',
+    description: 'Download issued or revoked certificate artifacts with privileged audit.',
+  },
 ] as const;
 
 const teacherPermissionCodes = [
@@ -556,6 +577,7 @@ const studentPermissionCodes = [
   'progress.self_record_visit',
   'certificate_eligibility.self_read',
   'certificates.self_read',
+  'certificates.self_download',
 ] as const;
 
 async function seedCertificateEligibilityPolicy(): Promise<void> {
@@ -586,6 +608,14 @@ async function seedCertificateEligibilityPolicy(): Promise<void> {
       'Certificate eligibility v1 policy does not match the approved immutable definition.',
     );
   }
+}
+
+async function seedCertificateTemplateIdentity(): Promise<void> {
+  await prisma.certificateTemplate.upsert({
+    where: { code: certificateTemplateDefinition.code },
+    update: { name: certificateTemplateDefinition.name },
+    create: certificateTemplateDefinition,
+  });
 }
 
 async function seedDevelopmentUsers(roles: Role[]): Promise<void> {
@@ -824,6 +854,7 @@ async function seedIdentityAndAccess(): Promise<void> {
 
   await prisma.$transaction([...adminAssignments, ...teacherAssignments, ...studentAssignments]);
   await seedCertificateEligibilityPolicy();
+  await seedCertificateTemplateIdentity();
   await seedDevelopmentUsers(roles);
 }
 

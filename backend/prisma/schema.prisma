@@ -116,8 +116,65 @@ enum IdempotencyOperation {
   COMPLETE_LESSON
   REOPEN_LESSON
   RECORD_LAST_VISITED_LESSON
+  ISSUE_CERTIFICATE
+  REVOKE_CERTIFICATE
 
   @@map("idempotency_operation")
+}
+
+/// NOT_ISSUED is derived from the absence of a Certificate row.
+enum CertificateLifecycleStatus {
+  ISSUED
+  REVOKED
+
+  @@map("certificate_lifecycle_status")
+}
+
+enum CertificateRevocationReasonCode {
+  FRAUD
+  ADMINISTRATIVE_ERROR
+  DUPLICATE_ISSUANCE
+  POLICY_VIOLATION
+  OTHER
+
+  @@map("certificate_revocation_reason_code")
+}
+
+enum CertificateTemplateVersionStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+
+  @@map("certificate_template_version_status")
+}
+
+/// Module 8.6B persists provider-neutral metadata only. Additional durable
+/// providers require a later reviewed additive enum migration.
+enum CertificateArtifactStorageProvider {
+  LOCAL
+
+  @@map("certificate_artifact_storage_provider")
+}
+
+enum StepUpAction {
+  CERTIFICATE_ISSUE
+  CERTIFICATE_REVOKE
+
+  @@map("step_up_action")
+}
+
+enum StepUpTargetType {
+  ENROLLMENT
+  CERTIFICATE
+
+  @@map("step_up_target_type")
+}
+
+enum StepUpContinuation {
+  CERTIFICATE_ISSUE_CONFIRMATION
+  CERTIFICATE_REVOKE_CONFIRMATION
+
+  @@map("step_up_continuation")
 }
 
 enum CertificateEligibilityPolicyCode {
@@ -237,6 +294,11 @@ model User {
   progressEvents             ProgressEvent[]                    @relation("ProgressEventActor")
   idempotencyRecords         IdempotencyRecord[]                @relation("IdempotencyRecordActor")
   eligibilityEvaluationsMade CertificateEligibilityEvaluation[] @relation("CertificateEligibilityEvaluator")
+  certificatesIssued         Certificate[]                      @relation("CertificateIssuer")
+  certificatesRevoked        Certificate[]                      @relation("CertificateRevoker")
+  certificateDisclosures     CertificateDisclosureControl[]     @relation("CertificateDisclosureSuppressor")
+  stepUpChallenges           StepUpChallenge[]                  @relation("StepUpChallengeUser")
+  stepUpProofs               StepUpProof[]                      @relation("StepUpProofUser")
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -338,6 +400,9 @@ model UserSession {
   ipAddress           String?           @map("ip_address") @db.Inet
   userAgent           String?           @map("user_agent") @db.Text
   lastActivityAt      DateTime          @default(now()) @map("last_activity_at") @db.Timestamptz(3)
+  /// Password login and approved password step-up may advance this value.
+  /// Refresh rotation and ordinary request activity must not advance it.
+  lastAuthenticatedAt DateTime?         @map("last_authenticated_at") @db.Timestamptz(3)
   expiresAt           DateTime          @map("expires_at") @db.Timestamptz(3)
   revokedAt           DateTime?         @map("revoked_at") @db.Timestamptz(3)
   revocationReason    String?           @map("revocation_reason") @db.VarChar(255)
@@ -346,7 +411,10 @@ model UserSession {
   user                User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   replacedBy          UserSession?      @relation("SessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   replaces            UserSession?      @relation("SessionRotation")
+  stepUpChallenges    StepUpChallenge[] @relation("StepUpChallengeSession")
+  stepUpProofs        StepUpProof[]     @relation("StepUpProofSession")
 
+  @@unique([id, userId], map: "user_sessions_id_user_id_key")
   @@index([userId, revokedAt, expiresAt], map: "user_sessions_user_id_revoked_at_expires_at_idx")
   @@index([tokenFamilyId], map: "user_sessions_token_family_id_idx")
   @@index([expiresAt], map: "user_sessions_expires_at_idx")
@@ -442,6 +510,8 @@ model CourseEnrollment {
   createdBy              User?                              @relation("CourseEnrollmentCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   progressRoot           EnrollmentProgressRoot?
   eligibilityEvaluations CertificateEligibilityEvaluation[]
+  certificate            Certificate?
+  idempotencyRecords     IdempotencyRecord[]
 
   @@unique([id, courseId], map: "course_enrollments_id_course_id_key")
   @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
@@ -477,7 +547,6 @@ model EnrollmentProgressRoot {
   lessonProgress          LessonProgress[]
   blockProgress           BlockProgress[]
   events                  ProgressEvent[]
-  idempotencyRecords      IdempotencyRecord[]
   eligibilityEvaluations  CertificateEligibilityEvaluation[]
 
   @@index([lastVisitedAt, enrollmentId], map: "enrollment_progress_roots_last_visited_at_enrollment_id_idx")
@@ -569,24 +638,28 @@ model ProgressEvent {
 /// Successful mutation responses are retained for bounded actor-isolated
 /// replay. Authentication and authorization must still be revalidated.
 model IdempotencyRecord {
-  id                         String                 @id @default(uuid(7)) @db.Uuid
-  actorUserId                String                 @map("actor_user_id") @db.Uuid
-  enrollmentId               String                 @map("enrollment_id") @db.Uuid
-  key                        String                 @db.VarChar(128)
-  operation                  IdempotencyOperation
-  requestFingerprint         String                 @map("request_fingerprint") @db.Char(64)
-  responseStatus             Int                    @map("response_status") @db.SmallInt
-  responseEnvelope           Json                   @map("response_envelope")
-  resultingCompletionVersion Int?                   @map("resulting_completion_version")
-  resultingActivityVersion   Int?                   @map("resulting_activity_version")
-  createdAt                  DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  expiresAt                  DateTime               @map("expires_at") @db.Timestamptz(3)
-  actor                      User                   @relation("IdempotencyRecordActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  progressRoot               EnrollmentProgressRoot @relation(fields: [enrollmentId], references: [enrollmentId], onDelete: Restrict, onUpdate: Cascade)
-  events                     ProgressEvent[]
+  id                          String               @id @default(uuid(7)) @db.Uuid
+  actorUserId                 String               @map("actor_user_id") @db.Uuid
+  enrollmentId                String               @map("enrollment_id") @db.Uuid
+  key                         String               @db.VarChar(128)
+  operation                   IdempotencyOperation
+  requestFingerprint          String               @map("request_fingerprint") @db.Char(64)
+  responseStatus              Int                  @map("response_status") @db.SmallInt
+  responseEnvelope            Json                 @map("response_envelope")
+  resultingCompletionVersion  Int?                 @map("resulting_completion_version")
+  resultingActivityVersion    Int?                 @map("resulting_activity_version")
+  resultingCertificateId      String?              @map("resulting_certificate_id") @db.Uuid
+  resultingCertificateVersion Int?                 @map("resulting_certificate_version")
+  createdAt                   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt                   DateTime             @map("expires_at") @db.Timestamptz(3)
+  actor                       User                 @relation("IdempotencyRecordActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  enrollment                  CourseEnrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  resultingCertificate        Certificate?         @relation(fields: [resultingCertificateId, enrollmentId], references: [id, enrollmentId], onDelete: Restrict, onUpdate: Cascade, map: "idempotency_records_resulting_certificate_id_fkey")
+  events                      ProgressEvent[]
 
   @@unique([actorUserId, key], map: "idempotency_records_actor_user_id_key_key")
   @@index([enrollmentId, createdAt], map: "idempotency_records_enrollment_id_created_at_idx")
+  @@index([resultingCertificateId], map: "idempotency_records_resulting_certificate_id_idx")
   @@index([expiresAt], map: "idempotency_records_expires_at_idx")
   @@index([operation, createdAt], map: "idempotency_records_operation_created_at_idx")
   @@map("idempotency_records")
@@ -636,7 +709,9 @@ model CertificateEligibilityEvaluation {
   supersedes                  CertificateEligibilityEvaluation?   @relation("CertificateEligibilitySupersession", fields: [supersedesEvaluationId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "eligibility_evaluations_supersedes_fkey")
   supersededBy                CertificateEligibilityEvaluation?   @relation("CertificateEligibilitySupersession")
   reasons                     CertificateEligibilityReason[]
+  certificate                 Certificate?
 
+  @@unique([id, enrollmentId, courseId], map: "eligibility_evaluations_id_enrollment_course_key")
   @@unique([enrollmentId, evaluationVersion], map: "eligibility_evaluations_enrollment_version_key")
   @@unique([enrollmentId, policyId, completionVersion], map: "eligibility_evaluations_snapshot_key")
   @@index([courseId, status, evaluatedAt], map: "eligibility_evaluations_course_status_at_idx")
@@ -657,6 +732,198 @@ model CertificateEligibilityReason {
   @@id([evaluationId, code], map: "certificate_eligibility_reasons_pkey")
   @@index([code, evaluationId], map: "certificate_eligibility_reasons_code_evaluation_id_idx")
   @@map("certificate_eligibility_reasons")
+}
+
+/// Stable administrative identity for a typed certificate template. Rendering
+/// content belongs to immutable CertificateTemplateVersion rows.
+model CertificateTemplate {
+  id        String                       @id @default(uuid(7)) @db.Uuid
+  code      String                       @unique(map: "certificate_templates_code_key") @db.VarChar(100)
+  name      String                       @db.VarChar(160)
+  createdAt DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  versions  CertificateTemplateVersion[]
+
+  @@map("certificate_templates")
+}
+
+/// DRAFT rows are editable. Activation freezes every rendering input; the
+/// migration trigger permits only the later ACTIVE -> RETIRED lifecycle change.
+model CertificateTemplateVersion {
+  id                      String                           @id @default(uuid(7)) @db.Uuid
+  templateId              String                           @map("template_id") @db.Uuid
+  version                 Int
+  locale                  String                           @db.VarChar(35)
+  status                  CertificateTemplateVersionStatus @default(DRAFT)
+  rendererContractVersion String?                          @map("renderer_contract_version") @db.VarChar(64)
+  organizationDisplayName String?                          @map("organization_display_name") @db.VarChar(200)
+  organizationLegalName   String?                          @map("organization_legal_name") @db.VarChar(200)
+  logoAssetId             String?                          @map("logo_asset_id") @db.VarChar(128)
+  logoAssetChecksum       String?                          @map("logo_asset_checksum") @db.Char(64)
+  sealAssetId             String?                          @map("seal_asset_id") @db.VarChar(128)
+  sealAssetChecksum       String?                          @map("seal_asset_checksum") @db.Char(64)
+  signatoryName           String?                          @map("signatory_name") @db.VarChar(160)
+  signatoryTitle          String?                          @map("signatory_title") @db.VarChar(160)
+  signatoryAssetId        String?                          @map("signatory_asset_id") @db.VarChar(128)
+  signatoryAssetChecksum  String?                          @map("signatory_asset_checksum") @db.Char(64)
+  fontAssetId             String?                          @map("font_asset_id") @db.VarChar(128)
+  fontAssetChecksum       String?                          @map("font_asset_checksum") @db.Char(64)
+  fontFamily              String?                          @map("font_family") @db.VarChar(100)
+  fontVersion             String?                          @map("font_version") @db.VarChar(64)
+  fontLicenseIdentifier   String?                          @map("font_license_identifier") @db.VarChar(100)
+  fontLicenseProvenance   String?                          @map("font_license_provenance") @db.VarChar(500)
+  activatedAt             DateTime?                        @map("activated_at") @db.Timestamptz(3)
+  retiredAt               DateTime?                        @map("retired_at") @db.Timestamptz(3)
+  createdAt               DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  template                CertificateTemplate              @relation(fields: [templateId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificate_template_versions_template_id_fkey")
+  certificates            Certificate[]
+
+  @@unique([templateId, version, locale], map: "certificate_template_versions_identity_key")
+  @@index([templateId, locale, status], map: "certificate_template_versions_lookup_idx")
+  @@index([status, locale], map: "certificate_template_versions_status_locale_idx")
+  @@map("certificate_template_versions")
+}
+
+/// A row exists only after successful issuance. NOT_ISSUED remains derived.
+/// Identity, evidence, rendering snapshots, and verification hash are immutable;
+/// only the ISSUED -> REVOKED transition may update this row.
+model Certificate {
+  id                      String                           @id @default(uuid(7)) @db.Uuid
+  certificateNumber       String                           @unique(map: "certificates_certificate_number_key") @default(dbgenerated("generate_certificate_number()")) @map("certificate_number") @db.VarChar(19)
+  verificationTokenHash   String                           @unique(map: "certificates_verification_token_hash_key") @map("verification_token_hash") @db.Char(64)
+  enrollmentId            String                           @unique(map: "certificates_enrollment_id_key") @map("enrollment_id") @db.Uuid
+  courseId                String                           @map("course_id") @db.Uuid
+  eligibilityEvaluationId String                           @unique(map: "certificates_eligibility_evaluation_id_key") @map("eligibility_evaluation_id") @db.Uuid
+  templateVersionId       String                           @map("template_version_id") @db.Uuid
+  status                  CertificateLifecycleStatus       @default(ISSUED)
+  version                 Int                              @default(1)
+  recipientDisplayName    String                           @map("recipient_display_name") @db.VarChar(160)
+  courseTitle             String                           @map("course_title") @db.VarChar(200)
+  organizationName        String                           @map("organization_name") @db.VarChar(200)
+  locale                  String                           @db.VarChar(35)
+  issueDate               DateTime                         @map("issue_date") @db.Date
+  issuedAt                DateTime                         @default(now()) @map("issued_at") @db.Timestamptz(3)
+  issuedByUserId          String                           @map("issued_by_user_id") @db.Uuid
+  revokedAt               DateTime?                        @map("revoked_at") @db.Timestamptz(3)
+  revokedByUserId         String?                          @map("revoked_by_user_id") @db.Uuid
+  revocationReasonCode    CertificateRevocationReasonCode? @map("revocation_reason_code")
+  revocationReasonNote    String?                          @map("revocation_reason_note") @db.VarChar(500)
+  createdAt               DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  enrollment              CourseEnrollment                 @relation(fields: [enrollmentId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade, map: "certificates_enrollment_course_fkey")
+  eligibilityEvaluation   CertificateEligibilityEvaluation @relation(fields: [eligibilityEvaluationId, enrollmentId, courseId], references: [id, enrollmentId, courseId], onDelete: Restrict, onUpdate: Cascade, map: "certificates_evaluation_enrollment_course_fkey")
+  templateVersion         CertificateTemplateVersion       @relation(fields: [templateVersionId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificates_template_version_id_fkey")
+  issuedBy                User                             @relation("CertificateIssuer", fields: [issuedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificates_issued_by_user_id_fkey")
+  revokedBy               User?                            @relation("CertificateRevoker", fields: [revokedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificates_revoked_by_user_id_fkey")
+  artifact                CertificateArtifact?
+  disclosureControl       CertificateDisclosureControl?
+  idempotencyResults      IdempotencyRecord[]
+
+  @@unique([enrollmentId, courseId], map: "certificates_enrollment_course_key")
+  @@unique([id, enrollmentId], map: "certificates_id_enrollment_id_key")
+  @@unique([eligibilityEvaluationId, enrollmentId, courseId], map: "certificates_evaluation_enrollment_course_key")
+  @@index([enrollmentId, status], map: "certificates_enrollment_id_status_idx")
+  @@index([courseId, status, issuedAt], map: "certificates_course_id_status_issued_at_idx")
+  @@index([templateVersionId], map: "certificates_template_version_id_idx")
+  @@index([issuedByUserId, issuedAt], map: "certificates_issued_by_user_id_issued_at_idx")
+  @@index([revokedByUserId, revokedAt], map: "certificates_revoked_by_user_id_revoked_at_idx")
+  @@map("certificates")
+}
+
+/// Immutable metadata for the one private canonical PDF. No file is created by
+/// Module 8.6B and this row has no generic media deletion or restore lifecycle.
+model CertificateArtifact {
+  id                 String                             @id @default(uuid(7)) @db.Uuid
+  certificateId      String                             @unique(map: "certificate_artifacts_certificate_id_key") @map("certificate_id") @db.Uuid
+  storageProvider    CertificateArtifactStorageProvider @default(LOCAL) @map("storage_provider")
+  storageKey         String                             @unique(map: "certificate_artifacts_storage_key_key") @map("storage_key") @db.VarChar(512)
+  mimeType           String                             @default("application/pdf") @map("mime_type") @db.VarChar(64)
+  sizeBytes          BigInt                             @map("size_bytes") @db.BigInt
+  checksum           String                             @db.Char(64)
+  rendererIdentifier String                             @map("renderer_identifier") @db.VarChar(100)
+  rendererVersion    String                             @map("renderer_version") @db.VarChar(64)
+  finalizedAt        DateTime                           @map("finalized_at") @db.Timestamptz(3)
+  createdAt          DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+  certificate        Certificate                        @relation(fields: [certificateId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificate_artifacts_certificate_id_fkey")
+
+  @@index([checksum], map: "certificate_artifacts_checksum_idx")
+  @@index([storageProvider, finalizedAt], map: "certificate_artifacts_provider_finalized_at_idx")
+  @@index([finalizedAt], map: "certificate_artifacts_finalized_at_idx")
+  @@map("certificate_artifacts")
+}
+
+/// Public recipient-name suppression is independent from immutable credential
+/// evidence. Absence means no suppression record exists.
+model CertificateDisclosureControl {
+  id                        String      @id @default(uuid(7)) @db.Uuid
+  certificateId             String      @unique(map: "certificate_disclosure_controls_certificate_id_key") @map("certificate_id") @db.Uuid
+  recipientNameSuppressedAt DateTime?   @map("recipient_name_suppressed_at") @db.Timestamptz(3)
+  suppressedByUserId        String?     @map("suppressed_by_user_id") @db.Uuid
+  reasonCode                String?     @map("reason_code") @db.VarChar(64)
+  createdAt                 DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  certificate               Certificate @relation(fields: [certificateId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificate_disclosure_controls_certificate_id_fkey")
+  suppressedBy              User?       @relation("CertificateDisclosureSuppressor", fields: [suppressedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "certificate_disclosure_controls_suppressed_by_user_id_fkey")
+
+  @@index([recipientNameSuppressedAt], map: "certificate_disclosure_controls_suppressed_at_idx")
+  @@index([suppressedByUserId, recipientNameSuppressedAt], map: "certificate_disclosure_controls_actor_suppressed_at_idx")
+  @@map("certificate_disclosure_controls")
+}
+
+/// Five-minute, target-bound persistence foundation for future password step-up.
+/// Only a nonce hash and credential epoch are retained.
+model StepUpChallenge {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  userId          String             @map("user_id") @db.Uuid
+  sessionId       String             @map("session_id") @db.Uuid
+  nonceHash       String             @unique(map: "step_up_challenges_nonce_hash_key") @map("nonce_hash") @db.Char(64)
+  credentialEpoch DateTime           @map("credential_epoch") @db.Timestamptz(3)
+  action          StepUpAction
+  targetType      StepUpTargetType   @map("target_type")
+  targetId        String             @map("target_id") @db.Uuid
+  continuation    StepUpContinuation
+  continuationId  String             @unique(map: "step_up_challenges_continuation_id_key") @map("continuation_id") @db.Uuid
+  attemptCount    Int                @default(0) @map("attempt_count")
+  expiresAt       DateTime           @map("expires_at") @db.Timestamptz(3)
+  verifiedAt      DateTime?          @map("verified_at") @db.Timestamptz(3)
+  lockedAt        DateTime?          @map("locked_at") @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  user            User               @relation("StepUpChallengeUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "step_up_challenges_user_id_fkey")
+  session         UserSession        @relation("StepUpChallengeSession", fields: [sessionId, userId], references: [id, userId], onDelete: Restrict, onUpdate: Cascade, map: "step_up_challenges_session_user_fkey")
+  proof           StepUpProof?
+
+  @@unique([id, userId, sessionId, credentialEpoch, action, targetType, targetId], map: "step_up_challenges_proof_binding_key")
+  @@index([userId, sessionId, expiresAt], map: "step_up_challenges_user_session_expires_at_idx")
+  @@index([targetType, targetId, action], map: "step_up_challenges_target_action_idx")
+  @@index([expiresAt, lockedAt], map: "step_up_challenges_expires_locked_at_idx")
+  @@map("step_up_challenges")
+}
+
+/// The raw 256-bit proof is returned once and never persisted. This row stores
+/// its SHA-256 hash and the immutable challenge bindings only.
+model StepUpProof {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  challengeId     String           @unique(map: "step_up_proofs_challenge_id_key") @map("challenge_id") @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  sessionId       String           @map("session_id") @db.Uuid
+  proofHash       String           @unique(map: "step_up_proofs_proof_hash_key") @map("proof_hash") @db.Char(64)
+  credentialEpoch DateTime         @map("credential_epoch") @db.Timestamptz(3)
+  action          StepUpAction
+  targetType      StepUpTargetType @map("target_type")
+  targetId        String           @map("target_id") @db.Uuid
+  expiresAt       DateTime         @map("expires_at") @db.Timestamptz(3)
+  consumedAt      DateTime?        @map("consumed_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  challenge       StepUpChallenge  @relation(fields: [challengeId, userId, sessionId, credentialEpoch, action, targetType, targetId], references: [id, userId, sessionId, credentialEpoch, action, targetType, targetId], onDelete: Restrict, onUpdate: Cascade, map: "step_up_proofs_challenge_binding_fkey")
+  user            User             @relation("StepUpProofUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "step_up_proofs_user_id_fkey")
+  session         UserSession      @relation("StepUpProofSession", fields: [sessionId, userId], references: [id, userId], onDelete: Restrict, onUpdate: Cascade, map: "step_up_proofs_session_user_fkey")
+
+  @@unique([challengeId, userId, sessionId, credentialEpoch, action, targetType, targetId], map: "step_up_proofs_challenge_binding_key")
+  @@index([userId, sessionId, expiresAt, consumedAt], map: "step_up_proofs_user_session_active_idx")
+  @@index([expiresAt, consumedAt], map: "step_up_proofs_expires_consumed_at_idx")
+  @@index([targetType, targetId, action], map: "step_up_proofs_target_action_idx")
+  @@map("step_up_proofs")
 }
 
 model CourseSection {

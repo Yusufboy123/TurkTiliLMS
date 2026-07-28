@@ -32,6 +32,13 @@ const rollbackScriptPath = resolve(
   '20260728120000_add_certificate_eligibility_foundation',
   'rollback.sql',
 );
+const certificateLifecycleRollbackScriptPath = resolve(
+  backendRoot,
+  'prisma',
+  'migrations',
+  '20260728193000_add_certificate_lifecycle_foundation',
+  'rollback.sql',
+);
 const preflightScriptPath = resolve(
   backendRoot,
   'prisma',
@@ -74,6 +81,7 @@ const expectedIndexes = [
   'eligibility_evaluations_enrollment_status_at_idx',
   'eligibility_evaluations_enrollment_version_key',
   'eligibility_evaluations_evaluator_at_idx',
+  'eligibility_evaluations_id_enrollment_course_key',
   'eligibility_evaluations_policy_status_at_idx',
   'eligibility_evaluations_snapshot_key',
   'eligibility_evaluations_supersedes_id_key',
@@ -407,7 +415,7 @@ describeDatabase('Module 8.5B certificate eligibility PostgreSQL foundation', ()
         client.certificateEligibilityReason.count(),
       ]),
     ).resolves.toEqual(countsBefore);
-  });
+  }, 20_000);
 
   it('installs no fabricated historical policy or eligibility evidence', () => {
     expect(initialEvaluationCount).toBe(0);
@@ -751,6 +759,25 @@ describeDatabase('Module 8.5B certificate eligibility PostgreSQL foundation', ()
       windowsHide: true,
     });
 
+    // Reverse later additive dependencies before testing the Module 8.5B aid.
+    await execFileAsync(
+      process.execPath,
+      [
+        prismaCliPath,
+        'db',
+        'execute',
+        '--file',
+        certificateLifecycleRollbackScriptPath,
+        '--url',
+        rollbackDatabaseUrl,
+      ],
+      {
+        cwd: backendRoot,
+        env: { ...process.env, DATABASE_URL: rollbackDatabaseUrl },
+        windowsHide: true,
+      },
+    );
+
     await execFileAsync(
       process.execPath,
       [prismaCliPath, 'db', 'execute', '--file', rollbackScriptPath, '--url', rollbackDatabaseUrl],
@@ -802,5 +829,5 @@ describeDatabase('Module 8.5B certificate eligibility PostgreSQL foundation', ()
       rollbackSchemaName,
     );
     expect(compositeIndex).toEqual([]);
-  });
+  }, 20_000);
 });
