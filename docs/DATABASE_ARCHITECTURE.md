@@ -1540,6 +1540,14 @@ objects have no domain row and are removed by transaction compensation or a
 minimum-age orphan reconciler. A referenced artifact is never automatically
 deleted or silently regenerated.
 
+Module 8.6D uses this finalized-only model without schema changes. Rendering,
+staging, and failure remain transient service/storage conditions: no
+`PENDING`, `FAILED`, `RENDERING`, or `STAGED` database status exists. The
+artifact row and its audit event are inserted only after private storage
+finalization and receipt verification; a failed database insert compensates by
+removing the unreferenced finalized object. The existing uniqueness constraints
+and immutable update/delete trigger remain authoritative.
+
 The Module 8.6B provider enum intentionally contains only `LOCAL`; a production
 durable provider requires a later reviewed additive enum change. The storage
 key check requires the dedicated `certificates/` namespace and rejects absolute,

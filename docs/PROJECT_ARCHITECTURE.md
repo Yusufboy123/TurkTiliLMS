@@ -1371,6 +1371,14 @@ student data, sessions, or internal identifiers.
   separate from immutable certificate history.
 - Generated certificate PDFs are private, immutable, checksum-verified, and
   capped at 10 MiB.
+- Module 8.6D implements the internal artifact foundation with a direct typed
+  PDFKit renderer, package-local Noto Sans Regular/Bold fonts, bounded
+  validation, private local staging, atomic no-overwrite finalization,
+  server-side SHA-256, and post-storage immutable metadata persistence. It does
+  not activate issuance, download, public verification, or revocation routes.
+- HTML-to-PDF, arbitrary markup/CSS, remote assets, operating-system fonts, and
+  persisted pending/failed artifact states remain prohibited. See
+  [Certificate Artifact Renderer Foundation](./CERTIFICATE_ARTIFACT_RENDERER_FOUNDATION.md).
 
 ---
 

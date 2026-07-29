@@ -31,6 +31,13 @@ const environmentSchema = z.object({
     .positive()
     .max(2_147_483_647)
     .default(262_144_000),
+  CERTIFICATE_ARTIFACT_STORAGE_ROOT: z
+    .string()
+    .trim()
+    .min(1)
+    .default('private-certificate-artifacts'),
+  CERTIFICATE_PDF_MAX_BYTES: z.coerce.number().int().positive().max(10_485_760).default(10_485_760),
+  CERTIFICATE_PDF_RENDER_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
 });
 
 const result = environmentSchema.safeParse(process.env);

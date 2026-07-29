@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { MediaStorageProvider } from '@prisma/client';
 import type { MediaCategory } from '@prisma/client';
 import type { Readable } from 'node:stream';
+import {
+  assertContainedPath,
+  resolveContainedPath,
+} from '../../infrastructure/storage/safe-local-path.js';
 import type { InspectedMediaUpload, StagedMediaUpload, StoredMediaObject } from './media.types.js';
 
 const categoryDirectories: Record<MediaCategory, string> = {
@@ -59,28 +63,11 @@ export class LocalMediaStorage implements MediaStorage {
   }
 
   private resolveStoragePath(storagePath: string): string {
-    if (isAbsolute(storagePath)) {
-      throw new MediaStoragePathError();
-    }
-
-    const absolutePath = resolve(this.rootDirectory, storagePath);
-    const pathFromRoot = relative(this.rootDirectory, absolutePath);
-    if (pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === '..') {
-      throw new MediaStoragePathError();
-    }
-    return absolutePath;
+    return resolveContainedPath(this.rootDirectory, storagePath, () => new MediaStoragePathError());
   }
 
   private assertStagedPath(path: string): void {
-    const absolutePath = resolve(path);
-    const pathFromStaging = relative(this.stagingDirectory, absolutePath);
-    if (
-      pathFromStaging === '..' ||
-      pathFromStaging.startsWith(`..${sep}`) ||
-      isAbsolute(pathFromStaging)
-    ) {
-      throw new MediaStoragePathError();
-    }
+    assertContainedPath(this.stagingDirectory, path, () => new MediaStoragePathError());
   }
 
   async store(
