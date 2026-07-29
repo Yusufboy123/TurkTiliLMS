@@ -22,6 +22,12 @@ export interface CertificateAuditContext {
   readonly reportOperationalAlert?: (alert: CertificateOperationalAlert) => void;
 }
 
+export interface PublicCertificateAuditContext {
+  readonly requestCorrelationId?: string;
+  readonly ipHash: string;
+  readonly userAgentSummary?: string;
+}
+
 export interface CertificateOperationalAlert {
   readonly event: 'certificate.artifact_integrity_alert' | 'certificate.audit_persistence_failed';
   readonly certificateId?: string;
@@ -59,6 +65,36 @@ export interface CertificateMutationResponse {
   readonly success: true;
   readonly message: string;
   readonly data: CertificateMutationReceipt;
+}
+
+export interface RevokeCertificateInput {
+  readonly expectedVersion: number;
+  readonly reasonCode: CertificateRevocationReasonCode;
+  readonly reasonNote?: string | undefined;
+  readonly confirmed: true;
+}
+
+export interface RevokeCertificateCommand {
+  readonly certificateId: string;
+  readonly input: RevokeCertificateInput;
+  readonly idempotencyKey: string;
+  readonly stepUpProof: string;
+}
+
+export interface CertificateRevocationMutationReceipt {
+  readonly operation: 'REVOKE';
+  readonly certificateId: string;
+  readonly enrollmentId: string;
+  readonly certificateNumber: string;
+  readonly resultingStatus: 'REVOKED';
+  readonly resultingVersion: 2;
+  readonly occurredAt: string;
+}
+
+export interface CertificateRevocationMutationResponse {
+  readonly success: true;
+  readonly message: string;
+  readonly data: CertificateRevocationMutationReceipt;
 }
 
 export interface CertificateIssueResult {
@@ -175,6 +211,39 @@ export interface CertificateDetailRecord {
     readonly sizeBytes: bigint;
     readonly checksum: string;
   } | null;
+}
+
+export interface CertificateRevocationRecord {
+  readonly id: string;
+  readonly certificateNumber: string;
+  readonly enrollmentId: string;
+  readonly status: CertificateLifecycleStatus;
+  readonly version: number;
+}
+
+export interface PublicCertificateRecord {
+  readonly certificateNumber: string;
+  readonly status: CertificateLifecycleStatus;
+  readonly recipientDisplayName: string;
+  readonly recipientNameSuppressedAt: Date | null;
+  readonly courseTitle: string;
+  readonly organizationName: string;
+  readonly issuedAt: Date;
+  readonly revokedAt: Date | null;
+  readonly revocationReasonCode: CertificateRevocationReasonCode | null;
+}
+
+export type PublicCertificateStatus = 'VALID' | 'REVOKED';
+
+export interface PublicCertificateDto {
+  readonly certificateNumber: string;
+  readonly status: PublicCertificateStatus;
+  readonly recipientDisplayName: string | null;
+  readonly courseTitle: string;
+  readonly organizationName: string;
+  readonly issuedAt: string;
+  readonly revokedAt: string | null;
+  readonly safeRevocationReasonCode: CertificateRevocationReasonCode | null;
 }
 
 export interface PrivateCertificateDto {

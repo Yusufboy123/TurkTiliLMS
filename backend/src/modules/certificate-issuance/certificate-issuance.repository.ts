@@ -3,6 +3,7 @@ import {
   CertificateTemplateVersionStatus,
   IdempotencyOperation,
   Prisma,
+  type CertificateRevocationReasonCode,
   type PrismaClient,
 } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
@@ -21,7 +22,11 @@ import type {
   CertificateIssuanceCandidate,
   CertificateImmutableSnapshot,
   CertificateMutationResponse,
+  CertificateRevocationMutationResponse,
+  CertificateRevocationRecord,
   CertificateTemplateVersionRecord,
+  PublicCertificateAuditContext,
+  PublicCertificateRecord,
   StoredIdempotencyReceipt,
 } from './certificate-issuance.types.js';
 
@@ -158,6 +163,20 @@ const certificateDetailSelect = {
   },
 } satisfies Prisma.CertificateSelect;
 
+const publicCertificateSelect = {
+  certificateNumber: true,
+  status: true,
+  recipientDisplayName: true,
+  courseTitle: true,
+  organizationName: true,
+  issuedAt: true,
+  revokedAt: true,
+  revocationReasonCode: true,
+  disclosureControl: {
+    select: { recipientNameSuppressedAt: true },
+  },
+} satisfies Prisma.CertificateSelect;
+
 type CertificateDetailPayload = Prisma.CertificateGetPayload<{
   select: typeof certificateDetailSelect;
 }>;
@@ -206,6 +225,22 @@ function mapCertificateDetail(record: CertificateDetailPayload): CertificateDeta
     revocationReasonCode: record.revocationReasonCode,
     templateVersion: record.templateVersion.version,
     artifact: record.artifact,
+  };
+}
+
+function mapPublicCertificate(
+  record: Prisma.CertificateGetPayload<{ select: typeof publicCertificateSelect }>,
+): PublicCertificateRecord {
+  return {
+    certificateNumber: record.certificateNumber,
+    status: record.status,
+    recipientDisplayName: record.recipientDisplayName,
+    recipientNameSuppressedAt: record.disclosureControl?.recipientNameSuppressedAt ?? null,
+    courseTitle: record.courseTitle,
+    organizationName: record.organizationName,
+    issuedAt: record.issuedAt,
+    revokedAt: record.revokedAt,
+    revocationReasonCode: record.revocationReasonCode,
   };
 }
 
@@ -369,6 +404,18 @@ export interface CreateIssuedCertificateData {
   readonly audit: CertificateAuditContext;
 }
 
+export interface RevokeCertificateData {
+  readonly certificate: CertificateRevocationRecord;
+  readonly actorUserId: string;
+  readonly reasonCode: CertificateRevocationReasonCode;
+  readonly reasonNote?: string | undefined;
+  readonly revokedAt: Date;
+  readonly idempotencyKey: string;
+  readonly requestFingerprint: string;
+  readonly responseEnvelope: CertificateRevocationMutationResponse;
+  readonly audit: CertificateAuditContext;
+}
+
 export interface CertificateIssuanceTransaction {
   readonly stepUp: StepUpTransactionRepository;
   lockEvidence(
@@ -382,6 +429,10 @@ export interface CertificateIssuanceTransaction {
   ): Promise<CertificateIssuanceCandidate | null>;
   findIdempotencyRecord(actorUserId: string, key: string): Promise<StoredIdempotencyReceipt | null>;
   createIssuedCertificate(data: CreateIssuedCertificateData): Promise<void>;
+  lockCertificate(certificateId: string): Promise<void>;
+  lockIdempotencyKey(actorUserId: string, key: string): Promise<void>;
+  findCertificateForRevocation(certificateId: string): Promise<CertificateRevocationRecord | null>;
+  revokeCertificate(data: RevokeCertificateData): Promise<void>;
 }
 
 export interface CertificateIssuanceRepository {
@@ -424,6 +475,14 @@ export interface CertificateIssuanceRepository {
     actorClass: 'student' | 'admin',
     context: CertificateAuditContext,
   ): Promise<void>;
+  verifyPublicCertificate(
+    verificationTokenHash: string,
+    forceNotFound: boolean,
+    context: PublicCertificateAuditContext,
+  ): Promise<PublicCertificateRecord | null>;
+  findPublicCertificateByHash(
+    verificationTokenHash: string,
+  ): Promise<PublicCertificateRecord | null>;
 }
 
 class PrismaCertificateIssuanceTransaction implements CertificateIssuanceTransaction {
@@ -568,6 +627,97 @@ class PrismaCertificateIssuanceTransaction implements CertificateIssuanceTransac
         resultingCertificateId: certificate.id,
         resultingCertificateVersion: 1,
         expiresAt: new Date(data.identity.issuedAt.getTime() + 24 * 60 * 60_000),
+      },
+    });
+  }
+
+  async lockCertificate(certificateId: string): Promise<void> {
+    await this.transaction.$queryRaw`
+      SELECT "id"
+      FROM "certificates"
+      WHERE "id" = ${certificateId}::uuid
+      FOR UPDATE
+    `;
+  }
+
+  async lockIdempotencyKey(actorUserId: string, key: string): Promise<void> {
+    const scope = `certificate:idempotency:${actorUserId}:${key}`;
+    await this.transaction.$queryRaw`
+      WITH "idempotency_lock" AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))
+      )
+      SELECT 1::INTEGER AS "lockAcquired"
+      FROM "idempotency_lock"
+    `;
+  }
+
+  async findCertificateForRevocation(
+    certificateId: string,
+  ): Promise<CertificateRevocationRecord | null> {
+    return this.transaction.certificate.findUnique({
+      where: { id: certificateId },
+      select: {
+        id: true,
+        certificateNumber: true,
+        enrollmentId: true,
+        status: true,
+        version: true,
+      },
+    });
+  }
+
+  async revokeCertificate(data: RevokeCertificateData): Promise<void> {
+    const nextVersion = data.certificate.version + 1;
+    const updated = await this.transaction.certificate.updateMany({
+      where: {
+        id: data.certificate.id,
+        status: CertificateLifecycleStatus.ISSUED,
+        version: data.certificate.version,
+      },
+      data: {
+        status: CertificateLifecycleStatus.REVOKED,
+        version: nextVersion,
+        revokedAt: data.revokedAt,
+        revokedByUserId: data.actorUserId,
+        revocationReasonCode: data.reasonCode,
+        revocationReasonNote: data.reasonNote ?? null,
+        updatedAt: data.revokedAt,
+      },
+    });
+    if (updated.count !== 1 || nextVersion !== 2) {
+      throw new CertificateIssuanceRepositoryConflictError('serialization');
+    }
+
+    await this.transaction.auditLog.create({
+      data: {
+        ...auditFields(data.audit),
+        action: 'certificate.revoked',
+        subjectType: 'certificate',
+        subjectId: data.certificate.id,
+        metadata: {
+          certificateNumber: data.certificate.certificateNumber,
+          previousStatus: CertificateLifecycleStatus.ISSUED,
+          newStatus: CertificateLifecycleStatus.REVOKED,
+          previousVersion: data.certificate.version,
+          newVersion: nextVersion,
+          reasonCode: data.reasonCode,
+        },
+      },
+    });
+    await this.transaction.idempotencyRecord.create({
+      data: {
+        actorUserId: data.actorUserId,
+        enrollmentId: data.certificate.enrollmentId,
+        key: data.idempotencyKey,
+        operation: IdempotencyOperation.REVOKE_CERTIFICATE,
+        requestFingerprint: data.requestFingerprint,
+        responseStatus: 200,
+        responseEnvelope: JSON.parse(
+          JSON.stringify(data.responseEnvelope),
+        ) as Prisma.InputJsonValue,
+        resultingCertificateId: data.certificate.id,
+        resultingCertificateVersion: nextVersion,
+        expiresAt: new Date(data.revokedAt.getTime() + 24 * 60 * 60_000),
       },
     });
   }
@@ -859,5 +1009,76 @@ export class PrismaCertificateIssuanceRepository implements CertificateIssuanceR
         },
       });
     });
+  }
+
+  async verifyPublicCertificate(
+    verificationTokenHash: string,
+    forceNotFound: boolean,
+    context: PublicCertificateAuditContext,
+  ): Promise<PublicCertificateRecord | null> {
+    return this.client.$transaction(async (transaction) => {
+      const scope = `certificate:public-verification:${context.ipHash}`;
+      await transaction.$queryRaw`
+        WITH "rate_limit_lock" AS MATERIALIZED (
+          SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))
+        )
+        SELECT 1::INTEGER AS "lockAcquired"
+        FROM "rate_limit_lock"
+      `;
+      const timestamps = await transaction.$queryRaw<{ currentTime: Date }[]>`
+        SELECT clock_timestamp() AS "currentTime"
+      `;
+      const currentTime = timestamps[0]?.currentTime;
+      if (!currentTime) {
+        throw new CertificateIssuanceRepositoryConflictError('serialization');
+      }
+      const since = new Date(currentTime.getTime() - 60_000);
+      const requestCount = await transaction.auditLog.count({
+        where: {
+          action: 'certificate.verification_viewed',
+          ipHash: context.ipHash,
+          occurredAt: { gte: since },
+        },
+      });
+      if (requestCount >= 20) throw new CertificateRateLimitRepositoryError();
+
+      const candidate = await transaction.certificate.findUnique({
+        where: { verificationTokenHash },
+        select: publicCertificateSelect,
+      });
+      const record = forceNotFound ? null : candidate;
+      const outcome =
+        record === null
+          ? 'not_found'
+          : record.status === CertificateLifecycleStatus.REVOKED
+            ? 'revoked'
+            : 'found';
+
+      await transaction.auditLog.create({
+        data: {
+          action: 'certificate.verification_viewed',
+          subjectType: 'certificate_verification',
+          ...(context.requestCorrelationId
+            ? { requestCorrelationId: context.requestCorrelationId }
+            : {}),
+          ipHash: context.ipHash,
+          ...(context.userAgentSummary ? { userAgentSummary: context.userAgentSummary } : {}),
+          metadata: { outcome },
+          occurredAt: currentTime,
+        },
+      });
+
+      return record ? mapPublicCertificate(record) : null;
+    });
+  }
+
+  async findPublicCertificateByHash(
+    verificationTokenHash: string,
+  ): Promise<PublicCertificateRecord | null> {
+    const record = await this.client.certificate.findUnique({
+      where: { verificationTokenHash },
+      select: publicCertificateSelect,
+    });
+    return record ? mapPublicCertificate(record) : null;
   }
 }

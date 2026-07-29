@@ -12,6 +12,12 @@ export const certificateEnrollmentNotFound = (): AppError =>
   error('Kursga yozilish ma\u2018lumoti topilmadi.', 404, 'ENROLLMENT_NOT_FOUND');
 export const certificateNotFound = (): AppError =>
   error('Sertifikat topilmadi.', 404, 'CERTIFICATE_NOT_FOUND');
+export const certificateVerificationNotFound = (): AppError =>
+  error(
+    'Sertifikatni tasdiqlash ma\u2018lumoti topilmadi.',
+    404,
+    'CERTIFICATE_VERIFICATION_NOT_FOUND',
+  );
 export const certificateEvidenceConflict = (): AppError =>
   error(
     'Sertifikat dalillari joriy yakunlash ma\u2018lumotiga mos emas.',
@@ -62,6 +68,14 @@ export const certificateArtifactUnavailable = (): AppError =>
   error('Sertifikat fayli hozir mavjud emas.', 424, 'CERTIFICATE_ARTIFACT_UNAVAILABLE');
 export const certificateRevoked = (): AppError =>
   error('Bekor qilingan sertifikatni yuklab bo\u2018lmaydi.', 409, 'CERTIFICATE_REVOKED');
+export const certificateAlreadyRevoked = (): AppError =>
+  error('Sertifikat allaqachon bekor qilingan.', 409, 'CERTIFICATE_ALREADY_REVOKED');
+export const certificateVersionConflict = (): AppError =>
+  error(
+    'Sertifikat holati o\u2018zgargan. Ma\u2018lumotni yangilang.',
+    409,
+    'CERTIFICATE_VERSION_CONFLICT',
+  );
 export const certificateRateLimited = (): AppError =>
   error(
     'Juda ko\u2018p so\u2018rov yuborildi. Birozdan so\u2018ng qayta urinib ko\u2018ring.',

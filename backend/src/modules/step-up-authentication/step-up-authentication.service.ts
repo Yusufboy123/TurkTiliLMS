@@ -512,7 +512,11 @@ export class StepUpAuthenticationService implements StepUpAuthenticationUseCases
     }
 
     const security = await transaction.findSecurityContext(actor.userId, actor.sessionId, now);
-    if (!security || !sameTimestamp(proof.credentialEpoch, security.credentialEpoch)) {
+    if (
+      !security ||
+      !sameTimestamp(proof.credentialEpoch, security.credentialEpoch) ||
+      !hasUsableCredential(security, now)
+    ) {
       throw stepUpProofInvalid();
     }
     assertCurrentPolicy(security, proof.action);

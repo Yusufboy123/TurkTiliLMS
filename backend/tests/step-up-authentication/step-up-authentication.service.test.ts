@@ -522,6 +522,36 @@ describe('StepUpAuthenticationService', () => {
     ).rejects.toMatchObject({ code: 'STEP_UP_PROOF_INVALID' });
   });
 
+  it('rejects proof consumption after forced password change or credential lockout', async () => {
+    const input = {
+      proof: rawProof,
+      action: StepUpAction.CERTIFICATE_ISSUE,
+      targetType: StepUpTargetType.ENROLLMENT,
+      targetId,
+    };
+    const forcedChange = harness({
+      security: security({ requiresPasswordChange: true }),
+    });
+    await expect(
+      forcedChange.service.consumeProof(forcedChange.transaction, input, actor, {
+        actorUserId: userId,
+      }),
+    ).rejects.toMatchObject({ code: 'STEP_UP_PROOF_INVALID' });
+    expect(forcedChange.transaction.consumeProof).not.toHaveBeenCalled();
+
+    const locked = harness({
+      security: security({
+        credentialLockedUntil: new Date('2026-07-28T12:05:00.000Z'),
+      }),
+    });
+    await expect(
+      locked.service.consumeProof(locked.transaction, input, actor, {
+        actorUserId: userId,
+      }),
+    ).rejects.toMatchObject({ code: 'STEP_UP_PROOF_INVALID' });
+    expect(locked.transaction.consumeProof).not.toHaveBeenCalled();
+  });
+
   it('rejects expired and cross-session proof consumption', async () => {
     const expired = harness();
     const expiredProofLookup = expired.transaction.findProofByHash as ReturnType<typeof vi.fn>;

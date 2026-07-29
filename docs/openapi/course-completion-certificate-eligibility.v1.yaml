@@ -233,13 +233,13 @@ paths:
       operationId: revokeCertificate
       summary: Revoke an issued certificate
       description: |
-        Module 8.6A contract only. Requires ADMIN, `certificates.revoke`,
+        Module 8.6F runtime. Requires ADMIN, `certificates.revoke`,
         Idempotency-Key, a certificate-bound X-Step-Up-Proof, explicit
         confirmation, optimistic concurrency, and audit. Revocation preserves
         completion, eligibility evidence, the immutable certificate record, and
         artifact.
       x-implementation-phase: Module 8.6F
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN]
       x-required-permissions: [certificates.revoke]
       x-step-up-required: true
@@ -506,12 +506,12 @@ paths:
       operationId: verifyPublicCertificate
       summary: Verify a certificate through its opaque public token
       description: |
-        Module 8.6A contract only. Authentication is not required. Unknown and
+        Module 8.6F runtime. Authentication is not required. Unknown and
         malformed tokens receive the same generic 404. An approved
         recipient-name suppression returns a valid status with a null name.
         The raw token must not be logged or copied into analytics.
       x-implementation-phase: Module 8.6F
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-rate-limit: 20 requests per minute per privacy-safe IP key plus a global abuse limit
       x-audit-event: certificate.verification_viewed
       security: []

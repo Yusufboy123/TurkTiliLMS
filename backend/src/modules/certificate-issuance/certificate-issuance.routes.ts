@@ -10,12 +10,17 @@ import {
 import { certificateIssuanceController } from './certificate-issuance.container.js';
 import type { CertificateIssuanceController } from './certificate-issuance.controller.js';
 
-function limiter(windowMs: number, limit: number): RequestHandler {
+function limiter(
+  windowMs: number,
+  limit: number,
+  keyGenerator?: (request: Parameters<RequestHandler>[0]) => string,
+): RequestHandler {
   return rateLimit({
     windowMs,
     limit,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
+    ...(keyGenerator ? { keyGenerator } : {}),
     message: {
       success: false,
       code: 'RATE_LIMIT_EXCEEDED',
@@ -26,6 +31,10 @@ function limiter(windowMs: number, limit: number): RequestHandler {
 }
 
 const issueRateLimiter = limiter(15 * 60_000, 5);
+const revokeRateLimiter = limiter(15 * 60_000, 5, (request) => {
+  const principal = (request as typeof request & { auth?: { userId?: string } }).auth;
+  return `${principal?.userId ?? 'anonymous'}:${request.params.certificateId ?? 'unknown'}`;
+});
 const detailRateLimiter = limiter(60_000, 60);
 const downloadRateLimiter = limiter(60_000, 20);
 
@@ -37,6 +46,7 @@ export interface CertificateIssuanceRouterDependencies {
   readonly teacherOrAdminRole: RequestHandler;
   readonly permission: (...permissions: string[]) => RequestHandler;
   readonly issueRateLimiter: RequestHandler;
+  readonly revokeRateLimiter: RequestHandler;
   readonly detailRateLimiter: RequestHandler;
   readonly downloadRateLimiter: RequestHandler;
 }
@@ -46,6 +56,10 @@ export function createCertificateIssuanceRouter(
 ): Router {
   const router = Router();
 
+  router.get(
+    '/public/certificates/verify/:verificationToken',
+    asyncHandler(dependencies.controller.verifyPublicCertificate),
+  );
   router.post(
     '/enrollments/:enrollmentId/certificates',
     dependencies.authentication,
@@ -53,6 +67,14 @@ export function createCertificateIssuanceRouter(
     dependencies.permission('certificates.issue'),
     dependencies.issueRateLimiter,
     asyncHandler(dependencies.controller.issueCertificate),
+  );
+  router.post(
+    '/certificates/:certificateId/revoke',
+    dependencies.authentication,
+    dependencies.adminRole,
+    dependencies.permission('certificates.revoke'),
+    dependencies.revokeRateLimiter,
+    asyncHandler(dependencies.controller.revokeCertificate),
   );
   router.get(
     '/me/certificates/:certificateId',
@@ -98,6 +120,7 @@ export const certificateIssuanceRouter = createCertificateIssuanceRouter({
   teacherOrAdminRole: requireRole(RoleCode.ADMIN, RoleCode.TEACHER),
   permission: requirePermission,
   issueRateLimiter,
+  revokeRateLimiter,
   detailRateLimiter,
   downloadRateLimiter,
 });

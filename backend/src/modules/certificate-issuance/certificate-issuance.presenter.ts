@@ -3,6 +3,8 @@ import type {
   CertificateActor,
   CertificateDetailRecord,
   PrivateCertificateDto,
+  PublicCertificateDto,
+  PublicCertificateRecord,
 } from './certificate-issuance.types.js';
 
 export function presentPrivateCertificate(
@@ -50,5 +52,21 @@ export function presentPrivateCertificate(
         actor.permissions.includes('certificates.revoke'),
       canReissue: false,
     },
+  };
+}
+
+export function presentPublicCertificate(record: PublicCertificateRecord): PublicCertificateDto {
+  const revoked = record.status === CertificateLifecycleStatus.REVOKED;
+
+  return {
+    certificateNumber: record.certificateNumber,
+    status: revoked ? 'REVOKED' : 'VALID',
+    recipientDisplayName:
+      record.recipientNameSuppressedAt === null ? record.recipientDisplayName : null,
+    courseTitle: record.courseTitle,
+    organizationName: record.organizationName,
+    issuedAt: record.issuedAt.toISOString(),
+    revokedAt: revoked ? (record.revokedAt?.toISOString() ?? null) : null,
+    safeRevocationReasonCode: revoked ? record.revocationReasonCode : null,
   };
 }

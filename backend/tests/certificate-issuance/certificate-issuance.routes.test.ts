@@ -1,4 +1,9 @@
-import { CertificateLifecycleStatus, RoleCode, SessionClientType } from '@prisma/client';
+import {
+  CertificateLifecycleStatus,
+  CertificateRevocationReasonCode,
+  RoleCode,
+  SessionClientType,
+} from '@prisma/client';
 import express, { type RequestHandler } from 'express';
 import { Readable } from 'node:stream';
 import request from 'supertest';
@@ -95,6 +100,29 @@ function fakeService(): CertificateIssuanceUseCases {
       ...download,
       stream: Readable.from([PDF]),
     })),
+    verifyPublicCertificate: vi.fn().mockResolvedValue({
+      certificateNumber: 'TTL-2026-0000000001',
+      status: 'VALID',
+      recipientDisplayName: 'O\u2018quvchi',
+      courseTitle: 'A1',
+      organizationName: 'Turk Tili LMS',
+      issuedAt: '2026-07-29T08:30:00.000Z',
+      revokedAt: null,
+      safeRevocationReasonCode: null,
+    }),
+    revokeCertificate: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'Sertifikat muvaffaqiyatli bekor qilindi.',
+      data: {
+        operation: 'REVOKE',
+        certificateId: CERTIFICATE_ID,
+        enrollmentId: ENROLLMENT_ID,
+        certificateNumber: 'TTL-2026-0000000001',
+        resultingStatus: 'REVOKED',
+        resultingVersion: 2,
+        occurredAt: '2026-07-29T08:30:00.000Z',
+      },
+    }),
   };
 }
 
@@ -121,6 +149,7 @@ function createApp(auth: AuthenticatedPrincipal | null) {
       teacherOrAdminRole: requireRole(RoleCode.TEACHER, RoleCode.ADMIN),
       permission: requirePermission,
       issueRateLimiter: pass,
+      revokeRateLimiter: pass,
       detailRateLimiter: pass,
       downloadRateLimiter: pass,
     }),
@@ -139,6 +168,19 @@ function issueRequest(app: express.Express) {
       eligibilityEvaluationVersion: 1,
       completionVersion: 7,
       curriculumVersion: 3,
+      confirmed: true,
+    });
+}
+
+function revokeRequest(app: express.Express) {
+  return request(app)
+    .post(`/api/v1/certificates/${CERTIFICATE_ID}/revoke`)
+    .set('Idempotency-Key', 'revoke-request-0001')
+    .set('X-Step-Up-Proof', 'R'.repeat(43))
+    .send({
+      expectedVersion: 1,
+      reasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+      reasonNote: 'Tasdiqlangan ma\u2018muriy tuzatish.',
       confirmed: true,
     });
 }
@@ -230,7 +272,130 @@ describe('certificate issuance routes', () => {
       .expect(200);
   });
 
-  it('does not expose revoke, public verification, or reissue runtime', async () => {
+  it('exposes anonymous public verification with the privacy response and headers', async () => {
+    const { app, service } = createApp(null);
+    const token = 'V'.repeat(43);
+    const response = await request(app)
+      .get(`/api/v1/public/certificates/verify/${token}`)
+      .expect(200);
+
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+    expect(response.headers['x-robots-tag']).toBe('noindex, nofollow');
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.body.data).toEqual({
+      certificateNumber: 'TTL-2026-0000000001',
+      status: 'VALID',
+      recipientDisplayName: 'O\u2018quvchi',
+      courseTitle: 'A1',
+      organizationName: 'Turk Tili LMS',
+      issuedAt: '2026-07-29T08:30:00.000Z',
+      revokedAt: null,
+      safeRevocationReasonCode: null,
+    });
+    expect(Object.keys(response.body.data)).not.toContain('level');
+    expect(service.verifyPublicCertificate).toHaveBeenCalledWith(
+      token,
+      expect.objectContaining({ ipHash: expect.stringMatching(/^[0-9a-f]{64}$/u) }),
+    );
+  });
+
+  it('returns the canonical public 404 without dropping privacy headers', async () => {
+    const { app, service } = createApp(null);
+    vi.mocked(service.verifyPublicCertificate).mockRejectedValueOnce(
+      new AppError(
+        'Sertifikatni tasdiqlash ma\u2018lumoti topilmadi.',
+        404,
+        'CERTIFICATE_VERIFICATION_NOT_FOUND',
+      ),
+    );
+    const response = await request(app)
+      .get(`/api/v1/public/certificates/verify/${'N'.repeat(43)}`)
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      code: 'CERTIFICATE_VERIFICATION_NOT_FOUND',
+    });
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+    expect(response.headers['x-robots-tag']).toBe('noindex, nofollow');
+  });
+
+  it('normalizes equivalent IPv6 network identities before hashing rate-limit context', async () => {
+    const { app, service } = createApp(null);
+    app.set('trust proxy', true);
+    const token = 'I'.repeat(43);
+
+    await request(app)
+      .get(`/api/v1/public/certificates/verify/${token}`)
+      .set('X-Forwarded-For', '2001:db8::1')
+      .expect(200);
+    await request(app)
+      .get(`/api/v1/public/certificates/verify/${token}`)
+      .set('X-Forwarded-For', '2001:0db8:0:0:0:0:0:1')
+      .expect(200);
+
+    const verify = vi.mocked(service.verifyPublicCertificate);
+    const firstContext = verify.mock.calls[0]?.[1];
+    const secondContext = verify.mock.calls[1]?.[1];
+    expect(firstContext?.ipHash).toMatch(/^[0-9a-f]{64}$/u);
+    expect(secondContext?.ipHash).toBe(firstContext?.ipHash);
+  });
+
+  it('exposes revocation only to an ADMIN with certificates.revoke', async () => {
+    const { app, service } = createApp(
+      principal(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']),
+    );
+    const response = await revokeRequest(app).expect(200);
+    expect(response.body.data).toMatchObject({
+      operation: 'REVOKE',
+      resultingStatus: 'REVOKED',
+      resultingVersion: 2,
+    });
+    expect(service.revokeCertificate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        certificateId: CERTIFICATE_ID,
+        idempotencyKey: 'revoke-request-0001',
+        stepUpProof: 'R'.repeat(43),
+      }),
+      expect.objectContaining({ userId: ADMIN_ID, sessionId: SESSION_ID }),
+      expect.objectContaining({ actorUserId: ADMIN_ID }),
+    );
+
+    await revokeRequest(createApp(null).app).expect(401);
+    await revokeRequest(
+      createApp(principal(TEACHER_ID, [RoleCode.TEACHER], ['certificates.revoke'])).app,
+    ).expect(403);
+    await revokeRequest(createApp(principal(ADMIN_ID, [RoleCode.ADMIN], [])).app).expect(403);
+  });
+
+  it('validates revocation headers, confirmation, versions, and reason notes', async () => {
+    const app = createApp(principal(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke'])).app;
+    await request(app).post(`/api/v1/certificates/${CERTIFICATE_ID}/revoke`).send({}).expect(422);
+    await request(app)
+      .post(`/api/v1/certificates/${CERTIFICATE_ID}/revoke`)
+      .set('Idempotency-Key', 'too-short')
+      .set('X-Step-Up-Proof', 'R'.repeat(43))
+      .send({
+        expectedVersion: 1,
+        reasonCode: CertificateRevocationReasonCode.OTHER,
+        confirmed: true,
+      })
+      .expect(422);
+    await request(app)
+      .post(`/api/v1/certificates/${CERTIFICATE_ID}/revoke`)
+      .set('Idempotency-Key', 'revoke-request-0002')
+      .set('X-Step-Up-Proof', 'R'.repeat(43))
+      .send({
+        expectedVersion: 1,
+        reasonCode: CertificateRevocationReasonCode.OTHER,
+        confirmed: true,
+      })
+      .expect(422);
+  });
+
+  it('keeps reissue unavailable', async () => {
     const app = createApp(
       principal(
         ADMIN_ID,
@@ -238,8 +403,6 @@ describe('certificate issuance routes', () => {
         ['certificates.issue', 'certificates.revoke', 'certificates.download'],
       ),
     ).app;
-    await request(app).post(`/api/v1/certificates/${CERTIFICATE_ID}/revoke`).expect(404);
-    await request(app).get('/api/v1/public/certificates/verify/raw-token').expect(404);
     await request(app).post(`/api/v1/certificates/${CERTIFICATE_ID}/reissue`).expect(404);
   });
 });

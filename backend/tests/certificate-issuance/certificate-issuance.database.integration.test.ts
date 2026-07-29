@@ -11,6 +11,7 @@ import {
   CertificateEligibilityPolicyCode,
   CertificateEligibilityStatus,
   CertificateLifecycleStatus,
+  CertificateRevocationReasonCode,
   CertificateTemplateVersionStatus,
   CourseEnrollmentSource,
   CourseEnrollmentStatus,
@@ -68,6 +69,7 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
   let sessionId = '';
   let courseId = '';
   let policyId = '';
+  let templateVersionId = '';
 
   const passwordService: PasswordService = {
     hash: vi.fn(),
@@ -80,7 +82,12 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
       userId: adminId,
       sessionId,
       roles: [RoleCode.ADMIN],
-      permissions: ['certificates.issue', 'certificates.course_read', 'certificates.download'],
+      permissions: [
+        'certificates.issue',
+        'certificates.revoke',
+        'certificates.course_read',
+        'certificates.download',
+      ],
     };
   }
 
@@ -126,6 +133,47 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
         action: StepUpAction.CERTIFICATE_ISSUE,
         targetType: StepUpTargetType.ENROLLMENT,
         targetId: enrollmentId,
+        expiresAt: new Date(verifiedAt.getTime() + 2 * 60_000),
+        createdAt: verifiedAt,
+      },
+    });
+    return rawProof;
+  }
+
+  async function createRevocationProof(certificateId: string): Promise<string> {
+    const crypto = new NodeStepUpCryptoService();
+    const rawProof = randomBytes(32).toString('base64url');
+    const credential = await client.userCredential.findUniqueOrThrow({
+      where: { userId: adminId },
+    });
+    const createdAt = new Date(Date.now() - 1_000);
+    const verifiedAt = new Date();
+    const challenge = await client.stepUpChallenge.create({
+      data: {
+        userId: adminId,
+        sessionId,
+        nonceHash: crypto.hash(randomBytes(32).toString('base64url')),
+        credentialEpoch: credential.passwordChangedAt,
+        action: StepUpAction.CERTIFICATE_REVOKE,
+        targetType: StepUpTargetType.CERTIFICATE,
+        targetId: certificateId,
+        continuation: StepUpContinuation.CERTIFICATE_REVOKE_CONFIRMATION,
+        continuationId: randomUUID(),
+        expiresAt: new Date(createdAt.getTime() + 5 * 60_000),
+        verifiedAt,
+        createdAt,
+      },
+    });
+    await client.stepUpProof.create({
+      data: {
+        challengeId: challenge.id,
+        userId: adminId,
+        sessionId,
+        proofHash: crypto.hash(rawProof),
+        credentialEpoch: credential.passwordChangedAt,
+        action: StepUpAction.CERTIFICATE_REVOKE,
+        targetType: StepUpTargetType.CERTIFICATE,
+        targetId: certificateId,
         expiresAt: new Date(verifiedAt.getTime() + 2 * 60_000),
         createdAt: verifiedAt,
       },
@@ -219,6 +267,42 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
     };
   }
 
+  async function createDirectCertificate(label: string) {
+    const fixture = await createEligibleEnrollment(`direct-${label}`);
+    const verificationIdentifier = randomBytes(32).toString('base64url');
+    const issuedAt = new Date();
+    const certificate = await client.certificate.create({
+      data: {
+        verificationTokenHash: createHash('sha256').update(verificationIdentifier).digest('hex'),
+        enrollmentId: fixture.enrollment.id,
+        courseId,
+        eligibilityEvaluationId: fixture.evaluation.id,
+        templateVersionId,
+        recipientDisplayName: fixture.student.displayName ?? 'O\u2018quvchi',
+        courseTitle: `O\u2018zgarmas kurs ${label}`,
+        organizationName: 'Turk Tili LMS',
+        locale: 'uz-Latn',
+        issueDate: new Date(
+          Date.UTC(issuedAt.getUTCFullYear(), issuedAt.getUTCMonth(), issuedAt.getUTCDate()),
+        ),
+        issuedAt,
+        issuedByUserId: adminId,
+        artifact: {
+          create: {
+            storageKey: `certificates/integration/${randomUUID()}.pdf`,
+            sizeBytes: 128n,
+            checksum: createHash('sha256').update(`artifact-${label}`).digest('hex'),
+            rendererIdentifier: 'integration-renderer',
+            rendererVersion: '1',
+            finalizedAt: issuedAt,
+          },
+        },
+      },
+      include: { artifact: true },
+    });
+    return { ...fixture, certificate, verificationIdentifier };
+  }
+
   beforeAll(async () => {
     if (!testDatabaseUrl) throw new Error('TEST_DATABASE_URL is required.');
     if (!/^certificate_issuance_test_[a-f0-9]{32}$/u.test(schemaName)) {
@@ -237,13 +321,22 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
     const adminRole = await client.role.create({
       data: { code: RoleCode.ADMIN, name: 'Admin' },
     });
-    const permission = await client.permission.create({
-      data: {
-        code: 'certificates.issue',
-        resource: 'certificates',
-        action: 'issue',
-      },
-    });
+    const [issuePermission, revokePermission] = await Promise.all([
+      client.permission.create({
+        data: {
+          code: 'certificates.issue',
+          resource: 'certificates',
+          action: 'issue',
+        },
+      }),
+      client.permission.create({
+        data: {
+          code: 'certificates.revoke',
+          resource: 'certificates',
+          action: 'revoke',
+        },
+      }),
+    ]);
     const credentialEpoch = new Date(Date.now() - 60_000);
     const admin = await client.user.create({
       data: {
@@ -259,8 +352,11 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
     });
     adminId = admin.id;
     await client.userRole.create({ data: { userId: adminId, roleId: adminRole.id } });
-    await client.rolePermission.create({
-      data: { roleId: adminRole.id, permissionId: permission.id },
+    await client.rolePermission.createMany({
+      data: [
+        { roleId: adminRole.id, permissionId: issuePermission.id },
+        { roleId: adminRole.id, permissionId: revokePermission.id },
+      ],
     });
     const session = await client.userSession.create({
       data: {
@@ -303,7 +399,7 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
       data: { code: CERTIFICATE_TEMPLATE_CODE, name: 'Standard Course Completion' },
     });
     const activatedAt = new Date();
-    await client.certificateTemplateVersion.create({
+    const templateVersion = await client.certificateTemplateVersion.create({
       data: {
         templateId: template.id,
         version: CERTIFICATE_TEMPLATE_VERSION,
@@ -324,6 +420,7 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
         createdAt: new Date(activatedAt.getTime() - 1),
       },
     });
+    templateVersionId = templateVersion.id;
     const storage = new LocalCertificateArtifactStorage(storageRoot, 10_485_760);
     artifactService = new CertificateArtifactService(
       new PrismaCertificateArtifactRepository(client),
@@ -754,4 +851,397 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
       }),
     ).resolves.toBe(20);
   }, 60_000);
+
+  it('verifies the SHA-256 capability through the real database with a privacy-only DTO', async () => {
+    const fixture = await createDirectCertificate('public');
+    const originalCourseTitle = await client.course
+      .findUniqueOrThrow({ where: { id: courseId }, select: { title: true } })
+      .then(({ title }) => title);
+    await client.course.update({
+      where: { id: courseId },
+      data: { title: 'Mutable course title after issuance' },
+    });
+
+    try {
+      const result = await service.verifyPublicCertificate(fixture.verificationIdentifier, {
+        ipHash: '1'.repeat(64),
+      });
+      expect(result).toEqual({
+        certificateNumber: fixture.certificate.certificateNumber,
+        status: 'VALID',
+        recipientDisplayName: fixture.certificate.recipientDisplayName,
+        courseTitle: 'O\u2018zgarmas kurs public',
+        organizationName: 'Turk Tili LMS',
+        issuedAt: fixture.certificate.issuedAt.toISOString(),
+        revokedAt: null,
+        safeRevocationReasonCode: null,
+      });
+      expect(Object.keys(result)).not.toEqual(
+        expect.arrayContaining([
+          'id',
+          'level',
+          'courseId',
+          'enrollmentId',
+          'verificationTokenHash',
+          'artifact',
+        ]),
+      );
+      const audit = await client.auditLog.findFirstOrThrow({
+        where: {
+          action: 'certificate.verification_viewed',
+          ipHash: '1'.repeat(64),
+        },
+      });
+      expect(audit).toMatchObject({
+        actorUserId: null,
+        subjectId: null,
+        metadata: { outcome: 'found' },
+      });
+      const serializedAudit = JSON.stringify(audit);
+      expect(serializedAudit).not.toContain(fixture.verificationIdentifier);
+      expect(serializedAudit).not.toContain(
+        createHash('sha256').update(fixture.verificationIdentifier).digest('hex'),
+      );
+    } finally {
+      await client.course.update({
+        where: { id: courseId },
+        data: { title: originalCourseTitle },
+      });
+    }
+  }, 30_000);
+
+  it('uses uniform public not-found semantics and a shared PostgreSQL rate limit', async () => {
+    await expect(
+      service.verifyPublicCertificate('malformed', { ipHash: '2'.repeat(64) }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'CERTIFICATE_VERIFICATION_NOT_FOUND',
+    });
+    await expect(
+      service.verifyPublicCertificate(randomBytes(32).toString('base64url'), {
+        ipHash: '3'.repeat(64),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'CERTIFICATE_VERIFICATION_NOT_FOUND',
+    });
+
+    const fixture = await createDirectCertificate('public-rate');
+    await Promise.all(
+      Array.from({ length: 20 }, () =>
+        service.verifyPublicCertificate(fixture.verificationIdentifier, {
+          ipHash: '4'.repeat(64),
+        }),
+      ),
+    );
+    await expect(
+      service.verifyPublicCertificate(fixture.verificationIdentifier, {
+        ipHash: '4'.repeat(64),
+      }),
+    ).rejects.toMatchObject({ statusCode: 429, code: 'RATE_LIMIT_EXCEEDED' });
+    await expect(
+      client.auditLog.count({
+        where: {
+          action: 'certificate.verification_viewed',
+          ipHash: '4'.repeat(64),
+        },
+      }),
+    ).resolves.toBe(20);
+  }, 60_000);
+
+  it('atomically revokes once without mutating the artifact and immediately verifies as revoked', async () => {
+    const fixture = await createDirectCertificate('revoke-atomic');
+    const proof = await createRevocationProof(fixture.certificate.id);
+    const artifactBefore = await client.certificateArtifact.findUniqueOrThrow({
+      where: { certificateId: fixture.certificate.id },
+    });
+    const command = {
+      certificateId: fixture.certificate.id,
+      idempotencyKey: `revoke-${randomUUID()}`,
+      stepUpProof: proof,
+      input: {
+        expectedVersion: 1,
+        reasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+        reasonNote: 'Tasdiqlangan ma\u2018muriy tuzatish.',
+        confirmed: true as const,
+      },
+    };
+
+    const first = await service.revokeCertificate(command, adminActor(), {
+      actorUserId: adminId,
+    });
+    const second = await service.revokeCertificate(
+      { ...command, stepUpProof: 'X'.repeat(43) },
+      adminActor(),
+      { actorUserId: adminId },
+    );
+    expect(second).toEqual(first);
+
+    const [certificate, storedProof, artifactAfter, idempotency, audits] = await Promise.all([
+      client.certificate.findUniqueOrThrow({
+        where: { id: fixture.certificate.id },
+      }),
+      client.stepUpProof.findFirstOrThrow({
+        where: {
+          targetId: fixture.certificate.id,
+          action: StepUpAction.CERTIFICATE_REVOKE,
+        },
+      }),
+      client.certificateArtifact.findUniqueOrThrow({
+        where: { certificateId: fixture.certificate.id },
+      }),
+      client.idempotencyRecord.findUniqueOrThrow({
+        where: {
+          actorUserId_key: {
+            actorUserId: adminId,
+            key: command.idempotencyKey,
+          },
+        },
+      }),
+      client.auditLog.findMany({
+        where: {
+          subjectId: fixture.certificate.id,
+          action: 'certificate.revoked',
+        },
+      }),
+    ]);
+    expect(certificate).toMatchObject({
+      status: CertificateLifecycleStatus.REVOKED,
+      version: 2,
+      revokedByUserId: adminId,
+      revocationReasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+      revocationReasonNote: 'Tasdiqlangan ma\u2018muriy tuzatish.',
+    });
+    expect(certificate.revokedAt).toBeInstanceOf(Date);
+    expect(storedProof.consumedAt).toEqual(certificate.revokedAt);
+    expect(artifactAfter).toEqual(artifactBefore);
+    expect(idempotency).toMatchObject({
+      operation: 'REVOKE_CERTIFICATE',
+      responseStatus: 200,
+      resultingCertificateId: fixture.certificate.id,
+      resultingCertificateVersion: 2,
+    });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]?.metadata).toEqual({
+      certificateNumber: fixture.certificate.certificateNumber,
+      previousStatus: 'ISSUED',
+      newStatus: 'REVOKED',
+      previousVersion: 1,
+      newVersion: 2,
+      reasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+    });
+    expect(JSON.stringify(audits)).not.toContain(proof);
+    expect(JSON.stringify(audits)).not.toContain(fixture.certificate.verificationTokenHash);
+    await expect(
+      service.verifyPublicCertificate(fixture.verificationIdentifier, {
+        ipHash: '5'.repeat(64),
+      }),
+    ).resolves.toMatchObject({
+      status: 'REVOKED',
+      revokedAt: certificate.revokedAt?.toISOString(),
+      safeRevocationReasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+    });
+
+    const duplicateProof = await createRevocationProof(fixture.certificate.id);
+    await expect(
+      service.revokeCertificate(
+        {
+          ...command,
+          idempotencyKey: `duplicate-${randomUUID()}`,
+          stepUpProof: duplicateProof,
+        },
+        adminActor(),
+        { actorUserId: adminId },
+      ),
+    ).rejects.toMatchObject({ code: 'CERTIFICATE_ALREADY_REVOKED' });
+    await expect(
+      client.stepUpProof.findFirstOrThrow({
+        where: { proofHash: new NodeStepUpCryptoService().hash(duplicateProof) },
+      }),
+    ).resolves.toMatchObject({ consumedAt: null });
+  }, 60_000);
+
+  it('serializes same-key and different-key revocation races safely', async () => {
+    const sameKeyFixture = await createDirectCertificate('revoke-same-key');
+    const sameKeyProof = await createRevocationProof(sameKeyFixture.certificate.id);
+    const sameKeyCommand = {
+      certificateId: sameKeyFixture.certificate.id,
+      idempotencyKey: `same-revoke-${randomUUID()}`,
+      stepUpProof: sameKeyProof,
+      input: {
+        expectedVersion: 1,
+        reasonCode: CertificateRevocationReasonCode.POLICY_VIOLATION,
+        reasonNote: 'Tasdiqlangan siyosat buzilishi.',
+        confirmed: true as const,
+      },
+    };
+    const sameKeyResults = await Promise.all([
+      service.revokeCertificate(sameKeyCommand, adminActor(), {
+        actorUserId: adminId,
+      }),
+      service.revokeCertificate(sameKeyCommand, adminActor(), {
+        actorUserId: adminId,
+      }),
+    ]);
+    expect(sameKeyResults[1]).toEqual(sameKeyResults[0]);
+    await expect(
+      client.auditLog.count({
+        where: {
+          action: 'certificate.revoked',
+          subjectId: sameKeyFixture.certificate.id,
+        },
+      }),
+    ).resolves.toBe(1);
+
+    const competingFixture = await createDirectCertificate('revoke-different-key');
+    const [proofA, proofB] = await Promise.all([
+      createRevocationProof(competingFixture.certificate.id),
+      createRevocationProof(competingFixture.certificate.id),
+    ]);
+    const baseCommand = {
+      certificateId: competingFixture.certificate.id,
+      input: {
+        expectedVersion: 1,
+        reasonCode: CertificateRevocationReasonCode.FRAUD,
+        reasonNote: 'Tasdiqlangan firibgarlik holati.',
+        confirmed: true as const,
+      },
+    };
+    const competingResults = await Promise.allSettled([
+      service.revokeCertificate(
+        {
+          ...baseCommand,
+          idempotencyKey: `revoke-a-${randomUUID()}`,
+          stepUpProof: proofA,
+        },
+        adminActor(),
+        { actorUserId: adminId },
+      ),
+      service.revokeCertificate(
+        {
+          ...baseCommand,
+          idempotencyKey: `revoke-b-${randomUUID()}`,
+          stepUpProof: proofB,
+        },
+        adminActor(),
+        { actorUserId: adminId },
+      ),
+    ]);
+    expect(competingResults.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
+    expect(competingResults.find(({ status }) => status === 'rejected')).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({
+        code: expect.stringMatching(
+          /^(CERTIFICATE_ALREADY_REVOKED|CERTIFICATE_VERSION_CONFLICT)$/u,
+        ),
+      }),
+    });
+    await expect(
+      client.auditLog.count({
+        where: {
+          action: 'certificate.revoked',
+          subjectId: competingFixture.certificate.id,
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      client.stepUpProof.count({
+        where: {
+          targetId: competingFixture.certificate.id,
+          action: StepUpAction.CERTIFICATE_REVOKE,
+          consumedAt: { not: null },
+        },
+      }),
+    ).resolves.toBe(1);
+  }, 60_000);
+
+  it('rolls back revocation proof consumption with certificate and audit state unchanged', async () => {
+    const fixture = await createDirectCertificate('revoke-rollback');
+    const proof = await createRevocationProof(fixture.certificate.id);
+    const idempotencyKey = `rollback-${randomUUID()}`;
+
+    await expect(
+      issuanceRepository.withSerializableTransaction(async (transaction) => {
+        const consumed = await stepUpService.consumeProof(
+          transaction.stepUp,
+          {
+            proof,
+            action: StepUpAction.CERTIFICATE_REVOKE,
+            targetType: StepUpTargetType.CERTIFICATE,
+            targetId: fixture.certificate.id,
+          },
+          adminActor(),
+          { actorUserId: adminId },
+        );
+        await transaction.lockCertificate(fixture.certificate.id);
+        await transaction.lockIdempotencyKey(adminId, idempotencyKey);
+        const certificate = await transaction.findCertificateForRevocation(fixture.certificate.id);
+        if (!certificate) throw new Error('rollback fixture certificate missing');
+        const response = {
+          success: true as const,
+          message: 'Sertifikat muvaffaqiyatli bekor qilindi.',
+          data: {
+            operation: 'REVOKE' as const,
+            certificateId: certificate.id,
+            enrollmentId: certificate.enrollmentId,
+            certificateNumber: certificate.certificateNumber,
+            resultingStatus: 'REVOKED' as const,
+            resultingVersion: 2 as const,
+            occurredAt: consumed.consumedAt.toISOString(),
+          },
+        };
+        await transaction.revokeCertificate({
+          certificate,
+          actorUserId: adminId,
+          reasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+          reasonNote: 'Tasdiqlangan rollback tekshiruvi.',
+          revokedAt: consumed.consumedAt,
+          idempotencyKey,
+          requestFingerprint: 'f'.repeat(64),
+          responseEnvelope: response,
+          audit: { actorUserId: adminId },
+        });
+        throw new Error('force revocation rollback');
+      }),
+    ).rejects.toThrow('force revocation rollback');
+
+    await expect(
+      client.certificate.findUniqueOrThrow({
+        where: { id: fixture.certificate.id },
+      }),
+    ).resolves.toMatchObject({
+      status: CertificateLifecycleStatus.ISSUED,
+      version: 1,
+      revokedAt: null,
+      revokedByUserId: null,
+    });
+    const storedProof = await client.stepUpProof.findFirstOrThrow({
+      where: {
+        targetId: fixture.certificate.id,
+        action: StepUpAction.CERTIFICATE_REVOKE,
+      },
+    });
+    expect(storedProof).toMatchObject({ consumedAt: null });
+    const [revocationAudits, proofConsumptionAudits, idempotency] = await Promise.all([
+      client.auditLog.count({
+        where: {
+          action: 'certificate.revoked',
+          subjectId: fixture.certificate.id,
+        },
+      }),
+      client.auditLog.count({
+        where: {
+          action: 'security.step_up.proof_consumed',
+          subjectType: 'step_up_proof',
+          subjectId: storedProof.id,
+        },
+      }),
+      client.idempotencyRecord.findUnique({
+        where: { actorUserId_key: { actorUserId: adminId, key: idempotencyKey } },
+      }),
+    ]);
+    expect(revocationAudits).toBe(0);
+    expect(proofConsumptionAudits).toBe(0);
+    expect(idempotency).toBeNull();
+  }, 30_000);
 });

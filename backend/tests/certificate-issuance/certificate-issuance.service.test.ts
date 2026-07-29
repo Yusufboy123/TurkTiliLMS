@@ -4,6 +4,7 @@ import {
   CertificateEligibilityPolicyCode,
   CertificateEligibilityStatus,
   CertificateLifecycleStatus,
+  CertificateRevocationReasonCode,
   CertificateTemplateVersionStatus,
   CourseEnrollmentStatus,
   IdempotencyOperation,
@@ -13,18 +14,25 @@ import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import type { CertificateArtifactUseCases } from '../../src/modules/certificate-artifacts/certificate-artifact.service.js';
 import type { StepUpAuthenticationUseCases } from '../../src/modules/step-up-authentication/step-up-authentication.service.js';
-import { CertificateIssuanceRepositoryConflictError } from '../../src/modules/certificate-issuance/certificate-issuance.errors.js';
+import {
+  CertificateIssuanceRepositoryConflictError,
+  CertificateRateLimitRepositoryError,
+} from '../../src/modules/certificate-issuance/certificate-issuance.errors.js';
 import type {
   CertificateIssuanceRepository,
   CertificateIssuanceTransaction,
   CreateIssuedCertificateData,
+  RevokeCertificateData,
 } from '../../src/modules/certificate-issuance/certificate-issuance.repository.js';
 import { CertificateIssuanceService } from '../../src/modules/certificate-issuance/certificate-issuance.service.js';
 import type {
   CertificateActor,
   CertificateDetailRecord,
   CertificateIssuanceCandidate,
+  CertificateRevocationRecord,
   IssueCertificateCommand,
+  PublicCertificateRecord,
+  RevokeCertificateCommand,
   StoredIdempotencyReceipt,
 } from '../../src/modules/certificate-issuance/certificate-issuance.types.js';
 
@@ -58,6 +66,23 @@ function command(overrides: Partial<IssueCertificateCommand> = {}): IssueCertifi
       eligibilityEvaluationVersion: 1,
       completionVersion: 7,
       curriculumVersion: 3,
+      confirmed: true,
+    },
+    ...overrides,
+  };
+}
+
+function revokeCommand(
+  overrides: Partial<RevokeCertificateCommand> = {},
+): RevokeCertificateCommand {
+  return {
+    certificateId: CERTIFICATE_ID,
+    idempotencyKey: 'revoke-certificate-0001',
+    stepUpProof: 'R'.repeat(43),
+    input: {
+      expectedVersion: 1,
+      reasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+      reasonNote: 'Tasdiqlangan ma\u2018muriy tuzatish.',
       confirmed: true,
     },
     ...overrides,
@@ -162,16 +187,70 @@ function setup() {
   let currentCandidate = candidate();
   let currentDetail: CertificateDetailRecord | null = detail();
   let currentReceipt: StoredIdempotencyReceipt | null = null;
+  let currentRevocation: CertificateRevocationRecord | null = {
+    id: CERTIFICATE_ID,
+    certificateNumber: 'TTL-2026-0000000001',
+    enrollmentId: ENROLLMENT_ID,
+    status: CertificateLifecycleStatus.ISSUED,
+    version: 1,
+  };
+  let currentPublic: PublicCertificateRecord | null = {
+    certificateNumber: 'TTL-2026-0000000001',
+    status: CertificateLifecycleStatus.ISSUED,
+    recipientDisplayName: 'O\u2018quvchi',
+    recipientNameSuppressedAt: null,
+    courseTitle: 'Turk tili A1',
+    organizationName: 'Turk Tili LMS',
+    issuedAt: NOW,
+    revokedAt: null,
+    revocationReasonCode: null,
+  };
   const created: CreateIssuedCertificateData[] = [];
+  const revocations: RevokeCertificateData[] = [];
   const failures: string[] = [];
   const failureAttempts: number[] = [];
+  const stepUpTransaction = {
+    getDatabaseTimestamp: vi.fn(async () => NOW),
+    lockSecurityState: vi.fn(),
+    findSecurityContext: vi.fn(async () => ({
+      userId: ADMIN_ID,
+      sessionId: SESSION_ID,
+      passwordHash: 'hash',
+      credentialEpoch: new Date('2026-07-28T08:30:00.000Z'),
+      requiresPasswordChange: false,
+      credentialLockedUntil: null,
+      lastAuthenticatedAt: NOW,
+      roles: [RoleCode.ADMIN],
+      permissions: ['certificates.revoke'],
+    })),
+  } as unknown as CertificateIssuanceTransaction['stepUp'];
   const transaction: CertificateIssuanceTransaction = {
-    stepUp: {} as CertificateIssuanceTransaction['stepUp'],
+    stepUp: stepUpTransaction,
     lockEvidence: vi.fn(),
     findCandidate: vi.fn(async () => currentCandidate),
     findIdempotencyRecord: vi.fn(async () => currentReceipt),
     createIssuedCertificate: vi.fn(async (data) => {
       created.push(data);
+    }),
+    lockCertificate: vi.fn(),
+    lockIdempotencyKey: vi.fn(),
+    findCertificateForRevocation: vi.fn(async () => currentRevocation),
+    revokeCertificate: vi.fn(async (data) => {
+      revocations.push(data);
+      currentRevocation = currentRevocation
+        ? {
+            ...currentRevocation,
+            status: CertificateLifecycleStatus.REVOKED,
+            version: 2,
+          }
+        : null;
+      currentReceipt = {
+        operation: IdempotencyOperation.REVOKE_CERTIFICATE,
+        requestFingerprint: data.requestFingerprint,
+        responseStatus: 200,
+        responseEnvelope: data.responseEnvelope,
+        expiresAt: new Date(NOW.getTime() + 24 * 60 * 60_000),
+      };
     }),
   };
   const repository: CertificateIssuanceRepository = {
@@ -192,6 +271,10 @@ function setup() {
     recordDetailAccess: vi.fn(),
     recordPrivilegedView: vi.fn(),
     recordDownloadStarted: vi.fn(),
+    verifyPublicCertificate: vi.fn(async (_hash, forceNotFound) =>
+      forceNotFound ? null : currentPublic,
+    ),
+    findPublicCertificateByHash: vi.fn(async () => currentPublic),
   };
   const artifacts = {
     prepareCertificateArtifact: vi.fn(async () => ({
@@ -242,6 +325,7 @@ function setup() {
     stepUp,
     service: new CertificateIssuanceService(repository, artifacts, stepUp),
     created,
+    revocations,
     failures,
     failureAttempts,
     setCandidate(value: CertificateIssuanceCandidate) {
@@ -252,6 +336,12 @@ function setup() {
     },
     setReceipt(value: StoredIdempotencyReceipt | null) {
       currentReceipt = value;
+    },
+    setRevocation(value: CertificateRevocationRecord | null) {
+      currentRevocation = value;
+    },
+    setPublic(value: PublicCertificateRecord | null) {
+      currentPublic = value;
     },
   };
 }
@@ -596,5 +686,238 @@ describe('CertificateIssuanceService', () => {
         actorUserId: ADMIN_ID,
       }),
     ).resolves.toMatchObject({ certificateId: CERTIFICATE_ID });
+  });
+
+  it('hashes the public identifier and returns only the approved immutable projection', async () => {
+    const context = setup();
+    const token = 'P'.repeat(43);
+    const result = await context.service.verifyPublicCertificate(token, {
+      ipHash: 'a'.repeat(64),
+    });
+
+    expect(context.repository.verifyPublicCertificate).toHaveBeenCalledWith(
+      createHash('sha256').update(token).digest('hex'),
+      false,
+      { ipHash: 'a'.repeat(64) },
+    );
+    expect(result).toEqual({
+      certificateNumber: 'TTL-2026-0000000001',
+      status: 'VALID',
+      recipientDisplayName: 'O\u2018quvchi',
+      courseTitle: 'Turk tili A1',
+      organizationName: 'Turk Tili LMS',
+      issuedAt: NOW.toISOString(),
+      revokedAt: null,
+      safeRevocationReasonCode: null,
+    });
+    expect(Object.keys(result)).not.toEqual(
+      expect.arrayContaining(['id', 'level', 'verificationTokenHash', 'artifact']),
+    );
+  });
+
+  it('applies privacy suppression and exposes only safe revoked fields', async () => {
+    const context = setup();
+    context.setPublic({
+      certificateNumber: 'TTL-2026-0000000001',
+      status: CertificateLifecycleStatus.REVOKED,
+      recipientDisplayName: 'Yashirin ism',
+      recipientNameSuppressedAt: NOW,
+      courseTitle: 'Turk tili A1',
+      organizationName: 'Turk Tili LMS',
+      issuedAt: NOW,
+      revokedAt: NOW,
+      revocationReasonCode: CertificateRevocationReasonCode.FRAUD,
+    });
+
+    await expect(
+      context.service.verifyPublicCertificate('Q'.repeat(43), {
+        ipHash: 'b'.repeat(64),
+      }),
+    ).resolves.toEqual({
+      certificateNumber: 'TTL-2026-0000000001',
+      status: 'REVOKED',
+      recipientDisplayName: null,
+      courseTitle: 'Turk tili A1',
+      organizationName: 'Turk Tili LMS',
+      issuedAt: NOW.toISOString(),
+      revokedAt: NOW.toISOString(),
+      safeRevocationReasonCode: CertificateRevocationReasonCode.FRAUD,
+    });
+  });
+
+  it('uses the same 404 for malformed and unknown verification identifiers', async () => {
+    const malformed = setup();
+    await expect(
+      malformed.service.verifyPublicCertificate('not-a-token', {
+        ipHash: 'c'.repeat(64),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'CERTIFICATE_VERIFICATION_NOT_FOUND',
+    });
+    expect(malformed.repository.verifyPublicCertificate).toHaveBeenCalledWith(
+      expect.stringMatching(/^[0-9a-f]{64}$/u),
+      true,
+      expect.any(Object),
+    );
+
+    const unknown = setup();
+    unknown.setPublic(null);
+    await expect(
+      unknown.service.verifyPublicCertificate('U'.repeat(43), {
+        ipHash: 'd'.repeat(64),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'CERTIFICATE_VERIFICATION_NOT_FOUND',
+    });
+  });
+
+  it('fails public telemetry open but preserves the shared rate limit', async () => {
+    const telemetryFailure = setup();
+    vi.mocked(telemetryFailure.repository.verifyPublicCertificate).mockRejectedValueOnce(
+      new Error('telemetry unavailable'),
+    );
+    await expect(
+      telemetryFailure.service.verifyPublicCertificate('T'.repeat(43), {
+        ipHash: 'e'.repeat(64),
+      }),
+    ).resolves.toMatchObject({ status: 'VALID' });
+    expect(telemetryFailure.repository.findPublicCertificateByHash).toHaveBeenCalledOnce();
+
+    const rateLimited = setup();
+    vi.mocked(rateLimited.repository.verifyPublicCertificate).mockRejectedValueOnce(
+      new CertificateRateLimitRepositoryError(),
+    );
+    await expect(
+      rateLimited.service.verifyPublicCertificate('T'.repeat(43), {
+        ipHash: 'f'.repeat(64),
+      }),
+    ).rejects.toMatchObject({ statusCode: 429, code: 'RATE_LIMIT_EXCEEDED' });
+    expect(rateLimited.repository.findPublicCertificateByHash).not.toHaveBeenCalled();
+  });
+
+  it('atomically revokes an issued certificate with proof, audit data, and a receipt', async () => {
+    const context = setup();
+    const result = await context.service.revokeCertificate(
+      revokeCommand(),
+      actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']),
+      { actorUserId: ADMIN_ID },
+    );
+
+    expect(result.data).toMatchObject({
+      operation: 'REVOKE',
+      certificateId: CERTIFICATE_ID,
+      resultingStatus: 'REVOKED',
+      resultingVersion: 2,
+    });
+    expect(context.transaction.lockCertificate).toHaveBeenCalledWith(CERTIFICATE_ID);
+    expect(context.transaction.lockIdempotencyKey).toHaveBeenCalledWith(
+      ADMIN_ID,
+      'revoke-certificate-0001',
+    );
+    expect(context.stepUp.validateProofBeforeTargetLockInTransaction).toHaveBeenCalledWith(
+      context.transaction.stepUp,
+      expect.objectContaining({
+        action: 'CERTIFICATE_REVOKE',
+        targetType: 'CERTIFICATE',
+        targetId: CERTIFICATE_ID,
+      }),
+      expect.objectContaining({ userId: ADMIN_ID }),
+    );
+    expect(context.stepUp.consumeValidatedProof).toHaveBeenCalledOnce();
+    expect(context.revocations).toHaveLength(1);
+    expect(context.revocations[0]).toMatchObject({
+      actorUserId: ADMIN_ID,
+      reasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+      responseEnvelope: result,
+    });
+  });
+
+  it('replays revocation exactly without consuming proof or writing twice', async () => {
+    const context = setup();
+    const admin = actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']);
+    const first = await context.service.revokeCertificate(revokeCommand(), admin, {
+      actorUserId: ADMIN_ID,
+    });
+    vi.mocked(context.stepUp.consumeValidatedProof).mockClear();
+    const second = await context.service.revokeCertificate(
+      { ...revokeCommand(), stepUpProof: 'Z'.repeat(43) },
+      admin,
+      { actorUserId: ADMIN_ID },
+    );
+
+    expect(second).toEqual(first);
+    expect(context.revocations).toHaveLength(1);
+    expect(context.stepUp.consumeValidatedProof).not.toHaveBeenCalled();
+  });
+
+  it('rejects direct-service authorization, lifecycle, version, and idempotency violations', async () => {
+    const unauthorized = setup();
+    await expect(
+      unauthorized.service.revokeCertificate(
+        revokeCommand(),
+        actor(STUDENT_ID, [RoleCode.STUDENT], ['certificates.revoke']),
+        { actorUserId: STUDENT_ID },
+      ),
+    ).rejects.toMatchObject({ code: 'ACCESS_DENIED' });
+
+    const missing = setup();
+    missing.setRevocation(null);
+    await expect(
+      missing.service.revokeCertificate(
+        revokeCommand(),
+        actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']),
+        { actorUserId: ADMIN_ID },
+      ),
+    ).rejects.toMatchObject({ code: 'CERTIFICATE_NOT_FOUND' });
+
+    const revoked = setup();
+    revoked.setRevocation({
+      id: CERTIFICATE_ID,
+      certificateNumber: 'TTL-2026-0000000001',
+      enrollmentId: ENROLLMENT_ID,
+      status: CertificateLifecycleStatus.REVOKED,
+      version: 2,
+    });
+    await expect(
+      revoked.service.revokeCertificate(
+        revokeCommand(),
+        actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']),
+        { actorUserId: ADMIN_ID },
+      ),
+    ).rejects.toMatchObject({ code: 'CERTIFICATE_ALREADY_REVOKED' });
+
+    const version = setup();
+    await expect(
+      version.service.revokeCertificate(
+        revokeCommand({
+          input: {
+            ...revokeCommand().input,
+            expectedVersion: 2,
+          },
+        }),
+        actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']),
+        { actorUserId: ADMIN_ID },
+      ),
+    ).rejects.toMatchObject({ code: 'CERTIFICATE_VERSION_CONFLICT' });
+
+    const idempotency = setup();
+    const admin = actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.revoke']);
+    await idempotency.service.revokeCertificate(revokeCommand(), admin, {
+      actorUserId: ADMIN_ID,
+    });
+    await expect(
+      idempotency.service.revokeCertificate(
+        revokeCommand({
+          input: {
+            ...revokeCommand().input,
+            reasonCode: CertificateRevocationReasonCode.FRAUD,
+          },
+        }),
+        admin,
+        { actorUserId: ADMIN_ID },
+      ),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
   });
 });

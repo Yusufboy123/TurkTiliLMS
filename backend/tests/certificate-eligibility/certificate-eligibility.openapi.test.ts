@@ -9,10 +9,10 @@ const contractPath = fileURLToPath(
 );
 
 describe('Certificate eligibility and lifecycle OpenAPI runtime markers', () => {
-  it('marks the approved 8.5C, 8.6C, and 8.6E operations available', async () => {
+  it('marks all approved operations through Module 8.6F available', async () => {
     const contract = await readFile(contractPath, 'utf8');
-    expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(11);
-    expect(contract.match(/x-implementation-status: contract-only-not-available/g)).toHaveLength(2);
+    expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(13);
+    expect(contract).not.toContain('x-implementation-status: contract-only-not-available');
     for (const operationId of [
       'getOwnCertificateEligibility',
       'getOwnCertificateStatus',
@@ -25,19 +25,46 @@ describe('Certificate eligibility and lifecycle OpenAPI runtime markers', () => 
       'downloadOwnCertificate',
       'getCourseCertificate',
       'downloadCourseCertificate',
+      'revokeCertificate',
+      'verifyPublicCertificate',
     ]) {
       expect(contract).toContain(`operationId: ${operationId}`);
     }
   });
 
-  it('keeps only revocation and public verification unavailable', async () => {
+  it('documents the exact public verification and revocation contracts', async () => {
     const contract = await readFile(contractPath, 'utf8');
     for (const operationId of ['revokeCertificate', 'verifyPublicCertificate']) {
       const operation = contract.slice(contract.indexOf(`operationId: ${operationId}\n`));
       expect(operation.slice(0, operation.indexOf('      responses:'))).toContain(
-        'x-implementation-status: contract-only-not-available',
+        'x-implementation-status: implemented',
       );
     }
+    expect(contract).toContain('security: []');
+    expect(contract).toContain('code: CERTIFICATE_VERIFICATION_NOT_FOUND');
+    expect(contract).toContain('x-audit-event: certificate.verification_viewed');
+    expect(contract).toContain('x-audit-event: certificate.revoked');
+    expect(contract).not.toContain('certificate.public_verified');
+    expect(contract).not.toContain('certificate.public_not_found');
+    const publicSchema = contract.slice(
+      contract.indexOf('    PublicCertificateVerification:'),
+      contract.indexOf('    PublicCertificateVerificationResponse:'),
+    );
+    for (const field of [
+      'certificateNumber',
+      'status',
+      'recipientDisplayName',
+      'courseTitle',
+      'organizationName',
+      'issuedAt',
+      'revokedAt',
+      'safeRevocationReasonCode',
+    ]) {
+      expect(publicSchema).toContain(`${field}:`);
+    }
+    expect(publicSchema).not.toContain('level:');
+    expect(publicSchema).not.toContain('certificateId:');
+    expect(publicSchema).not.toContain('verificationTokenHash:');
     expect(contract).toContain('COMPLETION_EVIDENCE_CONFLICT');
     expect(contract).toContain('certificate_eligibility.privileged_viewed');
   });

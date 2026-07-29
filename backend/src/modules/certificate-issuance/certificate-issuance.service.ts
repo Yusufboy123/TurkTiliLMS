@@ -26,10 +26,15 @@ import type {
 } from '../certificate-artifacts/certificate-artifact.types.js';
 import { normalizeCertificateRenderInput } from '../certificate-artifacts/certificate-render-input.js';
 import type { StepUpAuthenticationUseCases } from '../step-up-authentication/step-up-authentication.service.js';
-import { presentPrivateCertificate } from './certificate-issuance.presenter.js';
+import type { StepUpSecurityContext } from '../step-up-authentication/step-up-authentication.types.js';
+import {
+  presentPrivateCertificate,
+  presentPublicCertificate,
+} from './certificate-issuance.presenter.js';
 import {
   certificateAccessDenied,
   certificateAlreadyIssued,
+  certificateAlreadyRevoked,
   certificateArtifactGenerationFailed,
   certificateArtifactStorageFailed,
   certificateArtifactUnavailable,
@@ -45,9 +50,15 @@ import {
   certificateRevoked,
   certificateTemplateUnavailable,
   CertificateRateLimitRepositoryError,
+  certificateVerificationNotFound,
+  certificateVersionConflict,
   idempotencyKeyReused,
 } from './certificate-issuance.errors.js';
 import type { CertificateIssuanceRepository } from './certificate-issuance.repository.js';
+import {
+  revokeCertificateBodySchema,
+  verificationIdentifierSchema,
+} from './certificate-issuance.schemas.js';
 import type {
   CertificateActor,
   CertificateAuditContext,
@@ -57,12 +68,18 @@ import type {
   CertificateIssuanceCandidate,
   CertificateImmutableSnapshot,
   CertificateMutationResponse,
+  CertificateRevocationMutationResponse,
   IssueCertificateCommand,
   PrivateCertificateDto,
+  PublicCertificateAuditContext,
+  PublicCertificateDto,
+  RevokeCertificateCommand,
   StoredIdempotencyReceipt,
 } from './certificate-issuance.types.js';
 
 const CONTRACT_VERSION = 'certificate-issuance-v1';
+const REVOCATION_CONTRACT_VERSION = 'certificate-revocation-v1';
+const INVALID_VERIFICATION_LOOKUP_VALUE = 'invalid-certificate-verification-identifier';
 
 function assertIssuePolicy(actor: CertificateActor): void {
   if (!actor.roles.includes(RoleCode.ADMIN) || !actor.permissions.includes('certificates.issue')) {
@@ -89,6 +106,30 @@ function assertCourseDownloadPolicy(actor: CertificateActor): void {
   if (
     !actor.roles.includes(RoleCode.ADMIN) ||
     !actor.permissions.includes('certificates.download')
+  ) {
+    throw certificateAccessDenied();
+  }
+}
+
+function assertRevokePolicy(actor: CertificateActor): void {
+  if (!actor.roles.includes(RoleCode.ADMIN) || !actor.permissions.includes('certificates.revoke')) {
+    throw certificateAccessDenied();
+  }
+}
+
+function assertCurrentRevokePolicy(
+  security: StepUpSecurityContext | null,
+  actor: CertificateActor,
+  now: Date,
+): asserts security is StepUpSecurityContext {
+  if (
+    !security ||
+    security.userId !== actor.userId ||
+    security.sessionId !== actor.sessionId ||
+    security.requiresPasswordChange ||
+    (security.credentialLockedUntil !== null && security.credentialLockedUntil > now) ||
+    !security.roles.includes(RoleCode.ADMIN) ||
+    !security.permissions.includes('certificates.revoke')
   ) {
     throw certificateAccessDenied();
   }
@@ -195,6 +236,36 @@ function replay(
   }
   if (record.responseStatus !== 201) throw idempotencyKeyReused();
   return record.responseEnvelope as unknown as CertificateMutationResponse;
+}
+
+function revocationFingerprint(command: RevokeCertificateCommand): string {
+  const canonical = JSON.stringify({
+    contractVersion: REVOCATION_CONTRACT_VERSION,
+    operation: 'REVOKE_CERTIFICATE',
+    path: { certificateId: command.certificateId },
+    body: {
+      expectedVersion: command.input.expectedVersion,
+      reasonCode: command.input.reasonCode,
+      reasonNote: command.input.reasonNote ?? null,
+      confirmed: command.input.confirmed,
+    },
+  });
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+function replayRevocation(
+  record: StoredIdempotencyReceipt | null,
+  requestFingerprint: string,
+): CertificateRevocationMutationResponse | null {
+  if (!record) return null;
+  if (
+    record.operation !== IdempotencyOperation.REVOKE_CERTIFICATE ||
+    record.requestFingerprint !== requestFingerprint ||
+    record.responseStatus !== 200
+  ) {
+    throw idempotencyKeyReused();
+  }
+  return record.responseEnvelope as unknown as CertificateRevocationMutationResponse;
 }
 
 function dateOnly(value: Date): string {
@@ -390,6 +461,15 @@ export interface CertificateIssuanceUseCases {
     actor: CertificateActor,
     audit: CertificateAuditContext,
   ): Promise<CertificateDownload>;
+  verifyPublicCertificate(
+    verificationIdentifier: string,
+    audit: PublicCertificateAuditContext,
+  ): Promise<PublicCertificateDto>;
+  revokeCertificate(
+    command: RevokeCertificateCommand,
+    actor: CertificateActor,
+    audit: CertificateAuditContext,
+  ): Promise<CertificateRevocationMutationResponse>;
 }
 
 export class CertificateIssuanceService implements CertificateIssuanceUseCases {
@@ -609,6 +689,139 @@ export class CertificateIssuanceService implements CertificateIssuanceUseCases {
           enrollmentId: command.enrollmentId,
           classification: 'ISSUE_FAILED_AUDIT_PERSISTENCE',
         });
+      }
+      throw error;
+    }
+  }
+
+  async verifyPublicCertificate(
+    verificationIdentifier: string,
+    audit: PublicCertificateAuditContext,
+  ): Promise<PublicCertificateDto> {
+    const parsed = verificationIdentifierSchema.safeParse(verificationIdentifier);
+    const lookupHash = createHash('sha256')
+      .update(parsed.success ? parsed.data : INVALID_VERIFICATION_LOOKUP_VALUE)
+      .digest('hex');
+
+    let record;
+    try {
+      record = await this.repository.verifyPublicCertificate(lookupHash, !parsed.success, audit);
+    } catch (error: unknown) {
+      if (error instanceof CertificateRateLimitRepositoryError) {
+        throw certificateRateLimited();
+      }
+      // Public verification telemetry is deliberately best-effort. A telemetry
+      // write failure must not change a valid credential result.
+      record = parsed.success
+        ? await this.repository.findPublicCertificateByHash(lookupHash)
+        : null;
+    }
+
+    if (!record) throw certificateVerificationNotFound();
+    return presentPublicCertificate(record);
+  }
+
+  async revokeCertificate(
+    command: RevokeCertificateCommand,
+    actor: CertificateActor,
+    audit: CertificateAuditContext,
+  ): Promise<CertificateRevocationMutationResponse> {
+    assertRevokePolicy(actor);
+    const input = revokeCertificateBodySchema.parse(command.input);
+    const normalizedCommand: RevokeCertificateCommand = { ...command, input };
+    const requestFingerprint = revocationFingerprint(normalizedCommand);
+
+    try {
+      return await this.repository.withSerializableTransaction(async (transaction) => {
+        const securityTime = await transaction.stepUp.getDatabaseTimestamp();
+        await transaction.stepUp.lockSecurityState(actor.userId, actor.sessionId);
+        const security = await transaction.stepUp.findSecurityContext(
+          actor.userId,
+          actor.sessionId,
+          securityTime,
+        );
+        assertCurrentRevokePolicy(security, actor, securityTime);
+
+        const existingReplay = replayRevocation(
+          await transaction.findIdempotencyRecord(actor.userId, normalizedCommand.idempotencyKey),
+          requestFingerprint,
+        );
+        if (existingReplay) return existingReplay;
+
+        const validatedProof = await this.stepUp.validateProofBeforeTargetLockInTransaction(
+          transaction.stepUp,
+          {
+            proof: normalizedCommand.stepUpProof,
+            action: StepUpAction.CERTIFICATE_REVOKE,
+            targetType: StepUpTargetType.CERTIFICATE,
+            targetId: normalizedCommand.certificateId,
+          },
+          actor,
+        );
+        await transaction.lockCertificate(normalizedCommand.certificateId);
+        await transaction.lockIdempotencyKey(actor.userId, normalizedCommand.idempotencyKey);
+
+        const concurrentReplay = replayRevocation(
+          await transaction.findIdempotencyRecord(actor.userId, normalizedCommand.idempotencyKey),
+          requestFingerprint,
+        );
+        if (concurrentReplay) return concurrentReplay;
+
+        const certificate = await transaction.findCertificateForRevocation(
+          normalizedCommand.certificateId,
+        );
+        if (!certificate) throw certificateNotFound();
+        if (certificate.status === CertificateLifecycleStatus.REVOKED) {
+          throw certificateAlreadyRevoked();
+        }
+        if (
+          certificate.version !== normalizedCommand.input.expectedVersion ||
+          certificate.version !== 1
+        ) {
+          throw certificateVersionConflict();
+        }
+
+        const response: CertificateRevocationMutationResponse = {
+          success: true,
+          message: 'Sertifikat muvaffaqiyatli bekor qilindi.',
+          data: {
+            operation: 'REVOKE',
+            certificateId: certificate.id,
+            enrollmentId: certificate.enrollmentId,
+            certificateNumber: certificate.certificateNumber,
+            resultingStatus: 'REVOKED',
+            resultingVersion: 2,
+            occurredAt: validatedProof.now.toISOString(),
+          },
+        };
+
+        await this.stepUp.consumeValidatedProof(transaction.stepUp, validatedProof, audit);
+        await transaction.revokeCertificate({
+          certificate,
+          actorUserId: actor.userId,
+          reasonCode: normalizedCommand.input.reasonCode,
+          ...(normalizedCommand.input.reasonNote
+            ? { reasonNote: normalizedCommand.input.reasonNote }
+            : {}),
+          revokedAt: validatedProof.now,
+          idempotencyKey: normalizedCommand.idempotencyKey,
+          requestFingerprint,
+          responseEnvelope: response,
+          audit,
+        });
+        return response;
+      });
+    } catch (error: unknown) {
+      if (error instanceof CertificateIssuanceRepositoryConflictError) {
+        const committedReplay = replayRevocation(
+          await this.repository.findIdempotencyRecord(
+            actor.userId,
+            normalizedCommand.idempotencyKey,
+          ),
+          requestFingerprint,
+        );
+        if (committedReplay) return committedReplay;
+        throw certificateVersionConflict();
       }
       throw error;
     }
