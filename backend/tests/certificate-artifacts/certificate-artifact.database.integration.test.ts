@@ -172,6 +172,7 @@ describeDatabase('Module 8.6D certificate artifact PostgreSQL lifecycle', () => 
       rendererContractVersion: certificate.templateVersion.rendererContractVersion,
       signatoryName: certificate.templateVersion.signatoryName,
       signatoryTitle: certificate.templateVersion.signatoryTitle,
+      verificationIdentifier: null,
     };
   }
 

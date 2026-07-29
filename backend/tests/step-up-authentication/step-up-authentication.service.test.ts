@@ -406,6 +406,41 @@ describe('StepUpAuthenticationService', () => {
     ).rejects.toMatchObject({ code: 'STEP_UP_PROOF_INVALID' });
   });
 
+  it('validates a proof for expensive-operation preflight without consuming it', async () => {
+    const test = harness();
+    const input = {
+      proof: rawProof,
+      action: StepUpAction.CERTIFICATE_ISSUE,
+      targetType: StepUpTargetType.ENROLLMENT,
+      targetId,
+    };
+
+    await expect(test.service.validateProof(input, actor)).resolves.toBeUndefined();
+    await expect(test.service.validateProof(input, actor)).resolves.toBeUndefined();
+    expect(test.transaction.consumeProof).not.toHaveBeenCalled();
+    expect(test.audits).toEqual([]);
+  });
+
+  it('validates proof binding before the issuance caller takes its canonical target lock', async () => {
+    const test = harness();
+    const input = {
+      proof: rawProof,
+      action: StepUpAction.CERTIFICATE_ISSUE,
+      targetType: StepUpTargetType.ENROLLMENT,
+      targetId,
+    };
+
+    await expect(
+      test.service.validateProofBeforeTargetLockInTransaction(test.transaction, input, actor),
+    ).resolves.toMatchObject({ proof: { id: proofId } });
+
+    expect(test.transaction.lockSecurityState).toHaveBeenCalledWith(actor.userId, actor.sessionId);
+    expect(test.transaction.lockProofByHash).toHaveBeenCalledOnce();
+    expect(test.transaction.lockTarget).not.toHaveBeenCalled();
+    expect(test.transaction.targetExists).not.toHaveBeenCalled();
+    expect(test.transaction.consumeProof).not.toHaveBeenCalled();
+  });
+
   it('maps a malformed raw proof to the stable proof-invalid domain error', async () => {
     const test = harness();
 

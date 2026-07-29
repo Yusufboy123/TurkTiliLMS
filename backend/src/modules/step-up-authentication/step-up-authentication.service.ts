@@ -32,6 +32,7 @@ import type {
   StepUpChallengeDto,
   StepUpChallengeRecord,
   StepUpProofDto,
+  StepUpProofRecord,
   StepUpSecurityContext,
 } from './step-up-authentication.types.js';
 
@@ -155,6 +156,27 @@ export interface StepUpAuthenticationUseCases {
     actor: StepUpActor,
     audit: StepUpAuditContext,
   ): Promise<ConsumedStepUpProof>;
+  validateProofInTransaction(
+    transaction: StepUpTransactionRepository,
+    input: ConsumeStepUpProofInput,
+    actor: StepUpActor,
+  ): Promise<ValidatedStepUpProof>;
+  validateProofBeforeTargetLockInTransaction(
+    transaction: StepUpTransactionRepository,
+    input: ConsumeStepUpProofInput,
+    actor: StepUpActor,
+  ): Promise<ValidatedStepUpProof>;
+  consumeValidatedProof(
+    transaction: StepUpTransactionRepository,
+    validated: ValidatedStepUpProof,
+    audit: StepUpAuditContext,
+  ): Promise<ConsumedStepUpProof>;
+  validateProof(input: ConsumeStepUpProofInput, actor: StepUpActor): Promise<void>;
+}
+
+export interface ValidatedStepUpProof {
+  readonly now: Date;
+  readonly proof: StepUpProofRecord;
 }
 
 export class StepUpAuthenticationService implements StepUpAuthenticationUseCases {
@@ -398,6 +420,68 @@ export class StepUpAuthenticationService implements StepUpAuthenticationUseCases
     actor: StepUpActor,
     audit: StepUpAuditContext,
   ): Promise<ConsumedStepUpProof> {
+    const validated = await this.validateProofInTransaction(transaction, input, actor);
+    return this.consumeValidatedProof(transaction, validated, audit);
+  }
+
+  validateProofInTransaction(
+    transaction: StepUpTransactionRepository,
+    input: ConsumeStepUpProofInput,
+    actor: StepUpActor,
+  ): Promise<ValidatedStepUpProof> {
+    return this.loadUsableProof(transaction, input, actor);
+  }
+
+  validateProofBeforeTargetLockInTransaction(
+    transaction: StepUpTransactionRepository,
+    input: ConsumeStepUpProofInput,
+    actor: StepUpActor,
+  ): Promise<ValidatedStepUpProof> {
+    return this.loadUsableProof(transaction, input, actor, false);
+  }
+
+  async consumeValidatedProof(
+    transaction: StepUpTransactionRepository,
+    validated: ValidatedStepUpProof,
+    audit: StepUpAuditContext,
+  ): Promise<ConsumedStepUpProof> {
+    const { now, proof } = validated;
+    try {
+      await transaction.consumeProof(proof.id, now);
+    } catch (error: unknown) {
+      if (error instanceof StepUpStateConflictError) throw stepUpProofInvalid();
+      throw error;
+    }
+    await transaction.createAudit({
+      action: 'security.step_up.proof_consumed',
+      subjectType: 'step_up_proof',
+      subjectId: proof.id,
+      context: audit,
+      metadata: {
+        challengeId: proof.challengeId,
+        action: proof.action,
+        targetType: proof.targetType,
+        targetId: proof.targetId,
+        sessionId: proof.sessionId,
+        result: 'consumed',
+      },
+    });
+
+    return { proofId: proof.id, challengeId: proof.challengeId, consumedAt: now };
+  }
+
+  async validateProof(input: ConsumeStepUpProofInput, actor: StepUpActor): Promise<void> {
+    await this.repository.withSerializableTransaction(async (transaction) => {
+      await this.loadUsableProof(transaction, input, actor);
+    });
+  }
+
+  private async loadUsableProof(
+    transaction: StepUpTransactionRepository,
+    input: ConsumeStepUpProofInput,
+    actor: StepUpActor,
+    lockAndValidateTarget = true,
+  ): Promise<{ now: Date; proof: StepUpProofRecord }> {
     if (!rawStepUpProofSchema.safeParse(input.proof).success) throw stepUpProofInvalid();
     assertActorPolicy(actor, input.action);
     const proofHash = this.crypto.hash(input.proof);
@@ -432,33 +516,13 @@ export class StepUpAuthenticationService implements StepUpAuthenticationUseCases
       throw stepUpProofInvalid();
     }
     assertCurrentPolicy(security, proof.action);
-    await transaction.lockTarget(proof.action, proof.targetId);
-    if (!(await transaction.targetExists(proof.action, proof.targetId))) {
-      throw stepUpProofInvalid();
+    if (lockAndValidateTarget) {
+      await transaction.lockTarget(proof.action, proof.targetId);
+      if (!(await transaction.targetExists(proof.action, proof.targetId))) {
+        throw stepUpProofInvalid();
+      }
     }
-
-    try {
-      await transaction.consumeProof(proof.id, now);
-    } catch (error: unknown) {
-      if (error instanceof StepUpStateConflictError) throw stepUpProofInvalid();
-      throw error;
-    }
-    await transaction.createAudit({
-      action: 'security.step_up.proof_consumed',
-      subjectType: 'step_up_proof',
-      subjectId: proof.id,
-      context: audit,
-      metadata: {
-        challengeId: proof.challengeId,
-        action: proof.action,
-        targetType: proof.targetType,
-        targetId: proof.targetId,
-        sessionId: proof.sessionId,
-        result: 'consumed',
-      },
-    });
-
-    return { proofId: proof.id, challengeId: proof.challengeId, consumedAt: now };
+    return { now, proof };
   }
 
   private async recordFailedVerification(

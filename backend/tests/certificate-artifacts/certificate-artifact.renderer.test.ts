@@ -1,5 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { createRequire } from 'node:module';
+import { inflateSync } from 'node:zlib';
 import {
   CERTIFICATE_PDF_MIME_TYPE,
   CERTIFICATE_RENDERER_IDENTIFIER,
@@ -16,6 +17,66 @@ import {
 } from '../../src/modules/certificate-artifacts/certificate-artifact.renderer.js';
 import { normalizeCertificateRenderInput } from '../../src/modules/certificate-artifacts/certificate-render-input.js';
 import { renderInput } from '../helpers/certificate-artifact-fakes.js';
+
+function decodeUtf16Hex(value: string): string {
+  const compact = value.replace(/\s+/gu, '');
+  let decoded = '';
+  for (let index = 0; index < compact.length; index += 4) {
+    decoded += String.fromCharCode(Number.parseInt(compact.slice(index, index + 4), 16));
+  }
+  return decoded;
+}
+
+function extractPdfText(pdf: Buffer): string[] {
+  const source = pdf.toString('latin1');
+  const inflatedStreams: string[] = [];
+  let cursor = 0;
+  while (true) {
+    const streamStart = source.indexOf('stream\n', cursor);
+    if (streamStart < 0) break;
+    const dataStart = streamStart + 'stream\n'.length;
+    const streamEnd = source.indexOf('\nendstream', dataStart);
+    if (streamEnd < 0) break;
+    try {
+      inflatedStreams.push(inflateSync(pdf.subarray(dataStart, streamEnd)).toString('latin1'));
+    } catch {
+      // Non-Flate streams are irrelevant to this PDFKit text-extraction assertion.
+    }
+    cursor = streamEnd + '\nendstream'.length;
+  }
+
+  const maps = inflatedStreams.flatMap((stream) =>
+    [
+      ...stream.matchAll(
+        /<([0-9A-Fa-f]{4})>\s*<([0-9A-Fa-f]{4})>\s*\[((?:\s*<[0-9A-Fa-f\s]+>)+)\]/gu,
+      ),
+    ].map((match) => {
+      const start = Number.parseInt(match[1]!, 16);
+      const mapping = new Map<number, string>();
+      [...match[3]!.matchAll(/<([0-9A-Fa-f\s]+)>/gu)].forEach((value, index) => {
+        mapping.set(start + index, decodeUtf16Hex(value[1]!));
+      });
+      return mapping;
+    }),
+  );
+
+  return inflatedStreams.flatMap((stream) =>
+    [...stream.matchAll(/\[((?:.|\n)*?)\]\s*TJ/gu)].flatMap((textArray) => {
+      const glyphRuns = [...textArray[1]!.matchAll(/<([0-9A-Fa-f]+)>/gu)].map((match) => match[1]!);
+      return maps.map((mapping) =>
+        glyphRuns
+          .map((glyphRun) => {
+            let decoded = '';
+            for (let index = 0; index < glyphRun.length; index += 4) {
+              decoded += mapping.get(Number.parseInt(glyphRun.slice(index, index + 4), 16)) ?? '';
+            }
+            return decoded;
+          })
+          .join(''),
+      );
+    }),
+  );
+}
 
 describe('PdfKitCertificateRenderer', () => {
   const require = createRequire(import.meta.url);
@@ -79,6 +140,17 @@ describe('PdfKitCertificateRenderer', () => {
 
     expect(result.bytes.subarray(0, 5).toString('ascii')).toBe('%PDF-');
     expect(result.mimeType).toBe('application/pdf');
+  });
+
+  it('renders the raw verification capability only as trusted plain text', async () => {
+    const verificationIdentifier = 'V'.repeat(43);
+    const result = await renderer.render(
+      normalizeCertificateRenderInput(renderInput({ verificationIdentifier })),
+    );
+    expect(result.bytes.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    expect(extractPdfText(result.bytes)).toContain(
+      `Tekshirish identifikatori: ${verificationIdentifier}`,
+    );
   });
 });
 

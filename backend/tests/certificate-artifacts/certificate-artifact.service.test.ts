@@ -29,6 +29,28 @@ function setup() {
 }
 
 describe('CertificateArtifactService', () => {
+  it('prepares finalized storage for an external atomic persistence transaction', async () => {
+    const { repository, storage, service } = setup();
+    const prepared = await service.prepareCertificateArtifact({
+      certificateId: CERTIFICATE_ID,
+      renderInput: renderInput(),
+      renderSource: renderSource(),
+    });
+
+    expect(prepared).toMatchObject({
+      certificateId: CERTIFICATE_ID,
+      mimeType: 'application/pdf',
+      sizeBytes: PDF_BYTES.length,
+      checksum: calculateSha256(PDF_BYTES),
+    });
+    expect(storage.finalized.has(prepared.storageKey)).toBe(true);
+    expect(repository.createCalls).toHaveLength(0);
+
+    await service.discardPreparedCertificateArtifact(prepared);
+    expect(storage.finalized.has(prepared.storageKey)).toBe(false);
+    expect(storage.removed).toContain(prepared.storageKey);
+  });
+
   it('finalizes storage before persisting immutable metadata and returns no path or URL', async () => {
     const { repository, renderer, storage, service } = setup();
     const result = await service.finalizeCertificateArtifact({

@@ -15,6 +15,7 @@ import type { CertificateRenderInput } from './certificate-artifact.types.js';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const CERTIFICATE_NUMBER_PATTERN = /^TTL-\d{4}-\d{10}$/u;
 const UNICODE_FORMAT_CHARACTER_PATTERN = /\p{Cf}/u;
+const VERIFICATION_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
 function normalizeText(value: string): string {
   return value.normalize('NFC').replace(/\s+/gu, ' ').trim();
@@ -71,6 +72,7 @@ const certificateRenderInputSchema = z
     rendererContractVersion: z.literal(CERTIFICATE_RENDERER_CONTRACT_VERSION),
     signatoryName: normalizedText(160).nullable(),
     signatoryTitle: normalizedText(160).nullable(),
+    verificationIdentifier: z.string().regex(VERIFICATION_IDENTIFIER_PATTERN).nullable(),
   })
   .strict();
 

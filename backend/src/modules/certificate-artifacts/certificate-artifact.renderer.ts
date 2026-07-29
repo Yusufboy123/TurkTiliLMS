@@ -94,6 +94,17 @@ function drawCertificate(document: PDFKit.PDFDocument, input: CertificateRenderI
       align: 'center',
       lineBreak: false,
     });
+  if (input.verificationIdentifier) {
+    document
+      .font(FONT_REGULAR)
+      .fontSize(7)
+      .fillColor(TEXT_MUTED)
+      .text(`Tekshirish identifikatori: ${input.verificationIdentifier}`, 92, 518, {
+        width: A4_LANDSCAPE_WIDTH - 184,
+        align: 'center',
+        lineBreak: false,
+      });
+  }
 
   document
     .font(FONT_BOLD)

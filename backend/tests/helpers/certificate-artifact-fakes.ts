@@ -87,6 +87,7 @@ export function renderInput(
     rendererContractVersion: CERTIFICATE_RENDERER_CONTRACT_VERSION,
     signatoryName: 'Platform rahbari',
     signatoryTitle: 'Direktor',
+    verificationIdentifier: null,
     ...overrides,
   };
 }

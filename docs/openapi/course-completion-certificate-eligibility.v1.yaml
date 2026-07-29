@@ -175,13 +175,13 @@ paths:
       operationId: issueEnrollmentCertificate
       summary: Issue a certificate from an eligible enrollment
       description: |
-        Module 8.6A contract only. Requires ADMIN, `certificates.issue`, the
+        Module 8.6E runtime. Requires ADMIN, `certificates.issue`, the
         exact eligible evidence and completion/curriculum versions,
         Idempotency-Key, X-Step-Up-Proof, explicit confirmation, synchronous
         staged PDF finalization, audit, and serializable duplicate protection.
         The response never exposes the verification token or storage path.
       x-implementation-phase: Module 8.6E
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN]
       x-required-permissions: [certificates.issue]
       x-step-up-required: true
@@ -369,11 +369,11 @@ paths:
       operationId: getOwnCertificate
       summary: Get the authenticated student's certificate
       description: |
-        Module 8.6A contract only. Requires STUDENT,
+        Module 8.6E runtime. Requires STUDENT,
         `certificates.self_read`, and ownership through the certificate's
         enrollment.
       x-implementation-phase: Module 8.6E
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [certificates.self_read]
       x-rate-limit: 60 requests per minute per actor
@@ -402,11 +402,11 @@ paths:
       operationId: downloadOwnCertificate
       summary: Download the authenticated student's issued PDF
       description: |
-        Module 8.6A contract only. Requires STUDENT,
+        Module 8.6E runtime. Requires STUDENT,
         `certificates.self_download`, ownership, and ISSUED status. Range
         requests are not supported in v1.
       x-implementation-phase: Module 8.6E
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [STUDENT]
       x-required-permissions: [certificates.self_download]
       x-rate-limit: 20 requests per minute per actor and 5 per minute per certificate
@@ -436,12 +436,12 @@ paths:
       operationId: getCourseCertificate
       summary: Get certificate detail in an authorized course scope
       description: |
-        Module 8.6A contract only. Requires ADMIN or TEACHER,
+        Module 8.6E runtime. Requires ADMIN or TEACHER,
         `certificates.course_read`, a certificate belonging to the path course,
         and current course assignment for a teacher. This privileged read is
         audited.
       x-implementation-phase: Module 8.6E
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN, TEACHER]
       x-required-permissions: [certificates.course_read]
       x-audit-event: certificate.privileged_viewed
@@ -472,12 +472,12 @@ paths:
       operationId: downloadCourseCertificate
       summary: Download a certificate PDF for an administrative purpose
       description: |
-        Module 8.6A contract only. Requires ADMIN and
+        Module 8.6E runtime. Requires ADMIN and
         `certificates.download`. Revoked artifacts may be retrieved by this
         endpoint for investigation. Every successful access is audited. Teachers
         cannot download certificate artifacts in v1.
       x-implementation-phase: Module 8.6E
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN]
       x-required-permissions: [certificates.download]
       x-audit-event: certificate.download_started

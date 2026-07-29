@@ -40,6 +40,7 @@ import type {
   CertificateRenderSourceRecord,
   CertificateRenderInput,
   CertificateRenderer,
+  PreparedCertificateArtifact,
   ResolvedCertificateArtifact,
   StagedCertificateArtifact,
 } from './certificate-artifact.types.js';
@@ -81,6 +82,12 @@ export interface FinalizeCertificateArtifactInput {
   readonly audit: CertificateArtifactAuditContext;
 }
 
+export interface PrepareCertificateArtifactInput {
+  readonly certificateId: string;
+  readonly renderInput: unknown;
+  readonly renderSource: CertificateRenderSourceRecord;
+}
+
 export interface CertificateArtifactUseCases {
   finalizeCertificateArtifact(
     input: FinalizeCertificateArtifactInput,
@@ -90,6 +97,10 @@ export interface CertificateArtifactUseCases {
   ): Promise<CertificateArtifactMetadata>;
   resolveFinalizedCertificateArtifact(artifactId: string): Promise<ResolvedCertificateArtifact>;
   verifyStoredArtifactIntegrity(artifactId: string): Promise<boolean>;
+  prepareCertificateArtifact(
+    input: PrepareCertificateArtifactInput,
+  ): Promise<PreparedCertificateArtifact>;
+  discardPreparedCertificateArtifact(artifact: PreparedCertificateArtifact): Promise<void>;
 }
 
 export class CertificateArtifactService implements CertificateArtifactUseCases {
@@ -103,12 +114,12 @@ export class CertificateArtifactService implements CertificateArtifactUseCases {
   async finalizeCertificateArtifact(
     request: FinalizeCertificateArtifactInput,
   ): Promise<CertificateArtifactMetadata> {
-    let normalizedInput: CertificateRenderInput | undefined;
-    let staged: StagedCertificateArtifact | undefined;
-    let finalizedStorageKey: string | undefined;
+    let prepared: PreparedCertificateArtifact | undefined;
+    let templateVersion: number | null = null;
 
     try {
-      normalizedInput = normalizeCertificateRenderInput(request.renderInput);
+      const normalizedInput = normalizeCertificateRenderInput(request.renderInput);
+      templateVersion = normalizedInput.templateVersion;
       if (normalizedInput.certificateId !== request.certificateId) {
         throw certificateNotFound();
       }
@@ -117,9 +128,72 @@ export class CertificateArtifactService implements CertificateArtifactUseCases {
       if (!source) throw certificateNotFound();
       if (source.artifactId) throw artifactAlreadyExists();
 
-      const fontManifest = await this.renderer.fontManifest();
-      this.assertRenderSource(normalizedInput, source, fontManifest);
+      prepared = await this.prepareCertificateArtifact({
+        certificateId: request.certificateId,
+        renderInput: normalizedInput,
+        renderSource: source,
+      });
 
+      const artifact = await this.repository.createFinalized(
+        {
+          certificateId: request.certificateId,
+          storageProvider: prepared.storageProvider,
+          storageKey: prepared.storageKey,
+          mimeType: CERTIFICATE_PDF_MIME_TYPE,
+          sizeBytes: BigInt(prepared.sizeBytes),
+          checksum: prepared.checksum,
+          rendererIdentifier: prepared.rendererIdentifier,
+          rendererVersion: prepared.rendererVersion,
+        },
+        request.audit,
+      );
+      prepared = undefined;
+      return toMetadata(artifact);
+    } catch (error: unknown) {
+      let failure = mapRepositoryError(error);
+      const cleanupFailed = prepared
+        ? await this.discardPreparedCertificateArtifact(prepared)
+            .then(() => false)
+            .catch(() => true)
+        : false;
+      if (cleanupFailed) failure = compensationFailed();
+
+      try {
+        await this.repository.recordFailure(
+          {
+            certificateId: request.certificateId,
+            category: failure.category,
+            templateVersion,
+            rendererIdentifier: this.renderer.identifier,
+            rendererVersion: this.renderer.version,
+          },
+          request.audit,
+        );
+      } catch {
+        if (!cleanupFailed) failure = persistenceFailed();
+      }
+      throw failure;
+    }
+  }
+
+  async prepareCertificateArtifact(
+    request: PrepareCertificateArtifactInput,
+  ): Promise<PreparedCertificateArtifact> {
+    let staged: StagedCertificateArtifact | undefined;
+    let finalizedStorageKey: string | undefined;
+
+    try {
+      const normalizedInput = normalizeCertificateRenderInput(request.renderInput);
+      if (
+        normalizedInput.certificateId !== request.certificateId ||
+        request.renderSource.id !== request.certificateId ||
+        request.renderSource.artifactId !== null
+      ) {
+        throw certificateNotFound();
+      }
+
+      const fontManifest = await this.renderer.fontManifest();
+      this.assertRenderSource(normalizedInput, request.renderSource, fontManifest);
       const rendered = await this.renderer.render(normalizedInput);
       validateCertificatePdf(rendered.bytes, rendered.mimeType, this.maximumSizeBytes);
       if (rendered.sizeBytes !== rendered.bytes.length) throw artifactIntegrityFailed();
@@ -143,41 +217,28 @@ export class CertificateArtifactService implements CertificateArtifactUseCases {
       }
       assertMatchingChecksum(receipt.checksum, checksum);
 
-      const artifact = await this.repository.createFinalized(
-        {
-          certificateId: request.certificateId,
-          storageProvider: receipt.storageProvider,
-          storageKey: receipt.storageKey,
-          mimeType: CERTIFICATE_PDF_MIME_TYPE,
-          sizeBytes: BigInt(receipt.sizeBytes),
-          checksum: receipt.checksum,
-          rendererIdentifier: rendered.rendererIdentifier,
-          rendererVersion: rendered.rendererVersion,
-        },
-        request.audit,
-      );
-      finalizedStorageKey = undefined;
-      return toMetadata(artifact);
+      return Object.freeze({
+        certificateId: request.certificateId,
+        storageProvider: receipt.storageProvider,
+        storageKey: receipt.storageKey,
+        mimeType: CERTIFICATE_PDF_MIME_TYPE,
+        sizeBytes: receipt.sizeBytes,
+        checksum: receipt.checksum,
+        rendererIdentifier: rendered.rendererIdentifier,
+        rendererVersion: rendered.rendererVersion,
+      });
     } catch (error: unknown) {
-      let failure = mapRepositoryError(error);
       const cleanupFailed = await this.compensate(staged, finalizedStorageKey);
-      if (cleanupFailed) failure = compensationFailed();
+      if (cleanupFailed) throw compensationFailed();
+      throw mapRepositoryError(error);
+    }
+  }
 
-      try {
-        await this.repository.recordFailure(
-          {
-            certificateId: request.certificateId,
-            category: failure.category,
-            templateVersion: normalizedInput?.templateVersion ?? null,
-            rendererIdentifier: this.renderer.identifier,
-            rendererVersion: this.renderer.version,
-          },
-          request.audit,
-        );
-      } catch {
-        if (!cleanupFailed) failure = persistenceFailed();
-      }
-      throw failure;
+  async discardPreparedCertificateArtifact(artifact: PreparedCertificateArtifact): Promise<void> {
+    try {
+      await this.storage.removeFinalized(artifact.storageKey);
+    } catch {
+      throw compensationFailed();
     }
   }
 
@@ -278,6 +339,7 @@ export class CertificateArtifactService implements CertificateArtifactUseCases {
       input.rendererContractVersion !== source.templateVersion.rendererContractVersion ||
       input.signatoryName !== source.templateVersion.signatoryName ||
       input.signatoryTitle !== source.templateVersion.signatoryTitle ||
+      input.verificationIdentifier !== (source.verificationIdentifier ?? null) ||
       source.templateVersion.organizationDisplayName !== source.organizationName
     ) {
       throw unsupportedTemplate();

@@ -87,6 +87,10 @@ function fakeService(): StepUpAuthenticationUseCases {
       continuationId,
     }),
     consumeProof: vi.fn(),
+    validateProofInTransaction: vi.fn(),
+    validateProofBeforeTargetLockInTransaction: vi.fn(),
+    consumeValidatedProof: vi.fn(),
+    validateProof: vi.fn(),
   };
 }
 

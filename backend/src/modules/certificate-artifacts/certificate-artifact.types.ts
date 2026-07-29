@@ -20,6 +20,7 @@ export interface CertificateRenderInput {
   readonly rendererContractVersion: string;
   readonly signatoryName: string | null;
   readonly signatoryTitle: string | null;
+  readonly verificationIdentifier: string | null;
 }
 
 export interface CertificateRenderedPdf {
@@ -74,6 +75,7 @@ export interface CertificateRenderSourceRecord {
   readonly issuedAt: Date;
   readonly completionDate: Date;
   readonly artifactId: string | null;
+  readonly verificationIdentifier?: string | null;
   readonly templateVersion: {
     readonly id: string;
     readonly version: number;
@@ -158,6 +160,17 @@ export interface FinalizedCertificateArtifactReceipt {
   readonly storageKey: string;
   readonly sizeBytes: number;
   readonly checksum: string;
+}
+
+export interface PreparedCertificateArtifact {
+  readonly certificateId: string;
+  readonly storageProvider: CertificateArtifactStorageProvider;
+  readonly storageKey: string;
+  readonly mimeType: 'application/pdf';
+  readonly sizeBytes: number;
+  readonly checksum: string;
+  readonly rendererIdentifier: string;
+  readonly rendererVersion: string;
 }
 
 export interface OpenedCertificateArtifact {

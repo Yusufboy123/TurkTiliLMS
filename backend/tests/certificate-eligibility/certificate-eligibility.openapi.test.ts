@@ -9,10 +9,10 @@ const contractPath = fileURLToPath(
 );
 
 describe('Certificate eligibility and lifecycle OpenAPI runtime markers', () => {
-  it('marks the four Module 8.5C reads and two Module 8.6C step-up operations available', async () => {
+  it('marks the approved 8.5C, 8.6C, and 8.6E operations available', async () => {
     const contract = await readFile(contractPath, 'utf8');
-    expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(6);
-    expect(contract.match(/x-implementation-status: contract-only-not-available/g)).toHaveLength(7);
+    expect(contract.match(/x-implementation-status: implemented/g)).toHaveLength(11);
+    expect(contract.match(/x-implementation-status: contract-only-not-available/g)).toHaveLength(2);
     for (const operationId of [
       'getOwnCertificateEligibility',
       'getOwnCertificateStatus',
@@ -20,22 +20,19 @@ describe('Certificate eligibility and lifecycle OpenAPI runtime markers', () => 
       'getCourseEnrollmentCertificateStatus',
       'createStepUpChallenge',
       'verifyStepUpChallenge',
+      'issueEnrollmentCertificate',
+      'getOwnCertificate',
+      'downloadOwnCertificate',
+      'getCourseCertificate',
+      'downloadCourseCertificate',
     ]) {
       expect(contract).toContain(`operationId: ${operationId}`);
     }
   });
 
-  it('keeps issuance, revocation, delivery, and public verification unavailable', async () => {
+  it('keeps only revocation and public verification unavailable', async () => {
     const contract = await readFile(contractPath, 'utf8');
-    for (const operationId of [
-      'issueEnrollmentCertificate',
-      'revokeCertificate',
-      'getOwnCertificate',
-      'downloadOwnCertificate',
-      'getCourseCertificate',
-      'downloadCourseCertificate',
-      'verifyPublicCertificate',
-    ]) {
+    for (const operationId of ['revokeCertificate', 'verifyPublicCertificate']) {
       const operation = contract.slice(contract.indexOf(`operationId: ${operationId}\n`));
       expect(operation.slice(0, operation.indexOf('      responses:'))).toContain(
         'x-implementation-status: contract-only-not-available',
