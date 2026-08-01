@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { adminDashboardRouter } from '../modules/admin-dashboard/admin-dashboard.routes.js';
 import { authRouter } from '../modules/auth/auth.routes.js';
 import { certificateEligibilityRouter } from '../modules/certificate-eligibility/certificate-eligibility.routes.js';
 import { certificateIssuanceRouter } from '../modules/certificate-issuance/certificate-issuance.routes.js';
@@ -27,6 +28,7 @@ import { userManagementRouter } from '../modules/users/user-management.routes.js
 export const apiV1Router = Router();
 
 apiV1Router.use('/health', healthRouter);
+apiV1Router.use(adminDashboardRouter);
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/auth/step-up', stepUpAuthenticationRouter);
 apiV1Router.use('/users', userManagementRouter);

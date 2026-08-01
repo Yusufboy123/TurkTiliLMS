@@ -1,11 +1,10 @@
 openapi: 3.1.0
 info:
   title: Turk Tili LMS Admin Dashboard API
-  version: 1.0.0-rc.1
+  version: 1.0.0
   description: |
-    Module 9.4A contract for the fixed, server-authoritative Admin Dashboard
-    summary. The operation is documentation-only and is not available until
-    Module 9.4B implements and verifies the runtime.
+    Fixed, server-authoritative Admin Dashboard summary implemented by Module
+    9.4B from the approved Module 9.4A contract.
 servers:
   - url: http://localhost:5000/api/v1
     description: Local development base path
@@ -25,7 +24,7 @@ paths:
         operation has no query parameters, no pagination, and no nullable
         success fields. Recent audit activity is intentionally excluded.
       x-implementation-phase: Module 9.4B
-      x-implementation-status: contract-only-not-available
+      x-implementation-status: implemented
       x-required-roles: [ADMIN]
       x-required-permissions:
         - users.read
@@ -44,10 +43,7 @@ paths:
           description: Complete administration summary returned
           headers:
             Cache-Control:
-              description: Prevents browser and shared-cache persistence of admin statistics
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             RateLimit:
               $ref: '#/components/headers/RateLimit'
             RateLimit-Policy:
@@ -105,6 +101,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
   headers:
+    PrivateNoStore:
+      description: Prevents browser and shared-cache persistence of admin statistics
+      schema:
+        type: string
+        const: private, no-store
     RateLimit:
       description: Draft-8 combined limit, remaining, and reset information
       schema:
@@ -116,6 +117,9 @@ components:
   responses:
     AuthenticationRequired:
       description: Authentication is missing or the access token is invalid
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
       content:
         application/json:
           schema:
@@ -133,6 +137,9 @@ components:
                 message: Kirish sessiyasi yaroqsiz yoki muddati tugagan.
     AccessDenied:
       description: ADMIN role or at least one required read permission is missing
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
       content:
         application/json:
           schema:
@@ -144,6 +151,8 @@ components:
     RateLimited:
       description: Request rate limit exceeded
       headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
         RateLimit:
           $ref: '#/components/headers/RateLimit'
         RateLimit-Policy:
@@ -162,6 +171,9 @@ components:
             message: Juda ko‘p so‘rov yuborildi. Birozdan so‘ng qayta urinib ko‘ring.
     InternalServerError:
       description: Safe unexpected failure; no partial sections are returned
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
       content:
         application/json:
           schema:
@@ -169,7 +181,7 @@ components:
           example:
             success: false
             code: INTERNAL_SERVER_ERROR
-            message: Kutilmagan xatolik yuz berdi.
+            message: Serverda ichki xatolik yuz berdi.
   schemas:
     NonNegativeCount:
       type: integer
