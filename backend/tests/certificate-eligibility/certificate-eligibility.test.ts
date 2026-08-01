@@ -3,6 +3,8 @@ import {
   CertificateEligibilityEvaluatorType,
   CertificateEligibilityPolicyCode,
   CertificateEligibilityStatus,
+  CertificateLifecycleStatus,
+  CertificateRevocationReasonCode,
   CourseEnrollmentStatus,
   RoleCode,
 } from '@prisma/client';
@@ -75,6 +77,24 @@ function enrollment(completed = false): EligibilityEnrollmentRecord {
           },
         ]
       : [],
+    certificate: null,
+  };
+}
+
+function certificate(
+  status: CertificateLifecycleStatus = CertificateLifecycleStatus.ISSUED,
+  hasArtifact = true,
+): NonNullable<EligibilityEnrollmentRecord['certificate']> {
+  const revoked = status === CertificateLifecycleStatus.REVOKED;
+  return {
+    id: '019d0000-0000-7000-8000-000000000308',
+    certificateNumber: 'TTL-2026-0000000001',
+    status,
+    version: revoked ? 2 : 1,
+    issuedAt: new Date('2026-07-28T10:05:00.000Z'),
+    revokedAt: revoked ? new Date('2026-07-29T10:05:00.000Z') : null,
+    revocationReasonCode: revoked ? CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR : null,
+    artifact: hasArtifact ? { id: '019d0000-0000-7000-8000-000000000309' } : null,
   };
 }
 
@@ -144,6 +164,100 @@ describe('CertificateEligibilityService', () => {
     });
   });
 
+  it('projects safe ISSUED and REVOKED certificate summaries with self download policy', async () => {
+    const repository = new FakeCertificateEligibilityRepository();
+    repository.record = { ...enrollment(true), certificate: certificate() };
+    const service = new CertificateEligibilityService(repository);
+    const self = actor(
+      STUDENT_ID,
+      [RoleCode.STUDENT],
+      ['certificates.self_read', 'certificates.self_download'],
+    );
+
+    const issued = await service.getOwnCertificateStatus(ENROLLMENT_ID, self);
+    expect(issued).toEqual({
+      enrollmentId: ENROLLMENT_ID,
+      course: { id: COURSE_ID, title: 'Turk tili A1', slug: 'turk-tili-a1' },
+      status: 'ISSUED',
+      certificate: {
+        id: '019d0000-0000-7000-8000-000000000308',
+        certificateId: '019d0000-0000-7000-8000-000000000308',
+        certificateNumber: 'TTL-2026-0000000001',
+        status: 'ISSUED',
+        issuedAt: '2026-07-28T10:05:00.000Z',
+        revokedAt: null,
+        safeRevocationReasonCode: null,
+        version: 1,
+        canDownload: true,
+      },
+      capabilities: {
+        canReadEligibility: false,
+        canReadCertificateStatus: true,
+        canIssueCertificate: false,
+        canRevokeCertificate: false,
+      },
+    });
+    expect(JSON.stringify(issued)).not.toMatch(
+      /verificationToken|storageKey|artifactId|renderer|revocationReasonNote|stepUp/iu,
+    );
+
+    repository.record = {
+      ...enrollment(true),
+      certificate: certificate(CertificateLifecycleStatus.REVOKED),
+    };
+    await expect(service.getOwnCertificateStatus(ENROLLMENT_ID, self)).resolves.toMatchObject({
+      status: 'REVOKED',
+      certificate: {
+        status: 'REVOKED',
+        revokedAt: '2026-07-29T10:05:00.000Z',
+        safeRevocationReasonCode: 'ADMINISTRATIVE_ERROR',
+        canDownload: false,
+      },
+    });
+  });
+
+  it('keeps teacher download disabled and grants course download only to permitted admins', async () => {
+    const repository = new FakeCertificateEligibilityRepository();
+    repository.record = { ...enrollment(true), certificate: certificate() };
+    const service = new CertificateEligibilityService(repository);
+
+    const teacher = await service.getCourseCertificateStatus(
+      COURSE_ID,
+      ENROLLMENT_ID,
+      actor(TEACHER_ID, [RoleCode.TEACHER], ['certificates.course_read', 'certificates.download']),
+      { actorUserId: TEACHER_ID },
+    );
+    expect(teacher.certificate?.canDownload).toBe(false);
+
+    const admin = await service.getCourseCertificateStatus(
+      COURSE_ID,
+      ENROLLMENT_ID,
+      actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.course_read', 'certificates.download']),
+      { actorUserId: ADMIN_ID },
+    );
+    expect(admin.certificate?.canDownload).toBe(true);
+
+    const adminWithoutDownloadPermission = await service.getCourseCertificateStatus(
+      COURSE_ID,
+      ENROLLMENT_ID,
+      actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.course_read']),
+      { actorUserId: ADMIN_ID },
+    );
+    expect(adminWithoutDownloadPermission.certificate?.canDownload).toBe(false);
+
+    repository.record = {
+      ...enrollment(true),
+      certificate: certificate(CertificateLifecycleStatus.ISSUED, false),
+    };
+    const withoutArtifact = await service.getCourseCertificateStatus(
+      COURSE_ID,
+      ENROLLMENT_ID,
+      actor(ADMIN_ID, [RoleCode.ADMIN], ['certificates.course_read', 'certificates.download']),
+      { actorUserId: ADMIN_ID },
+    );
+    expect(withoutArtifact.certificate?.canDownload).toBe(false);
+  });
+
   it('rejects missing or contradictory canonical evidence instead of repairing on read', async () => {
     const repository = new FakeCertificateEligibilityRepository();
     repository.record = enrollment(true);
@@ -187,6 +301,12 @@ describe('CertificateEligibilityService', () => {
       service.getOwnEligibility(
         ENROLLMENT_ID,
         actor(ADMIN_ID, [RoleCode.STUDENT], ['certificate_eligibility.self_read']),
+      ),
+    ).rejects.toMatchObject({ code: 'ENROLLMENT_NOT_FOUND' });
+    await expect(
+      service.getOwnCertificateStatus(
+        ENROLLMENT_ID,
+        actor(ADMIN_ID, [RoleCode.STUDENT], ['certificates.self_read']),
       ),
     ).rejects.toMatchObject({ code: 'ENROLLMENT_NOT_FOUND' });
   });

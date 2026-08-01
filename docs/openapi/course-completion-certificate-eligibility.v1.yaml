@@ -66,9 +66,10 @@ paths:
       operationId: getOwnCertificateStatus
       summary: Get certificate status for the authenticated student's enrollment
       description: |
-        Module 8.5C read boundary. Requires the STUDENT role,
-        `certificates.self_read`, and ownership of the enrollment. Module 8.5C
-        may return `NOT_ISSUED`; issuance remains unavailable until Module 8.6.
+        Requires the STUDENT role, `certificates.self_read`, and ownership of
+        the enrollment. Returns `NOT_ISSUED`, `ISSUED`, or `REVOKED` from the
+        enrollment-linked certificate. `canDownload` follows the existing
+        student private-download policy and is never inferred by the client.
       x-implementation-phase: Module 8.5C
       x-implementation-status: implemented
       x-required-roles: [STUDENT]
@@ -139,9 +140,10 @@ paths:
       operationId: getCourseEnrollmentCertificateStatus
       summary: Get certificate status for an enrollment in an assigned course
       description: |
-        Module 8.5C read boundary. Requires ADMIN or TEACHER,
-        `certificates.course_read`, an enrollment belonging to the path course,
-        and current course assignment for a teacher.
+        Requires ADMIN or TEACHER, `certificates.course_read`, an enrollment
+        belonging to the path course, and current course assignment for a
+        teacher. `canDownload` follows the existing actor, permission, scope,
+        lifecycle, and artifact-availability policy.
       x-implementation-phase: Module 8.5C
       x-implementation-status: implemented
       x-required-roles: [ADMIN, TEACHER]
@@ -760,16 +762,23 @@ components:
       additionalProperties: false
       required:
         - id
+        - certificateId
         - certificateNumber
         - status
         - issuedAt
         - revokedAt
         - safeRevocationReasonCode
         - version
+        - canDownload
       properties:
         id:
           type: string
           format: uuid
+          description: Backward-compatible certificate resource identifier.
+        certificateId:
+          type: string
+          format: uuid
+          description: Certificate identifier used by the existing private read and download routes.
         certificateNumber:
           type: string
         status:
@@ -787,6 +796,12 @@ components:
         version:
           type: integer
           minimum: 1
+        canDownload:
+          type: boolean
+          description: >-
+            Server-derived private download capability for the current actor and route scope.
+            It requires the applicable role and permission, an available finalized artifact, and
+            a lifecycle state permitted by the existing private certificate policy.
     EnrollmentCertificateStatus:
       type: object
       additionalProperties: false

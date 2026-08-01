@@ -6,6 +6,7 @@ import {
   useCertificateStatus,
 } from '../hooks/use-certificate-eligibility';
 import type { CertificateReadScope } from '../types/certificate-eligibility.types';
+import { CertificateDownloadButton } from './CertificateDownloadButton';
 
 interface CertificateEligibilityPanelProps {
   enrollmentId: string;
@@ -53,11 +54,17 @@ export function CertificateEligibilityPanel({
   if (!eligibility.data || !certificateStatus.data) return null;
 
   const isEligible = eligibility.data.eligibility.status === 'ELIGIBLE';
-  const statusHint = isEligible
-    ? messages.eligibleHint
-    : eligibility.data.eligibility.status === 'NOT_ELIGIBLE'
-      ? messages.notEligibleHint
-      : messages.incompleteHint;
+  const certificate = certificateStatus.data.certificate;
+  const statusHint =
+    certificateStatus.data.status === 'ISSUED'
+      ? messages.issuedHint
+      : certificateStatus.data.status === 'REVOKED'
+        ? messages.revokedHint
+        : isEligible
+          ? messages.eligibleHint
+          : eligibility.data.eligibility.status === 'NOT_ELIGIBLE'
+            ? messages.notEligibleHint
+            : messages.incompleteHint;
 
   return (
     <section aria-labelledby="certificate-eligibility-heading" className="mt-8">
@@ -90,7 +97,19 @@ export function CertificateEligibilityPanel({
           </div>
         </dl>
 
+        {certificate ? (
+          <dl className="mt-4">
+            <div>
+              <dt className="text-label-md text-text-secondary">{messages.certificateNumber}</dt>
+              <dd className="mt-1 text-body-md">{certificate.certificateNumber}</dd>
+            </div>
+          </dl>
+        ) : null}
+
         <p className="mt-5 text-body-sm text-text-secondary">{statusHint}</p>
+        {certificate?.canDownload ? (
+          <CertificateDownloadButton certificate={certificate} scope={scope} />
+        ) : null}
       </Card>
     </section>
   );

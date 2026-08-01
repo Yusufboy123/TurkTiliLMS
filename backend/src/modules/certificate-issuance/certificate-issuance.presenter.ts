@@ -1,4 +1,5 @@
 import { CertificateLifecycleStatus, RoleCode } from '@prisma/client';
+import { canDownloadCertificate } from './certificate-download-policy.js';
 import type {
   CertificateActor,
   CertificateDetailRecord,
@@ -13,12 +14,11 @@ export function presentPrivateCertificate(
   scope: 'self' | 'course',
 ): PrivateCertificateDto {
   const isAdmin = actor.roles.includes(RoleCode.ADMIN);
-  const canDownload =
-    record.artifact !== null &&
-    (scope === 'self'
-      ? record.status === CertificateLifecycleStatus.ISSUED &&
-        actor.permissions.includes('certificates.self_download')
-      : isAdmin && actor.permissions.includes('certificates.download'));
+  const canDownload = canDownloadCertificate(
+    { status: record.status, hasArtifact: record.artifact !== null },
+    actor,
+    scope,
+  );
 
   return {
     id: record.id,

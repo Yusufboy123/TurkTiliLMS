@@ -3,9 +3,11 @@ import {
   CertificateEligibilityStatus,
   CourseEnrollmentStatus,
 } from '@prisma/client';
+import { canDownloadCertificate } from '../certificate-issuance/certificate-download-policy.js';
 import { completionEvidenceConflict } from './certificate-eligibility.errors.js';
 import type {
   CertificateCapabilitiesDto,
+  CertificateEligibilityActor,
   CertificateEligibilityDto,
   CertificateStatusDto,
   EligibilityEnrollmentRecord,
@@ -125,7 +127,35 @@ export function presentCompletedEligibility(
 export function presentCertificateStatus(
   record: EligibilityEnrollmentRecord,
   capabilities: CertificateCapabilitiesDto,
+  actor: CertificateEligibilityActor,
+  scope: 'self' | 'course',
 ): CertificateStatusDto {
+  const certificate = record.certificate;
+
+  if (certificate) {
+    return {
+      enrollmentId: record.id,
+      course: courseReference(record),
+      status: certificate.status,
+      certificate: {
+        id: certificate.id,
+        certificateId: certificate.id,
+        certificateNumber: certificate.certificateNumber,
+        status: certificate.status,
+        issuedAt: certificate.issuedAt.toISOString(),
+        revokedAt: certificate.revokedAt?.toISOString() ?? null,
+        safeRevocationReasonCode: certificate.revocationReasonCode,
+        version: certificate.version,
+        canDownload: canDownloadCertificate(
+          { status: certificate.status, hasArtifact: certificate.artifact !== null },
+          actor,
+          scope,
+        ),
+      },
+      capabilities,
+    };
+  }
+
   return {
     enrollmentId: record.id,
     course: courseReference(record),

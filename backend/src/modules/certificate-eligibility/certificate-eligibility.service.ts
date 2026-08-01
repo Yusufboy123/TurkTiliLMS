@@ -118,7 +118,7 @@ export class CertificateEligibilityService implements CertificateEligibilityUseC
     assertSelfPolicy(actor, 'certificate_status');
     const record = await this.repository.findEnrollment(enrollmentId);
     if (!record || record.studentId !== actor.userId) throw enrollmentNotFound();
-    return presentCertificateStatus(record, capabilities(actor));
+    return presentCertificateStatus(record, capabilities(actor), actor, 'self');
   }
 
   async getCourseEligibility(
@@ -146,7 +146,7 @@ export class CertificateEligibilityService implements CertificateEligibilityUseC
     audit: CertificateEligibilityAuditContext,
   ): Promise<CertificateStatusDto> {
     const record = await this.loadCourseScoped(courseId, enrollmentId, actor, 'certificate_status');
-    const result = presentCertificateStatus(record, capabilities(actor));
+    const result = presentCertificateStatus(record, capabilities(actor), actor, 'course');
     await this.repository.recordPrivilegedAccess(
       enrollmentId,
       'certificate_status',

@@ -32,4 +32,13 @@ export const certificateEligibilityApi = {
     );
     return response.data.data;
   },
+
+  async downloadCertificate(certificateId: string, scope: CertificateReadScope): Promise<Blob> {
+    const path =
+      scope.kind === 'self'
+        ? `/me/certificates/${certificateId}/download`
+        : `/courses/${scope.courseId}/certificates/${certificateId}/download`;
+    const response = await apiClient.get<Blob>(path, { responseType: 'blob' });
+    return response.data;
+  },
 };

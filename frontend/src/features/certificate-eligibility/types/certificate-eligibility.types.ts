@@ -32,9 +32,22 @@ export interface CertificateEligibility {
 export interface CertificateStatus {
   enrollmentId: string;
   course: { id: string; title: string; slug: string };
-  status: 'NOT_ISSUED';
-  certificate: null;
+  status: 'NOT_ISSUED' | 'ISSUED' | 'REVOKED';
+  certificate: CertificateReference | null;
   capabilities: CertificateCapabilities;
+}
+
+export interface CertificateReference {
+  id: string;
+  certificateId: string;
+  certificateNumber: string;
+  status: 'ISSUED' | 'REVOKED';
+  issuedAt: string;
+  revokedAt: string | null;
+  safeRevocationReasonCode:
+    'FRAUD' | 'ADMINISTRATIVE_ERROR' | 'DUPLICATE_ISSUANCE' | 'POLICY_VIOLATION' | 'OTHER' | null;
+  version: number;
+  canDownload: boolean;
 }
 
 export interface SuccessEnvelope<T> {

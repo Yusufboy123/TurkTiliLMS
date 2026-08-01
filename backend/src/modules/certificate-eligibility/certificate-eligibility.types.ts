@@ -3,6 +3,8 @@ import type {
   CertificateEligibilityEvaluatorType,
   CertificateEligibilityPolicyCode,
   CertificateEligibilityStatus,
+  CertificateLifecycleStatus,
+  CertificateRevocationReasonCode,
   CourseEnrollmentStatus,
   RoleCode,
 } from '@prisma/client';
@@ -99,6 +101,16 @@ export interface EligibilityEnrollmentRecord {
     frozenAt: Date | null;
   } | null;
   eligibilityEvaluations: EligibilityEvaluationRecord[];
+  certificate: {
+    id: string;
+    certificateNumber: string;
+    status: CertificateLifecycleStatus;
+    version: number;
+    issuedAt: Date;
+    revokedAt: Date | null;
+    revocationReasonCode: CertificateRevocationReasonCode | null;
+    artifact: { id: string } | null;
+  } | null;
 }
 
 export interface CertificateCapabilitiesDto {
@@ -135,8 +147,18 @@ export interface CertificateEligibilityDto {
 export interface CertificateStatusDto {
   enrollmentId: string;
   course: { id: string; title: string; slug: string };
-  status: 'NOT_ISSUED';
-  certificate: null;
+  status: 'NOT_ISSUED' | CertificateLifecycleStatus;
+  certificate: {
+    id: string;
+    certificateId: string;
+    certificateNumber: string;
+    status: CertificateLifecycleStatus;
+    issuedAt: string;
+    revokedAt: string | null;
+    safeRevocationReasonCode: CertificateRevocationReasonCode | null;
+    version: number;
+    canDownload: boolean;
+  } | null;
   capabilities: CertificateCapabilitiesDto;
 }
 

@@ -36,6 +36,8 @@ import { PrismaCertificateArtifactRepository } from '../../src/modules/certifica
 import { PdfKitCertificateRenderer } from '../../src/modules/certificate-artifacts/certificate-artifact.renderer.js';
 import { CertificateArtifactService } from '../../src/modules/certificate-artifacts/certificate-artifact.service.js';
 import { LocalCertificateArtifactStorage } from '../../src/modules/certificate-artifacts/certificate-artifact.storage.js';
+import { PrismaCertificateEligibilityRepository } from '../../src/modules/certificate-eligibility/certificate-eligibility.repository.js';
+import { CertificateEligibilityService } from '../../src/modules/certificate-eligibility/certificate-eligibility.service.js';
 import { PrismaCertificateIssuanceRepository } from '../../src/modules/certificate-issuance/certificate-issuance.repository.js';
 import { CertificateIssuanceService } from '../../src/modules/certificate-issuance/certificate-issuance.service.js';
 import type { CertificateActor } from '../../src/modules/certificate-issuance/certificate-issuance.types.js';
@@ -792,6 +794,94 @@ describeDatabase('Module 8.6E certificate issuance PostgreSQL integration', () =
       adminDetail.course.title,
       teacherDetail.course.title,
     ]).toEqual([original?.courseTitle, original?.courseTitle, original?.courseTitle]);
+  }, 30_000);
+
+  it('projects issued and revoked enrollment certificate status through PostgreSQL safely', async () => {
+    const fixture = await createDirectCertificate('status-alignment');
+    const eligibilityService = new CertificateEligibilityService(
+      new PrismaCertificateEligibilityRepository(client),
+    );
+    const selfActor = {
+      userId: fixture.student.id,
+      roles: [RoleCode.STUDENT],
+      permissions: ['certificates.self_read', 'certificates.self_download'],
+    };
+
+    const issued = await eligibilityService.getOwnCertificateStatus(
+      fixture.enrollment.id,
+      selfActor,
+    );
+    expect(issued).toMatchObject({
+      status: CertificateLifecycleStatus.ISSUED,
+      certificate: {
+        id: fixture.certificate.id,
+        certificateId: fixture.certificate.id,
+        certificateNumber: fixture.certificate.certificateNumber,
+        status: CertificateLifecycleStatus.ISSUED,
+        revokedAt: null,
+        safeRevocationReasonCode: null,
+        version: 1,
+        canDownload: true,
+      },
+    });
+    expect(JSON.stringify(issued)).not.toMatch(
+      /verificationToken|verificationTokenHash|storageKey|artifactId|renderer|revocationReasonNote|stepUp/iu,
+    );
+
+    const foreignStudent = await client.user.create({
+      data: { email: `status-foreign-${randomUUID()}@example.com` },
+    });
+    await expect(
+      eligibilityService.getOwnCertificateStatus(fixture.enrollment.id, {
+        ...selfActor,
+        userId: foreignStudent.id,
+      }),
+    ).rejects.toMatchObject({ code: 'ENROLLMENT_NOT_FOUND' });
+
+    const admin = await eligibilityService.getCourseCertificateStatus(
+      courseId,
+      fixture.enrollment.id,
+      adminActor(),
+      { actorUserId: adminId },
+    );
+    expect(admin.certificate?.canDownload).toBe(true);
+
+    const revokedAt = new Date();
+    await client.certificate.update({
+      where: { id: fixture.certificate.id },
+      data: {
+        status: CertificateLifecycleStatus.REVOKED,
+        version: 2,
+        revokedAt,
+        revokedByUserId: adminId,
+        revocationReasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+      },
+    });
+
+    const revoked = await eligibilityService.getOwnCertificateStatus(
+      fixture.enrollment.id,
+      selfActor,
+    );
+    expect(revoked).toMatchObject({
+      status: CertificateLifecycleStatus.REVOKED,
+      certificate: {
+        id: fixture.certificate.id,
+        certificateId: fixture.certificate.id,
+        status: CertificateLifecycleStatus.REVOKED,
+        revokedAt: revokedAt.toISOString(),
+        safeRevocationReasonCode: CertificateRevocationReasonCode.ADMINISTRATIVE_ERROR,
+        version: 2,
+        canDownload: false,
+      },
+    });
+
+    const revokedAdmin = await eligibilityService.getCourseCertificateStatus(
+      courseId,
+      fixture.enrollment.id,
+      adminActor(),
+      { actorUserId: adminId },
+    );
+    expect(revokedAdmin.certificate?.canDownload).toBe(true);
   }, 30_000);
 
   it('shares actor-scoped detail limits across IPs and separates route scopes and actors', async () => {

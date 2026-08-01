@@ -4,7 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { certificateEligibilityApi } from '../src/features/certificate-eligibility/api/certificate-eligibility.api';
 import { certificateEligibilityErrorMessage } from '../src/features/certificate-eligibility/api/certificate-eligibility.error';
-import { CertificateEligibilityPanel } from '../src/features/certificate-eligibility/components';
+import {
+  CertificateDownloadButton,
+  CertificateEligibilityPanel,
+} from '../src/features/certificate-eligibility/components';
 import { certificateEligibilityQueryKeys } from '../src/features/certificate-eligibility/hooks/certificate-eligibility-query-keys';
 import type {
   CertificateEligibility,
@@ -51,6 +54,33 @@ const status: CertificateStatus = {
   certificate: null,
   capabilities,
 };
+const issuedStatus: CertificateStatus = {
+  ...status,
+  status: 'ISSUED',
+  certificate: {
+    id: '019d0000-0000-7000-8000-000000000504',
+    certificateId: '019d0000-0000-7000-8000-000000000504',
+    certificateNumber: 'TTL-2026-0000000001',
+    status: 'ISSUED',
+    issuedAt: '2026-07-28T10:05:00.000Z',
+    revokedAt: null,
+    safeRevocationReasonCode: null,
+    version: 1,
+    canDownload: true,
+  },
+};
+const revokedStatus: CertificateStatus = {
+  ...issuedStatus,
+  status: 'REVOKED',
+  certificate: {
+    ...issuedStatus.certificate!,
+    status: 'REVOKED',
+    revokedAt: '2026-07-29T10:05:00.000Z',
+    safeRevocationReasonCode: 'ADMINISTRATIVE_ERROR',
+    version: 2,
+    canDownload: false,
+  },
+};
 
 const originalAdapter = apiClient.defaults.adapter;
 let requests: InternalAxiosRequestConfig[] = [];
@@ -94,6 +124,45 @@ describe('certificate eligibility API and query isolation', () => {
     ]);
   });
 
+  it('uses only the existing scope-specific private download routes', async () => {
+    const content = new Blob(['certificate'], { type: 'application/pdf' });
+    apiClient.defaults.adapter = async (config) => {
+      requests.push(config);
+      return {
+        data: content,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      };
+    };
+
+    await expect(
+      certificateEligibilityApi.downloadCertificate(issuedStatus.certificate!.certificateId, {
+        kind: 'self',
+      }),
+    ).resolves.toBe(content);
+    await certificateEligibilityApi.downloadCertificate(issuedStatus.certificate!.certificateId, {
+      kind: 'course',
+      courseId,
+    });
+
+    expect(
+      requests.map(({ method, url, responseType }) => ({ method, url, responseType })),
+    ).toEqual([
+      {
+        method: 'get',
+        url: `/me/certificates/${issuedStatus.certificate!.certificateId}/download`,
+        responseType: 'blob',
+      },
+      {
+        method: 'get',
+        url: `/courses/${courseId}/certificates/${issuedStatus.certificate!.certificateId}/download`,
+        responseType: 'blob',
+      },
+    ]);
+  });
+
   it('separates self and course-scoped cache entries', () => {
     expect(certificateEligibilityQueryKeys.eligibility({ kind: 'self' }, enrollmentId)).not.toEqual(
       certificateEligibilityQueryKeys.eligibility({ kind: 'course', courseId }, enrollmentId),
@@ -105,6 +174,18 @@ describe('certificate eligibility API and query isolation', () => {
 });
 
 describe('CertificateEligibilityPanel', () => {
+  it('keeps the download component inert when the server capability is false', () => {
+    const markup = renderToStaticMarkup(
+      <CertificateDownloadButton
+        certificate={revokedStatus.certificate!}
+        scope={{ kind: 'self' }}
+      />,
+    );
+
+    expect(markup).toBe('');
+    expect(requests).toHaveLength(0);
+  });
+
   it('renders authoritative eligible and NOT_ISSUED read-only states accessibly', () => {
     const client = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, retry: false } },
@@ -166,6 +247,61 @@ describe('CertificateEligibilityPanel', () => {
     );
     expect(markup).toContain('Kurs hali yakunlanmagan');
     expect(markup).toContain('50%');
+  });
+
+  it('renders an ISSUED safe summary and the server-authorized download action', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    const scope = { kind: 'self' as const };
+    client.setQueryData(
+      certificateEligibilityQueryKeys.eligibility(scope, enrollmentId),
+      eligibility,
+    );
+    client.setQueryData(
+      certificateEligibilityQueryKeys.certificateStatus(scope, enrollmentId),
+      issuedStatus,
+    );
+
+    const markup = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <CertificateEligibilityPanel enrollmentId={enrollmentId} scope={scope} />
+      </QueryClientProvider>,
+    );
+
+    expect(markup).toContain('Sertifikat berilgan');
+    expect(markup).toContain('TTL-2026-0000000001');
+    expect(markup).toContain('Sertifikatni yuklab olish');
+    expect(markup).toContain('<button');
+    expect(markup).not.toMatch(/verificationToken|storageKey|artifactId|rendererMetadata/iu);
+    expect(markup).not.toContain('Sertifikatni bekor qilish');
+  });
+
+  it('renders REVOKED from the server without a download or lifecycle mutation control', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    const scope = { kind: 'self' as const };
+    client.setQueryData(
+      certificateEligibilityQueryKeys.eligibility(scope, enrollmentId),
+      eligibility,
+    );
+    client.setQueryData(
+      certificateEligibilityQueryKeys.certificateStatus(scope, enrollmentId),
+      revokedStatus,
+    );
+
+    const markup = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <CertificateEligibilityPanel enrollmentId={enrollmentId} scope={scope} />
+      </QueryClientProvider>,
+    );
+
+    expect(markup).toContain('Sertifikat bekor qilingan');
+    expect(markup).toContain('TTL-2026-0000000001');
+    expect(markup).not.toContain('Sertifikatni yuklab olish');
+    expect(markup).not.toContain('<button');
+    expect(markup).not.toMatch(/verificationToken|storageKey|artifactId|rendererMetadata/iu);
   });
 
   it('renders an accessible loading state while read contracts are pending', () => {

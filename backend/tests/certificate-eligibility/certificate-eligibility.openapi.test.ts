@@ -90,4 +90,42 @@ describe('Certificate eligibility and lifecycle OpenAPI runtime markers', () => 
     expect(courseScopeResponse).toContain('code: ACCESS_DENIED');
     expect(courseScopeResponse).toContain('code: COURSE_SCOPE_DENIED');
   });
+
+  it('aligns certificate-status lifecycle summaries with the safe runtime projection', async () => {
+    const contract = await readFile(contractPath, 'utf8');
+    const reference = contract.slice(
+      contract.indexOf('    CertificateReference:'),
+      contract.indexOf('    EnrollmentCertificateStatus:'),
+    );
+    const status = contract.slice(
+      contract.indexOf('    CertificateLifecycleStatus:'),
+      contract.indexOf('    PersistedCertificateLifecycleStatus:'),
+    );
+
+    expect(status).toContain('enum: [NOT_ISSUED, ISSUED, REVOKED]');
+    for (const field of [
+      'id',
+      'certificateId',
+      'certificateNumber',
+      'status',
+      'issuedAt',
+      'revokedAt',
+      'safeRevocationReasonCode',
+      'version',
+      'canDownload',
+    ]) {
+      expect(reference).toContain(`${field}:`);
+    }
+    for (const privateField of [
+      'verificationToken',
+      'verificationTokenHash',
+      'storageKey',
+      'artifactId',
+      'rendererIdentifier',
+      'revocationReasonNote',
+      'stepUpProof',
+    ]) {
+      expect(reference).not.toContain(`${privateField}:`);
+    }
+  });
 });

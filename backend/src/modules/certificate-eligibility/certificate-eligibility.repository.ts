@@ -75,6 +75,18 @@ const eligibilityEnrollmentSelect = {
       reasons: { select: { code: true }, orderBy: { code: 'asc' as const } },
     },
   },
+  certificate: {
+    select: {
+      id: true,
+      certificateNumber: true,
+      status: true,
+      version: true,
+      issuedAt: true,
+      revokedAt: true,
+      revocationReasonCode: true,
+      artifact: { select: { id: true } },
+    },
+  },
 } satisfies Prisma.CourseEnrollmentSelect;
 
 function auditFields(context: CertificateEligibilityAuditContext) {
