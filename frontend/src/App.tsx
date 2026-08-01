@@ -29,7 +29,9 @@ const ProgressReportingDetailPage = lazy(
   () => import('./features/progress-reporting/pages/ProgressReportingDetailPage'),
 );
 const LoginPage = lazy(() => import('./features/auth/pages/LoginPage'));
-const TeacherHomePage = lazy(() => import('./features/auth/pages/TeacherHomePage'));
+const TeacherDashboardPage = lazy(
+  () => import('./features/teacher-dashboard/pages/TeacherDashboardPage'),
+);
 
 function App() {
   return (
@@ -46,8 +48,17 @@ function App() {
           <Route path={authPaths.login} element={<LoginPage />} />
         </Route>
         <Route element={<RequireAuthentication />}>
-          <Route element={<RequireAuthorization permissions={[]} roles={['TEACHER']} />}>
-            <Route path={authPaths.teacherHome} element={<TeacherHomePage />} />
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={['courses.read', 'progress.course.read']}
+                roles={['TEACHER']}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={authPaths.teacherHome} element={<TeacherDashboardPage />} />
+            </Route>
           </Route>
           <Route
             element={

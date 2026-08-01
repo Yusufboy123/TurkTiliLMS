@@ -6,3 +6,4 @@ export type {
   Pagination,
   SuccessEnvelope,
 } from './types/progress.types';
+export { ProgressActionLink, ProgressBar, ProgressEmptyState } from './components';

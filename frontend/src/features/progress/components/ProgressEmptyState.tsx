@@ -2,10 +2,15 @@ import { Card } from '../../../components';
 
 interface ProgressEmptyStateProps {
   body: string;
+  headingLevel?: 'h2' | 'h3';
   title: string;
 }
 
-export function ProgressEmptyState({ body, title }: ProgressEmptyStateProps) {
+export function ProgressEmptyState({
+  body,
+  headingLevel: Heading = 'h2',
+  title,
+}: ProgressEmptyStateProps) {
   return (
     <Card className="py-10 text-center" elevation="none">
       <div
@@ -14,7 +19,7 @@ export function ProgressEmptyState({ body, title }: ProgressEmptyStateProps) {
       >
         0
       </div>
-      <h2 className="type-heading-4 mt-4">{title}</h2>
+      <Heading className="type-heading-4 mt-4">{title}</Heading>
       <p className="mx-auto mt-2 max-w-reading text-body-sm text-text-secondary">{body}</p>
     </Card>
   );

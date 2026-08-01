@@ -1,11 +1,12 @@
 import { boundedPercentage } from '../utils/progress-format';
 
 interface ProgressBarProps {
+  ariaLabel?: string;
   label: string;
   value: number;
 }
 
-export function ProgressBar({ label, value }: ProgressBarProps) {
+export function ProgressBar({ ariaLabel, label, value }: ProgressBarProps) {
   const percentage = boundedPercentage(value);
 
   return (
@@ -15,7 +16,7 @@ export function ProgressBar({ label, value }: ProgressBarProps) {
         <span className="text-text-primary">{percentage}%</span>
       </div>
       <progress
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         className="h-2 w-full overflow-hidden rounded-full accent-action-primary-bg"
         max={100}
         value={percentage}

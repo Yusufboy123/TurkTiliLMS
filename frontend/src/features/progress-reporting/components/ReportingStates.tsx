@@ -19,14 +19,22 @@ export function ReportingEmptyState() {
   );
 }
 
-export function ReportingError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+export function ReportingError({
+  error,
+  headingLevel: Heading = 'h1',
+  onRetry,
+}: {
+  error: unknown;
+  headingLevel?: 'h1' | 'h2' | 'h3';
+  onRetry: () => void;
+}) {
   if (axios.isAxiosError(error) && error.response?.status === 403) {
     return <PermissionDeniedState contained />;
   }
   const safeError = toProgressClientError(error);
   return (
     <Card className="border-danger-border bg-danger-bg" role="alert">
-      <h1 className="type-heading-3 text-danger-text">{progressMessages.errors.title}</h1>
+      <Heading className="type-heading-3 text-danger-text">{progressMessages.errors.title}</Heading>
       <p className="mt-2 text-body-sm text-danger-text">{safeError.message}</p>
       <Button className="mt-4" intent="secondary" onClick={onRetry}>
         {progressReportingMessages.common.retry}

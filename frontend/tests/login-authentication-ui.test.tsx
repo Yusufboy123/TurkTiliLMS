@@ -32,7 +32,6 @@ import type {
 } from '../src/features/auth/types/auth.types';
 import { authMessages } from '../src/locales/uz-Latn/auth';
 import LoginPage from '../src/features/auth/pages/LoginPage';
-import TeacherHomePage from '../src/features/auth/pages/TeacherHomePage';
 
 type MemoryRouterEntry = NonNullable<ComponentProps<typeof MemoryRouter>['initialEntries']>[number];
 
@@ -311,21 +310,6 @@ describe('authentication routing and session lifecycle', () => {
     );
 
     expect(markup).not.toContain(authMessages.session.signedOut);
-  });
-
-  it('keeps the teacher destination an explicitly limited localized landing page', () => {
-    const store = createAuthSessionStore();
-    store.establish(sessionResult(['TEACHER'], []));
-    const controller = createAuthSessionController(fakeApi(), store);
-    const markup = renderRoute(
-      store,
-      controller,
-      '/teacher',
-      <Route path="/teacher" element={<TeacherHomePage />} />,
-    );
-
-    expect(markup).toContain(authMessages.teacherHome.title);
-    expect(markup).toContain(authMessages.teacherHome.description);
   });
 
   it('establishes a session after successful login and clears it on logout-all', async () => {

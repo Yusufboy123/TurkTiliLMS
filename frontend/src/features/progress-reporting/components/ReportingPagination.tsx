@@ -3,17 +3,19 @@ import { progressReportingMessages } from '../../../locales/uz-Latn/progress-rep
 import type { Pagination } from '../../progress';
 
 interface ReportingPaginationProps {
+  ariaLabel?: string;
   pagination: Pagination;
   onPageChange: (page: number) => void;
 }
 
-export function ReportingPagination({ pagination, onPageChange }: ReportingPaginationProps) {
+export function ReportingPagination({
+  ariaLabel = progressReportingMessages.table.caption,
+  pagination,
+  onPageChange,
+}: ReportingPaginationProps) {
   if (pagination.totalPages <= 1) return null;
   return (
-    <nav
-      aria-label={progressReportingMessages.table.caption}
-      className="mt-6 flex flex-wrap items-center justify-between gap-3"
-    >
+    <nav aria-label={ariaLabel} className="mt-6 flex flex-wrap items-center justify-between gap-3">
       <Button
         disabled={pagination.page <= 1}
         intent="secondary"

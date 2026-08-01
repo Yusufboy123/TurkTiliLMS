@@ -40,9 +40,4 @@ export const authMessages = {
     logout: 'Chiqish',
     logoutAll: 'Barcha qurilmalardan chiqish',
   },
-  teacherHome: {
-    title: 'O‘qituvchi bosh sahifasi',
-    description:
-      'Bu autentifikatsiyadan keyingi boshlang‘ich sahifa. Kurs jarayoni hisobotini ko‘rish uchun tegishli kurs sahifasini oching.',
-  },
 } as const;
