@@ -1,8 +1,13 @@
 export { BlockStatusIndicator } from './BlockStatusIndicator';
 export { CompletedCourseCard } from './CompletedCourseCard';
+export {
+  DashboardCertificateStatusView,
+  DashboardCompletedCourseCard,
+} from './DashboardCompletedCourseCard';
 export { LessonProgressCard } from './LessonProgressCard';
 export { LessonStatusBadge } from './LessonStatusBadge';
 export { ProgressBar } from './ProgressBar';
+export { ProgressActionLink } from './ProgressActionLink';
 export { ProgressCard } from './ProgressCard';
 export { ProgressEmptyState } from './ProgressEmptyState';
 export { ProgressError } from './ProgressError';

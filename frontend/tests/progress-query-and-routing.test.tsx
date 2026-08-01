@@ -21,6 +21,24 @@ describe('progress React Query integration', () => {
     expect(enrollmentProgressQueryOptions('').enabled).toBe(false);
   });
 
+  it('invalidates every active-limit variant through the shared summary root', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    const overviewKey = progressQueryKeys.summary(5);
+    const dashboardKey = progressQueryKeys.summary(6);
+    client.setQueryData(overviewKey, { source: 'overview' });
+    client.setQueryData(dashboardKey, { source: 'dashboard' });
+
+    await client.invalidateQueries({
+      queryKey: progressQueryKeys.summaryRoot(),
+      refetchType: 'none',
+    });
+
+    expect(client.getQueryState(overviewKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(dashboardKey)?.isInvalidated).toBe(true);
+  });
+
   it('renders a query hook from shared cache', () => {
     const client = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, retry: false } },

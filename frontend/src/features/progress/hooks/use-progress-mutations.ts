@@ -86,7 +86,7 @@ export function useProgressMutations() {
   const refreshEnrollment = async (enrollmentId: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: progressQueryKeys.enrollmentRoot(enrollmentId) }),
-      queryClient.invalidateQueries({ queryKey: progressQueryKeys.summary(5) }),
+      queryClient.invalidateQueries({ queryKey: progressQueryKeys.summaryRoot() }),
       queryClient.invalidateQueries({ queryKey: progressQueryKeys.completedRoot() }),
     ]);
   };

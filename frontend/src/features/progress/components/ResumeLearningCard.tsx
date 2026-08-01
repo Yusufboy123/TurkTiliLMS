@@ -1,9 +1,9 @@
-import { Link } from 'react-router-dom';
 import { Card } from '../../../components';
 import { progressMessages } from '../../../locales/uz-Latn/progress';
 import type { ResumeLearning } from '../types/progress.types';
 import { progressPaths } from '../progress.routes';
 import { formatProgressDate } from '../utils/progress-format';
+import { ProgressActionLink } from './ProgressActionLink';
 import { ProgressBar } from './ProgressBar';
 
 export function ResumeLearningCard({ resume }: { resume: ResumeLearning }) {
@@ -23,12 +23,12 @@ export function ResumeLearningCard({ resume }: { resume: ResumeLearning }) {
       <p className="mt-3 text-caption text-text-muted">
         {progressMessages.common.updated}: {formatProgressDate(resume.lastActivityAt)}
       </p>
-      <Link
-        className="mt-5 inline-flex min-h-target items-center rounded-md bg-action-primary-bg px-4 py-3 text-button text-action-primary-text no-underline visited:text-action-primary-text hover:bg-action-primary-hover-bg"
+      <ProgressActionLink
+        className="mt-5"
         to={progressPaths.lesson(resume.enrollmentId, resume.lesson.id)}
       >
         {progressMessages.resume.action}
-      </Link>
+      </ProgressActionLink>
     </Card>
   );
 }
