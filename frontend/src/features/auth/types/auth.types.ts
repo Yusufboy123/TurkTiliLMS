@@ -13,7 +13,6 @@ export interface AuthUser {
 
 export interface AuthenticationResult {
   accessToken: string;
-  refreshToken: string;
   user: AuthUser;
   roles: RoleCode[];
   permissions: string[];
@@ -50,7 +49,7 @@ export interface SuccessEnvelope<T> {
 
 export interface AuthApi {
   login(input: LoginInput): Promise<AuthenticationResult>;
-  refresh(refreshToken: string): Promise<AuthenticationResult>;
+  refresh(): Promise<AuthenticationResult>;
   logout(): Promise<void>;
   logoutAll(): Promise<void>;
 }

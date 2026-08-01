@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Authentication API
+  version: 1.0.0
+  description: |
+    Authentication and secure browser-session transport contract.
+    Browser requests use `X-Auth-Transport: cookie`, credentialed CORS, and
+    the HttpOnly refresh cookie. Native and trusted API clients may continue
+    using the explicit JSON refresh-token body.
+servers:
+  - url: http://localhost:5000/api/v1
+tags:
+  - name: Authentication
+
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Authenticate and create a refresh session
+      description: |
+        Browser clients send `X-Auth-Transport: cookie`, `clientType: WEB`,
+        credentials, and an approved Origin. The response sets the refresh
+        credential as an HttpOnly cookie and omits it from JSON. Requests
+        without the transport header and without browser Origin/Referer context
+        retain the legacy JSON token response. Browser-context requests cannot
+        omit the transport header to downgrade to a JSON refresh token.
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication succeeded
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshSetCookie'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/BrowserAuthenticationEnvelope'
+                  - $ref: '#/components/schemas/LegacyAuthenticationEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidAuthTransport'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '403':
+          $ref: '#/components/responses/UntrustedOrigin'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      operationId: refreshSession
+      summary: Rotate a refresh session and obtain a new access token
+      description: |
+        Browser clients send the HttpOnly cookie, an approved Origin, and
+        `X-Auth-Transport: cookie`; they send no body token. The rotated cookie
+        retains the server session's absolute expiration. Legacy clients send
+        `refreshToken` in JSON and no ambient refresh cookie. Mixed cookie/body
+        credentials are rejected rather than assigned precedence.
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyRefreshRequest'
+      responses:
+        '200':
+          description: Refresh session rotated
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshSetCookie'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/BrowserAuthenticationEnvelope'
+                  - $ref: '#/components/schemas/LegacyAuthenticationEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidOrAmbiguousAuthTransport'
+        '401':
+          $ref: '#/components/responses/InvalidRefreshToken'
+        '403':
+          $ref: '#/components/responses/UntrustedOrigin'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Revoke the current session
+      description: |
+        Cookie transport resolves the current refresh session from the
+        HttpOnly cookie and is idempotent when the cookie is absent or stale.
+        It always clears the browser cookie. Legacy transport requires bearer
+        authentication and revokes the access token's session.
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
+      security:
+        - bearerAuth: []
+        - refreshCookie: []
+      responses:
+        '200':
+          description: Current session is closed
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshClearCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidOrAmbiguousAuthTransport'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/UntrustedOrigin'
+
+  /auth/logout-all:
+    post:
+      tags: [Authentication]
+      operationId: logoutAll
+      summary: Revoke every session for the authenticated user
+      description: |
+        A valid bearer access token is mandatory. Cookie-mode browser requests
+        additionally clear the current browser refresh cookie.
+      parameters:
+        - $ref: '#/components/parameters/AuthTransport'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All user sessions are closed
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/RefreshClearCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidAuthTransport'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/UntrustedOrigin'
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentUser
+      summary: Return the current authenticated identity
+      description: |
+        Requires a short-lived bearer access token. A refresh cookie alone
+        never grants access to identity data.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserEnvelope'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: turk_tili_refresh
+      description: |
+        Logical default cookie name. Deployments use the validated
+        AUTH_REFRESH_COOKIE_NAME configuration.
+
+  parameters:
+    AuthTransport:
+      name: X-Auth-Transport
+      in: header
+      required: false
+      description: |
+        Send `cookie` for browser HttpOnly-cookie transport. Omit only for the
+        legacy body-token API transport when no browser Origin or Referer is
+        present.
+      schema:
+        type: string
+        enum: [cookie]
+
+  headers:
+    NoStore:
+      description: Authentication responses are not cacheable.
+      schema:
+        type: string
+        const: no-store
+    RefreshSetCookie:
+      description: |
+        Browser transport only. HttpOnly; Secure in production; SameSite=Lax
+        by default; Path=/api/v1/auth; host-only; Max-Age and Expires aligned
+        to the server refresh-session expiration.
+      schema:
+        type: string
+    RefreshClearCookie:
+      description: |
+        Browser transport only. Clears the configured refresh cookie using the
+        same Path, HttpOnly, Secure, and SameSite attributes.
+      schema:
+        type: string
+
+  schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+        clientType:
+          type: string
+          enum: [WEB, ANDROID, IOS, TELEGRAM, OTHER]
+          default: WEB
+        deviceName:
+          type: string
+          minLength: 1
+          maxLength: 160
+
+    LegacyRefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, firstName, lastName, status, lastLoginAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, DEACTIVATED, DELETED]
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+
+    AuthenticationData:
+      type: object
+      additionalProperties: false
+      required: [accessToken, user, roles, permissions]
+      properties:
+        accessToken:
+          type: string
+          description: Short-lived access token; browser clients retain it in memory only.
+        user:
+          $ref: '#/components/schemas/User'
+        roles:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [ADMIN, TEACHER, STUDENT]
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+
+    LegacyAuthenticationData:
+      allOf:
+        - $ref: '#/components/schemas/AuthenticationData'
+        - type: object
+          required: [refreshToken]
+          properties:
+            refreshToken:
+              type: string
+              minLength: 32
+              writeOnly: true
+
+    BrowserAuthenticationEnvelope:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AuthenticationData'
+
+    LegacyAuthenticationEnvelope:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LegacyAuthenticationData'
+
+    CurrentUserData:
+      type: object
+      additionalProperties: false
+      required: [user, roles, permissions]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [ADMIN, TEACHER, STUDENT]
+        permissions:
+          type: array
+          items:
+            type: string
+
+    CurrentUserEnvelope:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CurrentUserData'
+
+    MessageEnvelope:
+      type: object
+      additionalProperties: false
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: true
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          type: string
+          enum:
+            - INVALID_CREDENTIALS
+            - INVALID_REFRESH_TOKEN
+            - INVALID_AUTH_TRANSPORT
+            - AMBIGUOUS_REFRESH_TRANSPORT
+            - AUTHENTICATION_REQUIRED
+            - INVALID_ACCESS_TOKEN
+            - UNTRUSTED_ORIGIN
+            - VALIDATION_ERROR
+            - RATE_LIMIT_EXCEEDED
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+  responses:
+    InvalidCredentials:
+      description: Credentials are invalid or the account cannot authenticate
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: INVALID_CREDENTIALS
+            message: Email yoki parol noto‘g‘ri.
+
+    InvalidRefreshToken:
+      description: Refresh credential is missing, invalid, expired, revoked, or reused
+      headers:
+        Set-Cookie:
+          $ref: '#/components/headers/RefreshClearCookie'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: INVALID_REFRESH_TOKEN
+            message: Sessiyani yangilash ma’lumoti yaroqsiz.
+
+    InvalidAuthTransport:
+      description: Authentication transport header is unsupported
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: INVALID_AUTH_TRANSPORT
+            message: Autentifikatsiya transporti qo‘llab-quvvatlanmaydi.
+
+    InvalidOrAmbiguousAuthTransport:
+      description: Authentication transport is invalid or carries conflicting credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            ambiguous:
+              value:
+                success: false
+                code: AMBIGUOUS_REFRESH_TRANSPORT
+                message: Refresh token faqat bitta transport orqali yuborilishi kerak.
+            unsupported:
+              value:
+                success: false
+                code: INVALID_AUTH_TRANSPORT
+                message: Autentifikatsiya transporti qo‘llab-quvvatlanmaydi.
+
+    AuthenticationRequired:
+      description: Bearer authentication is absent or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            missing:
+              value:
+                success: false
+                code: AUTHENTICATION_REQUIRED
+                message: Davom etish uchun tizimga kirish talab qilinadi.
+            invalid:
+              value:
+                success: false
+                code: INVALID_ACCESS_TOKEN
+                message: Kirish sessiyasi yaroqsiz yoki muddati tugagan.
+
+    UntrustedOrigin:
+      description: Browser request did not originate from the configured frontend
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            code: UNTRUSTED_ORIGIN
+            message: So‘rov yuborilgan manbaga ruxsat berilmagan.
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+    RateLimited:
+      description: Authentication request rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

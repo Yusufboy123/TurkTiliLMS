@@ -22,6 +22,13 @@ import {
   TEST_USER_ID,
 } from '../helpers/auth-fakes.js';
 
+const browserSessionConfiguration = {
+  cookieName: 'test_refresh',
+  cookiePath: '/api/v1/auth',
+  cookieSameSite: 'lax' as const,
+  cookieSecure: false,
+};
+
 class FakeAuthorizationRepository implements AuthorizationRepository {
   principal: AuthenticatedPrincipal | null = {
     userId: TEST_USER_ID,
@@ -66,7 +73,7 @@ function createTestApp(
   app.use(
     '/api/v1/auth',
     createAuthRouter({
-      controller: new AuthController(service),
+      controller: new AuthController(service, browserSessionConfiguration),
       authenticationMiddleware,
     }),
   );
@@ -109,6 +116,22 @@ describe('authentication and authorization HTTP behavior', () => {
 
     expect(response.status).toBe(401);
     expect(response.body.code).toBe('INVALID_ACCESS_TOKEN');
+  });
+
+  it('does not allow a refresh cookie to authenticate /me or logout-all', async () => {
+    const app = createTestApp(new FakeAccessTokenService(), authorizationRepository);
+    const cookieOnlyMe = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Cookie', 'test_refresh=cookie-only-credential');
+    const cookieOnlyLogoutAll = await request(app)
+      .post('/api/v1/auth/logout-all')
+      .set('X-Auth-Transport', 'cookie')
+      .set('Cookie', 'test_refresh=cookie-only-credential');
+
+    expect(cookieOnlyMe.status).toBe(401);
+    expect(cookieOnlyMe.body.code).toBe('AUTHENTICATION_REQUIRED');
+    expect(cookieOnlyLogoutAll.status).toBe(401);
+    expect(cookieOnlyLogoutAll.body.code).toBe('AUTHENTICATION_REQUIRED');
   });
 
   it('rejects an authenticated principal without the required permission', async () => {

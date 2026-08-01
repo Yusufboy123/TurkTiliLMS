@@ -27,6 +27,7 @@ export interface AuthSessionRecord {
 export interface AuthenticationResult {
   accessToken: string;
   refreshToken: string;
+  refreshTokenExpiresAt: Date;
   user: SafeUserProfile;
   roles: RoleCode[];
   permissions: string[];

@@ -9,6 +9,7 @@ describe('production error responses', () => {
 
   it('hides stack traces, exception messages, and absolute paths', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('FRONTEND_URL', 'https://learn.example.com');
     vi.resetModules();
     const { errorHandler } = await import('../../src/middlewares/error-handler.middleware.js');
     const app = express();

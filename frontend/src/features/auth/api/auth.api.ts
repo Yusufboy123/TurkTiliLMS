@@ -3,6 +3,11 @@ import type { AuthApi, AuthenticationResult, AuthUser, RoleCode } from '../types
 
 const roleCodes = new Set<RoleCode>(['ADMIN', 'TEACHER', 'STUDENT']);
 const userStatuses = new Set<AuthUser['status']>(['ACTIVE', 'SUSPENDED', 'DEACTIVATED', 'DELETED']);
+const browserTransportConfiguration = {
+  headers: { 'X-Auth-Transport': 'cookie' },
+  skipAuthHeader: true,
+  skipAuthRefresh: true,
+} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -28,8 +33,6 @@ function parseAuthenticationResult(envelope: unknown): AuthenticationResult {
   const valid =
     typeof data.accessToken === 'string' &&
     data.accessToken.length > 0 &&
-    typeof data.refreshToken === 'string' &&
-    data.refreshToken.length >= 32 &&
     typeof user.id === 'string' &&
     typeof user.email === 'string' &&
     isNullableString(user.firstName) &&
@@ -48,7 +51,6 @@ function parseAuthenticationResult(envelope: unknown): AuthenticationResult {
 
   return {
     accessToken: data.accessToken as string,
-    refreshToken: data.refreshToken as string,
     user: {
       id: user.id as string,
       email: user.email as string,
@@ -71,30 +73,32 @@ export const authApi: AuthApi = {
         clientType: input.clientType ?? 'WEB',
       },
       {
-        skipAuthHeader: true,
-        skipAuthRefresh: true,
+        ...browserTransportConfiguration,
       },
     );
     return parseAuthenticationResult(response.data);
   },
 
-  async refresh(refreshToken) {
+  async refresh() {
     const response = await apiClient.post<unknown>(
       '/auth/refresh',
-      { refreshToken },
-      {
-        skipAuthHeader: true,
-        skipAuthRefresh: true,
-      },
+      undefined,
+      browserTransportConfiguration,
     );
     return parseAuthenticationResult(response.data);
   },
 
   async logout() {
-    await apiClient.post('/auth/logout');
+    await apiClient.post('/auth/logout', undefined, {
+      headers: browserTransportConfiguration.headers,
+      skipAuthRefresh: true,
+    });
   },
 
   async logoutAll() {
-    await apiClient.post('/auth/logout-all');
+    await apiClient.post('/auth/logout-all', undefined, {
+      headers: browserTransportConfiguration.headers,
+      skipAuthRefresh: true,
+    });
   },
 };

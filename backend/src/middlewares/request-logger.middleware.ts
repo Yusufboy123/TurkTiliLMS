@@ -1,4 +1,5 @@
-import { pinoHttp, stdSerializers } from 'pino-http';
+import { pinoHttp, stdSerializers, type Options } from 'pino-http';
+import type { DestinationStream } from 'pino';
 import { environment } from '../config/environment.js';
 
 const publicVerificationPathPattern = /(\/api\/v1\/public\/certificates\/verify\/)[^/?#]+/giu;
@@ -7,7 +8,7 @@ export function redactSensitiveRequestUrl(url: string): string {
   return url.replace(publicVerificationPathPattern, '$1[REDACTED]');
 }
 
-export const requestLogger = pinoHttp({
+const requestLoggerOptions: Options = {
   level: environment.NODE_ENV === 'production' ? 'info' : 'debug',
   redact: {
     paths: ['req.headers.authorization', 'req.headers.cookie'],
@@ -25,4 +26,10 @@ export const requestLogger = pinoHttp({
       };
     },
   },
-});
+};
+
+export function createRequestLogger(destination?: DestinationStream) {
+  return pinoHttp(requestLoggerOptions, destination);
+}
+
+export const requestLogger = createRequestLogger();

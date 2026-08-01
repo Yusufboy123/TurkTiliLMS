@@ -655,6 +655,19 @@ The identity module should support:
 Telegram authentication should use a separate identity-linking flow rather
 than treating a Telegram username as proof of platform identity.
 
+### 7.4 Secure browser-session transport
+
+The implemented web transport keeps access tokens in frontend memory and
+stores browser refresh credentials only in a scoped `HttpOnly` cookie.
+Cookie-mode authentication is explicitly selected, protected by exact-origin
+CORS and trusted `Origin`/`Referer` validation, and never mixed with the legacy
+JSON body-token transport. Refresh rotation, reuse detection, session-family
+revocation, and hashed database storage remain authoritative backend rules.
+
+The complete cookie, CORS, CSRF, compatibility, deployment, and restoration
+contract is defined in
+[Secure Browser Session Transport](./SECURE_BROWSER_SESSION_TRANSPORT.md).
+
 ---
 
 ## 8. Authorization and RBAC

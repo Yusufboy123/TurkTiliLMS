@@ -46,6 +46,14 @@ Copy-Item frontend/.env.example frontend/.env
 Update `backend/.env` with your local PostgreSQL connection string. Environment
 files are ignored by Git; never commit real passwords or secrets.
 
+Browser authentication uses an `HttpOnly` refresh cookie. For local HTTP
+development, keep `FRONTEND_URL=http://localhost:5173` and
+`AUTH_REFRESH_COOKIE_SECURE=false`. Production must use the exact approved
+HTTPS frontend origin and `AUTH_REFRESH_COOKIE_SECURE=true`; environment
+validation rejects an insecure production cookie. See
+[Secure Browser Session Transport](docs/SECURE_BROWSER_SESSION_TRANSPORT.md)
+for the cookie, CORS, CSRF, rotation, and deployment contract.
+
 ## Installation
 
 After creating the environment files, run this command from the `TurkTiliLMS`

@@ -6,7 +6,6 @@ import { apiClient } from '../src/lib/api-client';
 const originalAdapter = apiClient.defaults.adapter;
 const session = {
   accessToken: 'access-token',
-  refreshToken: 'refresh-token-with-sufficient-length',
   user: {
     id: '019c0000-0000-7000-8000-000000000001',
     email: 'student@turktili.local',
@@ -45,7 +44,7 @@ describe('authentication API contract', () => {
       email: 'student@turktili.local',
       password: 'Student123!',
     });
-    await authApi.refresh('refresh-token-with-sufficient-length');
+    await authApi.refresh();
     await authApi.logout();
     await authApi.logoutAll();
 
@@ -59,6 +58,9 @@ describe('authentication API contract', () => {
     expect(requests[0].skipAuthRefresh).toBe(true);
     expect(requests[1].skipAuthHeader).toBe(true);
     expect(requests[1].skipAuthRefresh).toBe(true);
+    expect(requests.every((item) => item.withCredentials)).toBe(true);
+    expect(requests.every((item) => item.headers.get('X-Auth-Transport') === 'cookie')).toBe(true);
+    expect(requests[1].data).toBeUndefined();
   });
 
   it('rejects a malformed authentication response at the API boundary', async () => {

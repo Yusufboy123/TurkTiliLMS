@@ -182,6 +182,28 @@ export class FakeAuthRepository implements AuthRepository {
     return Promise.resolve(this.sessions.get(refreshTokenHash) ?? null);
   }
 
+  revokeSessionFamilyByRefreshTokenHash(
+    refreshTokenHash: string,
+    _metadata: RequestMetadata,
+  ): Promise<void> {
+    const session = [...this.sessions.values()].find(
+      (candidate) => candidate.refreshTokenHash === refreshTokenHash,
+    );
+    if (!session) return Promise.resolve();
+
+    for (const candidate of this.sessions.values()) {
+      if (
+        candidate.userId === session.userId &&
+        candidate.tokenFamilyId === session.tokenFamilyId &&
+        candidate.revokedAt === null
+      ) {
+        candidate.revokedAt = new Date();
+      }
+    }
+    this.logoutCalls += 1;
+    return Promise.resolve();
+  }
+
   rotateSession(input: {
     session: SessionForRefresh;
     refreshTokenHash: string;

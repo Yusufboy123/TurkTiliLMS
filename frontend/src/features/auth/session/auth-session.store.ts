@@ -4,7 +4,6 @@ export interface AuthSessionStore {
   clear(): void;
   establish(result: AuthenticationResult): void;
   getAccessToken(): string | null;
-  getRefreshToken(): string | null;
   getSnapshot(): AuthSessionSnapshot;
   subscribe(listener: () => void): () => void;
 }
@@ -23,9 +22,17 @@ const unauthenticatedSnapshot: AuthSessionSnapshot = {
   permissions: [],
 };
 
+export function didAuthenticatedIdentityChange(
+  previous: AuthSessionSnapshot,
+  current: AuthSessionSnapshot,
+): boolean {
+  if (previous.status !== 'authenticated') return false;
+  if (current.status === 'unauthenticated') return true;
+  return current.status === 'authenticated' && current.user.id !== previous.user.id;
+}
+
 export function createAuthSessionStore(): AuthSessionStore {
   let accessToken: string | null = null;
-  let refreshToken: string | null = null;
   let snapshot = bootstrappingSnapshot;
   const listeners = new Set<() => void>();
 
@@ -37,13 +44,11 @@ export function createAuthSessionStore(): AuthSessionStore {
   return {
     clear() {
       accessToken = null;
-      refreshToken = null;
       publish(unauthenticatedSnapshot);
     },
 
     establish(result) {
       accessToken = result.accessToken;
-      refreshToken = result.refreshToken;
       publish({
         status: 'authenticated',
         user: result.user,
@@ -54,10 +59,6 @@ export function createAuthSessionStore(): AuthSessionStore {
 
     getAccessToken() {
       return accessToken;
-    },
-
-    getRefreshToken() {
-      return refreshToken;
     },
 
     getSnapshot() {

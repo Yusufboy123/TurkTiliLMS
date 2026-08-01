@@ -3,6 +3,7 @@ import { environment } from '../../config/environment.js';
 import { PrismaUserRepository } from '../users/user.repository.js';
 import { PrismaAuthRepository } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
+import type { BrowserSessionConfiguration } from './browser-session-transport.js';
 import { BcryptPasswordService } from './password.service.js';
 import { CryptoRefreshTokenService } from './refresh-token.service.js';
 import { JwtAccessTokenService, durationToMilliseconds } from './token.service.js';
@@ -16,6 +17,12 @@ export const accessTokenService = new JwtAccessTokenService({
 
 export const passwordService = new BcryptPasswordService(environment.BCRYPT_ROUNDS);
 export const refreshTokenService = new CryptoRefreshTokenService();
+export const browserSessionConfiguration: BrowserSessionConfiguration = {
+  cookieName: environment.AUTH_REFRESH_COOKIE_NAME,
+  cookiePath: environment.AUTH_REFRESH_COOKIE_PATH,
+  cookieSameSite: environment.AUTH_REFRESH_COOKIE_SAME_SITE,
+  cookieSecure: environment.AUTH_REFRESH_COOKIE_SECURE,
+};
 
 export const authenticationService = new AuthService(
   new PrismaUserRepository(),

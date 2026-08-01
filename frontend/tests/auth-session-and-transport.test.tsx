@@ -18,6 +18,7 @@ import {
 } from '../src/features/auth/session/auth-session.controller';
 import {
   createAuthSessionStore,
+  didAuthenticatedIdentityChange,
   type AuthSessionStore,
 } from '../src/features/auth/session/auth-session.store';
 import type { AuthApi, AuthenticationResult } from '../src/features/auth/types/auth.types';
@@ -25,13 +26,12 @@ import { installAuthenticationInterceptors } from '../src/lib/api-client';
 
 function sessionResult(
   accessToken = 'access-token-1',
-  refreshToken = 'refresh-token-with-sufficient-length-1',
+  userId = '019c0000-0000-7000-8000-000000000001',
 ): AuthenticationResult {
   return {
     accessToken,
-    refreshToken,
     user: {
-      id: '019c0000-0000-7000-8000-000000000001',
+      id: userId,
       email: 'student@turktili.local',
       firstName: 'Ali',
       lastName: 'Valiyev',
@@ -46,7 +46,7 @@ function sessionResult(
 function createFakeApi(overrides: Partial<AuthApi> = {}): AuthApi {
   return {
     login: vi.fn(async () => sessionResult()),
-    refresh: vi.fn(async () => sessionResult('access-token-2', 'refresh-token-2-long-enough')),
+    refresh: vi.fn(async () => sessionResult('access-token-2')),
     logout: vi.fn(async () => undefined),
     logoutAll: vi.fn(async () => undefined),
     ...overrides,
@@ -88,7 +88,7 @@ function installTestTransport(
 }
 
 describe('frontend authentication session ownership', () => {
-  it('stores login credentials only in the in-memory session store', async () => {
+  it('stores only the access token in the in-memory session store', async () => {
     const store = createAuthSessionStore();
     const controller = createAuthSessionController(createFakeApi(), store);
 
@@ -98,7 +98,6 @@ describe('frontend authentication session ownership', () => {
     });
 
     expect(store.getAccessToken()).toBe('access-token-1');
-    expect(store.getRefreshToken()).toBe('refresh-token-with-sufficient-length-1');
     expect(store.getSnapshot().status).toBe('authenticated');
   });
 
@@ -112,11 +111,10 @@ describe('frontend authentication session ownership', () => {
 
     expect(api.logout).toHaveBeenCalledOnce();
     expect(store.getAccessToken()).toBeNull();
-    expect(store.getRefreshToken()).toBeNull();
     expect(store.getSnapshot().status).toBe('unauthenticated');
   });
 
-  it('treats a full reload without a recoverable refresh credential as unauthenticated', async () => {
+  it('restores a full reload through the cookie-backed refresh API', async () => {
     const previousRuntime = createAuthSessionStore();
     previousRuntime.establish(sessionResult());
 
@@ -125,9 +123,101 @@ describe('frontend authentication session ownership', () => {
     const controller = createAuthSessionController(api, reloadedRuntime);
     await controller.bootstrap();
 
-    expect(api.refresh).not.toHaveBeenCalled();
-    expect(reloadedRuntime.getSnapshot().status).toBe('unauthenticated');
-    expect(reloadedRuntime.getAccessToken()).toBeNull();
+    expect(api.refresh).toHaveBeenCalledOnce();
+    expect(reloadedRuntime.getSnapshot().status).toBe('authenticated');
+    expect(reloadedRuntime.getAccessToken()).toBe('access-token-2');
+  });
+
+  it('settles as unauthenticated when cookie-backed bootstrap refresh fails', async () => {
+    const store = createAuthSessionStore();
+    const api = createFakeApi({
+      refresh: vi.fn(async () => Promise.reject(new Error('no browser session'))),
+    });
+    const controller = createAuthSessionController(api, store);
+
+    await controller.bootstrap();
+
+    expect(api.refresh).toHaveBeenCalledOnce();
+    expect(store.getSnapshot().status).toBe('unauthenticated');
+    expect(store.getAccessToken()).toBeNull();
+  });
+
+  it('clears local session state even when browser logout fails', async () => {
+    const store = createAuthSessionStore();
+    store.establish(sessionResult());
+    const controller = createAuthSessionController(
+      createFakeApi({
+        logout: vi.fn(async () => Promise.reject(new Error('network unavailable'))),
+      }),
+      store,
+    );
+
+    await expect(controller.logout()).rejects.toThrow('network unavailable');
+    expect(store.getSnapshot().status).toBe('unauthenticated');
+    expect(store.getAccessToken()).toBeNull();
+  });
+
+  it('serializes refresh before login so a stale refresh cannot overwrite a user switch', async () => {
+    const store = createAuthSessionStore();
+    store.establish(sessionResult('expired-user-a-token'));
+    let releaseRefresh = () => undefined;
+    const refreshGate = new Promise<void>((resolveGate) => {
+      releaseRefresh = resolveGate;
+    });
+    const api = createFakeApi({
+      refresh: vi.fn(async () => {
+        await refreshGate;
+        return sessionResult('rotated-user-a-token');
+      }),
+      login: vi.fn(async () =>
+        sessionResult('user-b-token', '019c0000-0000-7000-8000-000000000002'),
+      ),
+    });
+    const controller = createAuthSessionController(api, store);
+
+    const refresh = controller.refreshAccessToken();
+    const login = controller.login({ email: 'user-b@example.com', password: 'ValidPassword1!' });
+    await new Promise((resolveTimer) => setTimeout(resolveTimer, 0));
+    expect(api.login).not.toHaveBeenCalled();
+
+    releaseRefresh();
+    await Promise.all([refresh, login]);
+
+    expect(store.getAccessToken()).toBe('user-b-token');
+    expect(store.getSnapshot()).toEqual(
+      expect.objectContaining({
+        status: 'authenticated',
+        user: expect.objectContaining({ id: '019c0000-0000-7000-8000-000000000002' }),
+      }),
+    );
+  });
+
+  it('serializes logout after an in-flight refresh and always leaves local state cleared', async () => {
+    const store = createAuthSessionStore();
+    store.establish(sessionResult('expired-access-token'));
+    let releaseRefresh = () => undefined;
+    const refreshGate = new Promise<void>((resolveGate) => {
+      releaseRefresh = resolveGate;
+    });
+    const api = createFakeApi({
+      refresh: vi.fn(async () => {
+        await refreshGate;
+        return sessionResult('rotated-access-token');
+      }),
+    });
+    const controller = createAuthSessionController(api, store);
+
+    const refresh = controller.refreshAccessToken();
+    const logout = controller.logout();
+    await new Promise((resolveTimer) => setTimeout(resolveTimer, 0));
+    expect(api.logout).not.toHaveBeenCalled();
+
+    releaseRefresh();
+    await Promise.all([refresh, logout]);
+
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(store.getAccessToken()).toBeNull();
+    expect(store.getSnapshot().status).toBe('unauthenticated');
   });
 
   it('never references localStorage or sessionStorage in authentication production code', () => {
@@ -147,6 +237,26 @@ describe('frontend authentication session ownership', () => {
 });
 
 describe('authenticated Axios transport', () => {
+  it('enables credentialed browser requests on the shared API client', async () => {
+    const store = createAuthSessionStore();
+    let withCredentials: boolean | undefined;
+    const controller = createAuthSessionController(createFakeApi(), store);
+    const { client, dispose } = installTestTransport(
+      async (config) => {
+        withCredentials = config.withCredentials;
+        return successfulResponse(config);
+      },
+      store,
+      controller,
+    );
+    client.defaults.withCredentials = true;
+
+    await client.get('/public');
+    dispose();
+
+    expect(withCredentials).toBe(true);
+  });
+
   it('adds the current Bearer token to authenticated requests', async () => {
     const store = createAuthSessionStore();
     store.establish(sessionResult());
@@ -197,7 +307,7 @@ describe('authenticated Axios transport', () => {
     const api = createFakeApi({
       refresh: vi.fn(async () => {
         await refreshGate;
-        return sessionResult('rotated-access-token', 'rotated-refresh-token-long-enough');
+        return sessionResult('rotated-access-token');
       }),
     });
     const controller = createAuthSessionController(api, store);
@@ -262,7 +372,6 @@ describe('authenticated Axios transport', () => {
     expect(api.refresh).toHaveBeenCalledOnce();
     expect(results.every((result) => result.status === 'rejected')).toBe(true);
     expect(store.getAccessToken()).toBeNull();
-    expect(store.getRefreshToken()).toBeNull();
     expect(store.getSnapshot().status).toBe('unauthenticated');
   });
 });
@@ -334,5 +443,19 @@ describe('AuthProvider and protected route lifecycle', () => {
 
     expect(authenticatedMarkup).toContain('Protected content');
     expect(unauthenticatedMarkup).not.toContain('Protected content');
+  });
+
+  it('detects authenticated user replacement so protected query state is cleared', () => {
+    const firstStore = createAuthSessionStore();
+    firstStore.establish(sessionResult('user-a-token'));
+    const secondStore = createAuthSessionStore();
+    secondStore.establish(sessionResult('user-b-token', '019c0000-0000-7000-8000-000000000002'));
+
+    expect(
+      didAuthenticatedIdentityChange(firstStore.getSnapshot(), secondStore.getSnapshot()),
+    ).toBe(true);
+    expect(didAuthenticatedIdentityChange(firstStore.getSnapshot(), firstStore.getSnapshot())).toBe(
+      false,
+    );
   });
 });

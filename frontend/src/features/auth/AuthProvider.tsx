@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -9,7 +10,11 @@ import {
 import { AuthContext, type AuthContextValue } from './auth-context';
 import type { AuthSessionController } from './session/auth-session.controller';
 import { authSessionController } from './session/auth-session.runtime';
-import { authSessionStore, type AuthSessionStore } from './session/auth-session.store';
+import {
+  authSessionStore,
+  didAuthenticatedIdentityChange,
+  type AuthSessionStore,
+} from './session/auth-session.store';
 import type { LoginInput } from './types/auth.types';
 
 export interface AuthProviderProps {
@@ -26,18 +31,19 @@ export function AuthProvider({
   store = authSessionStore,
 }: AuthProviderProps) {
   const session = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const previousStatus = useRef(session.status);
+  const previousSession = useRef(session);
 
   useEffect(() => {
     void controller.bootstrap().catch(() => undefined);
   }, [controller]);
 
-  useEffect(() => {
-    if (previousStatus.current === 'authenticated' && session.status === 'unauthenticated') {
+  useLayoutEffect(() => {
+    if (didAuthenticatedIdentityChange(previousSession.current, session)) {
       onSessionCleared?.();
     }
-    previousStatus.current = session.status;
-  }, [onSessionCleared, session.status]);
+
+    previousSession.current = session;
+  }, [onSessionCleared, session]);
 
   const login = useCallback((input: LoginInput) => controller.login(input), [controller]);
   const logout = useCallback(() => controller.logout(), [controller]);

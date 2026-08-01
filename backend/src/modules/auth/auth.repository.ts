@@ -43,6 +43,10 @@ export interface AuthRepository {
     metadata: RequestMetadata;
   }): Promise<string>;
   findSessionByRefreshTokenHash(refreshTokenHash: string): Promise<SessionForRefresh | null>;
+  revokeSessionFamilyByRefreshTokenHash(
+    refreshTokenHash: string,
+    metadata: RequestMetadata,
+  ): Promise<void>;
   rotateSession(input: {
     session: SessionForRefresh;
     refreshTokenHash: string;
@@ -209,6 +213,59 @@ export class PrismaAuthRepository implements AuthRepository {
         revokedAt: true,
         replacedBySessionId: true,
       },
+    });
+  }
+
+  async revokeSessionFamilyByRefreshTokenHash(
+    refreshTokenHash: string,
+    metadata: RequestMetadata,
+  ): Promise<void> {
+    await this.client.$transaction(async (transaction) => {
+      // Lock the presented session before revoking its family. This serializes
+      // logout with refresh rotation so a concurrently created descendant
+      // cannot remain active after the browser has logged out.
+      const sessions = await transaction.$queryRaw<
+        {
+          id: string;
+          userId: string;
+          tokenFamilyId: string;
+          clientType: SessionClientType;
+        }[]
+      >`
+        SELECT
+          "id",
+          "user_id" AS "userId",
+          "token_family_id" AS "tokenFamilyId",
+          "client_type" AS "clientType"
+        FROM "user_sessions"
+        WHERE "refresh_token_hash" = ${refreshTokenHash}
+        FOR UPDATE
+      `;
+      const session = sessions[0];
+      if (!session) return;
+
+      const now = new Date();
+      const result = await transaction.userSession.updateMany({
+        where: {
+          userId: session.userId,
+          tokenFamilyId: session.tokenFamilyId,
+          revokedAt: null,
+        },
+        data: { revokedAt: now, revocationReason: 'logout', lastActivityAt: now },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: session.userId,
+          action: 'auth.logout',
+          subjectType: 'user_session',
+          subjectId: session.id,
+          metadata: {
+            clientType: session.clientType,
+            revokedSessionCount: result.count,
+            requestClientType: metadata.clientType,
+          },
+        },
+      });
     });
   }
 

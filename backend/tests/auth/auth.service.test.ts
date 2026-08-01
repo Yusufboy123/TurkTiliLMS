@@ -143,6 +143,33 @@ describe('AuthService', () => {
     expect([...auth.sessions.values()].every((session) => session.revokedAt !== null)).toBe(true);
   });
 
+  it('rejects an expired refresh session', async () => {
+    const { service, auth, refreshTokens } = setup();
+    const token = 'expired-refresh-token-with-sufficient-test-length';
+    auth.addRefreshSession(token, refreshTokens, {
+      expiresAt: new Date(now.getTime() - 1),
+    });
+
+    await expectAppError(
+      service.refresh({ refreshToken: token }, metadata),
+      'INVALID_REFRESH_TOKEN',
+    );
+  });
+
+  it('rejects a revoked refresh session and revokes its token family', async () => {
+    const { service, auth, refreshTokens } = setup();
+    const token = 'revoked-refresh-token-with-sufficient-test-length';
+    auth.addRefreshSession(token, refreshTokens, {
+      revokedAt: new Date(now.getTime() - 1),
+    });
+
+    await expectAppError(
+      service.refresh({ refreshToken: token }, metadata),
+      'INVALID_REFRESH_TOKEN',
+    );
+    expect(auth.reuseDetections).toBe(1);
+  });
+
   it('revokes the current session on logout', async () => {
     const { service, auth } = setup();
 

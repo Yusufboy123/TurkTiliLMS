@@ -28,6 +28,7 @@ export interface AuthenticationConfiguration {
 export interface AuthenticationService {
   login(input: LoginInput, metadata: RequestMetadata): Promise<AuthenticationResult>;
   refresh(input: RefreshInput, metadata: RequestMetadata): Promise<AuthenticationResult>;
+  logoutByRefreshToken(refreshToken: string, metadata: RequestMetadata): Promise<void>;
   logout(userId: string, sessionId: string, metadata: RequestMetadata): Promise<void>;
   logoutAll(userId: string, metadata: RequestMetadata): Promise<void>;
   getCurrentUser(userId: string): Promise<{
@@ -115,6 +116,9 @@ export class AuthService implements AuthenticationService {
     }
 
     const refreshToken = this.refreshTokens.generate();
+    const refreshTokenExpiresAt = new Date(
+      now.getTime() + this.configuration.refreshTokenExpiresInMs,
+    );
     let sessionId: string;
     try {
       sessionId = await this.auth.completeLogin({
@@ -123,7 +127,7 @@ export class AuthService implements AuthenticationService {
         expectedCredentialEpoch: user.credential.passwordChangedAt,
         refreshTokenHash: this.refreshTokens.hash(refreshToken),
         tokenFamilyId: this.refreshTokens.createFamilyId(),
-        expiresAt: new Date(now.getTime() + this.configuration.refreshTokenExpiresInMs),
+        expiresAt: refreshTokenExpiresAt,
         metadata: {
           ...metadata,
           clientType: input.clientType,
@@ -143,6 +147,7 @@ export class AuthService implements AuthenticationService {
     return {
       accessToken,
       refreshToken,
+      refreshTokenExpiresAt,
       user: toSafeUser(user, now),
       roles: user.roles,
       permissions: user.permissions,
@@ -219,10 +224,16 @@ export class AuthService implements AuthenticationService {
         roles: user.roles,
       }),
       refreshToken: nextRefreshToken,
+      refreshTokenExpiresAt: session.expiresAt,
       user: toSafeUser(user),
       roles: user.roles,
       permissions: user.permissions,
     };
+  }
+
+  async logoutByRefreshToken(refreshToken: string, metadata: RequestMetadata): Promise<void> {
+    const refreshTokenHash = this.refreshTokens.hash(refreshToken);
+    await this.auth.revokeSessionFamilyByRefreshTokenHash(refreshTokenHash, metadata);
   }
 
   logout(userId: string, sessionId: string, metadata: RequestMetadata): Promise<void> {

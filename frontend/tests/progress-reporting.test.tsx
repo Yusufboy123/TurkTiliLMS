@@ -243,7 +243,6 @@ describe('progress reporting query and cache isolation', () => {
 function sessionResult(roles: AuthenticationResult['roles'], permissions: string[]) {
   return {
     accessToken: 'access-token',
-    refreshToken: 'refresh-token-long-enough-for-contract',
     user: {
       id: '019c0000-0000-7000-8000-000000000030',
       email: 'actor@example.com',

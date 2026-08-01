@@ -9,77 +9,82 @@ export interface AuthSessionController {
   refreshAccessToken(): Promise<string>;
 }
 
-export class MissingRefreshCredentialError extends Error {
-  constructor() {
-    super('No in-memory refresh credential is available.');
-    this.name = 'MissingRefreshCredentialError';
-  }
-}
-
 export function createAuthSessionController(
   api: AuthApi,
   store: AuthSessionStore,
 ): AuthSessionController {
   let refreshPromise: Promise<string> | null = null;
+  let operationTail: Promise<void> = Promise.resolve();
+
+  const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = operationTail.then(operation, operation);
+    operationTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
 
   const refreshAccessToken = (): Promise<string> => {
     if (refreshPromise) return refreshPromise;
 
-    const refreshToken = store.getRefreshToken();
-    if (!refreshToken) {
-      store.clear();
-      return Promise.reject(new MissingRefreshCredentialError());
-    }
-
-    refreshPromise = api
-      .refresh(refreshToken)
-      .then((result) => {
+    const operation = serialize(async () => {
+      try {
+        const result = await api.refresh();
         store.establish(result);
         return result.accessToken;
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         store.clear();
         throw error;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
+      }
+    });
+    refreshPromise = operation;
+    void operation.then(
+      () => {
+        if (refreshPromise === operation) refreshPromise = null;
+      },
+      () => {
+        if (refreshPromise === operation) refreshPromise = null;
+      },
+    );
 
-    return refreshPromise;
+    return operation;
   };
 
   return {
     async bootstrap() {
       if (store.getSnapshot().status !== 'bootstrapping') return;
 
-      // The current backend returns refresh credentials in JSON rather than an
-      // HttpOnly cookie. Nothing can be safely recovered after a full reload.
-      store.clear();
+      await refreshAccessToken().catch(() => undefined);
     },
 
     async login(input) {
-      const result = await api.login(input);
-      store.establish(result);
+      await serialize(async () => {
+        const result = await api.login(input);
+        store.establish(result);
+      });
     },
 
     async logout() {
-      try {
-        if (store.getAccessToken()) {
+      await serialize(async () => {
+        try {
           await api.logout();
+        } finally {
+          store.clear();
         }
-      } finally {
-        store.clear();
-      }
+      });
     },
 
     async logoutAll() {
-      try {
-        if (store.getAccessToken()) {
-          await api.logoutAll();
+      await serialize(async () => {
+        try {
+          if (store.getAccessToken()) {
+            await api.logoutAll();
+          }
+        } finally {
+          store.clear();
         }
-      } finally {
-        store.clear();
-      }
+      });
     },
 
     refreshAccessToken,

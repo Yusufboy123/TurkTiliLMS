@@ -5,6 +5,16 @@ import type { AuthenticatedPrincipal } from '../authorization/authorization.type
 import { changePasswordSchema, loginSchema, refreshSchema } from './auth.schemas.js';
 import type { AuthenticationService } from './auth.service.js';
 import type { RequestMetadata } from './auth.types.js';
+import {
+  authenticationTransport,
+  clearBrowserRefreshCookie,
+  readBrowserRefreshCredential,
+  resolveRefreshCredential,
+  setBrowserRefreshCookie,
+  toLegacyAuthenticationResult,
+  toPublicAuthenticationResult,
+  type BrowserSessionConfiguration,
+} from './browser-session-transport.js';
 
 function requestMetadata(
   request: Request,
@@ -34,40 +44,94 @@ function authenticatedPrincipal(request: Request): AuthenticatedPrincipal {
 }
 
 export class AuthController {
-  constructor(private readonly authentication: AuthenticationService) {}
+  constructor(
+    private readonly authentication: AuthenticationService,
+    private readonly browserSession: BrowserSessionConfiguration,
+  ) {}
 
   login = async (request: Request, response: Response): Promise<void> => {
+    const transport = authenticationTransport(request);
     const input = loginSchema.parse(request.body);
+
+    if (transport === 'cookie' && input.clientType !== SessionClientType.WEB) {
+      throw new AppError(
+        'Cookie transporti faqat WEB mijozlari uchun ishlatiladi.',
+        400,
+        'INVALID_AUTH_TRANSPORT',
+      );
+    }
+
     const result = await this.authentication.login(
       input,
       requestMetadata(request, input.clientType),
     );
 
+    if (transport === 'cookie') {
+      setBrowserRefreshCookie(response, result, this.browserSession);
+    }
+
     response.status(200).json({
       success: true,
       message: 'Tizimga muvaffaqiyatli kirildi.',
-      data: result,
+      data:
+        transport === 'cookie'
+          ? toPublicAuthenticationResult(result)
+          : toLegacyAuthenticationResult(result),
     });
   };
 
   refresh = async (request: Request, response: Response): Promise<void> => {
-    const input = refreshSchema.parse(request.body);
-    const result = await this.authentication.refresh(input, requestMetadata(request));
+    const transport = authenticationTransport(request);
 
-    response.status(200).json({
-      success: true,
-      message: 'Sessiya muvaffaqiyatli yangilandi.',
-      data: result,
-    });
+    try {
+      const credential = resolveRefreshCredential(request, this.browserSession);
+      const input = refreshSchema.parse({ refreshToken: credential.refreshToken });
+      const result = await this.authentication.refresh(input, requestMetadata(request));
+
+      if (credential.transport === 'cookie') {
+        setBrowserRefreshCookie(response, result, this.browserSession);
+      }
+
+      response.status(200).json({
+        success: true,
+        message: 'Sessiya muvaffaqiyatli yangilandi.',
+        data:
+          credential.transport === 'cookie'
+            ? toPublicAuthenticationResult(result)
+            : toLegacyAuthenticationResult(result),
+      });
+    } catch (error: unknown) {
+      if (
+        transport === 'cookie' &&
+        error instanceof AppError &&
+        error.code === 'INVALID_REFRESH_TOKEN'
+      ) {
+        clearBrowserRefreshCookie(response, this.browserSession);
+      }
+      throw error;
+    }
   };
 
   logout = async (request: Request, response: Response): Promise<void> => {
-    const principal = authenticatedPrincipal(request);
-    await this.authentication.logout(
-      principal.userId,
-      principal.sessionId,
-      requestMetadata(request, principal.clientType),
-    );
+    const transport = authenticationTransport(request);
+
+    if (transport === 'cookie') {
+      try {
+        const refreshToken = readBrowserRefreshCredential(request, this.browserSession);
+        if (refreshToken) {
+          await this.authentication.logoutByRefreshToken(refreshToken, requestMetadata(request));
+        }
+      } finally {
+        clearBrowserRefreshCookie(response, this.browserSession);
+      }
+    } else {
+      const principal = authenticatedPrincipal(request);
+      await this.authentication.logout(
+        principal.userId,
+        principal.sessionId,
+        requestMetadata(request, principal.clientType),
+      );
+    }
 
     response.status(200).json({
       success: true,
@@ -76,11 +140,16 @@ export class AuthController {
   };
 
   logoutAll = async (request: Request, response: Response): Promise<void> => {
+    const transport = authenticationTransport(request);
     const principal = authenticatedPrincipal(request);
     await this.authentication.logoutAll(
       principal.userId,
       requestMetadata(request, principal.clientType),
     );
+
+    if (transport === 'cookie') {
+      clearBrowserRefreshCookie(response, this.browserSession);
+    }
 
     response.status(200).json({
       success: true,
