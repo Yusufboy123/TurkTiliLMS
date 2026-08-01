@@ -169,6 +169,13 @@ Exit: normal teacher operations require no source edits.
 
 ## Phase 9 — Admin operations
 
+- Module 9.4A defines and approves the fixed Admin Dashboard read contract,
+  permissions, privacy boundary, route inventory, and OpenAPI without runtime
+  work.
+- Module 9.4B implements the approved Admin Dashboard backend aggregate and
+  activates the OpenAPI operation without frontend work.
+- Module 9.4C implements `/admin`, the role-aware redirect, summary UI, and only
+  real permission-allowed quick links after Module 9.4B is verified.
 - User lifecycle and step-up protected actions only after the step-up contract
   is approved.
 - Roles/permission matrix after API/conflict policy.
@@ -180,6 +187,11 @@ Exit: normal teacher operations require no source edits.
 
 Exit: every owner-managed module has graphical UI, permission, validation,
 audit, destructive confirmation, and tests.
+
+The three Admin Dashboard phases are sequential. Contract-only or partially
+specified items do not authorize blocked backend or frontend behavior. The
+existing `/admin/progress` route remains the admin landing destination until
+Module 9.4C is complete.
 
 ## Phase 10 — Hardening
 

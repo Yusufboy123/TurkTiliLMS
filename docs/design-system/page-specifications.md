@@ -366,12 +366,31 @@ Candidate. Implementation remains blocked until Module 8.6A approval and the
 
 ## Admin pages
 
-### Dashboard — Specified
+### Dashboard — Partially Specified
 
-Urgent safe notices → pending moderation → user/course/enrollment summary →
-recent audited activity → background-operation state. Each metric links to a
-scoped management view. No secret, infrastructure credential, or wall of
-decorative charts is displayed.
+The `/admin` page is governed by the Module 9.4A
+[Admin Dashboard Read Contract](../ADMIN_DASHBOARD_READ_CONTRACT.md). Its first
+release contains only server-authoritative user, course, enrollment, progress,
+and certificate lifecycle summary cards. It does not display recent audit
+activity, pending moderation, background-operation state, or unsupported
+analytics.
+
+Only registered, implemented routes for which the authenticated administrator
+has permission may appear as quick links. At the Module 9.4A baseline,
+`/admin/progress` is the only such destination. Proposed and deferred routes
+must not render as live or disabled promises. No secret, infrastructure
+credential, personal-data list, audit metadata, certificate token/hash, or
+artifact/storage field is displayed.
+
+The page must provide initial loading, valid zero-data, complete success,
+retryable error, permission-denied, and expired-session states. Cards reflow
+from 320 CSS pixels, use semantic headings and localized number formatting, and
+never derive new metrics in the browser.
+
+**Blocking dependency:** Module 9.4A architecture approval and Module 9.4B
+implementation of `GET /api/v1/admin/dashboard/summary` are required before
+Module 9.4C may register and implement `/admin` or change the admin post-login
+redirect.
 
 ### Users and user detail — Partially Specified
 

@@ -1,0 +1,315 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Admin Dashboard API
+  version: 1.0.0-rc.1
+  description: |
+    Module 9.4A contract for the fixed, server-authoritative Admin Dashboard
+    summary. The operation is documentation-only and is not available until
+    Module 9.4B implements and verifies the runtime.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development base path
+tags:
+  - name: Admin Dashboard
+paths:
+  /admin/dashboard/summary:
+    get:
+      tags: [Admin Dashboard]
+      operationId: getAdminDashboardSummary
+      summary: Get the platform administration summary
+      description: |
+        Returns one fixed-size, internally consistent snapshot of user, course,
+        enrollment, progress, and certificate lifecycle counts. Requires the
+        ADMIN role and every permission listed in `x-required-permissions`.
+        Sections are never permission-filtered or partially returned. This
+        operation has no query parameters, no pagination, and no nullable
+        success fields. Recent audit activity is intentionally excluded.
+      x-implementation-phase: Module 9.4B
+      x-implementation-status: contract-only-not-available
+      x-required-roles: [ADMIN]
+      x-required-permissions:
+        - users.read
+        - courses.view_statistics
+        - progress.read
+        - certificates.course_read
+      x-pagination: none-fixed-size-aggregate
+      x-rate-limit-policy: 30 requests per 60 seconds per authenticated user and client IP
+      x-rate-limit-store: postgresql-audit-log-with-advisory-lock
+      x-rate-limit-key: authenticated-user-id-and-privacy-safe-ip-hash
+      x-audit-event: admin_dashboard.summary_read
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Complete administration summary returned
+          headers:
+            Cache-Control:
+              description: Prevents browser and shared-cache persistence of admin statistics
+              schema:
+                type: string
+                const: private, no-store
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardSummaryResponse'
+              example:
+                success: true
+                message: Administrator boshqaruv paneli xulosasi olindi.
+                data:
+                  generatedAt: '2026-08-01T10:00:00.000Z'
+                  users:
+                    total: 120
+                    active: 109
+                    suspended: 3
+                    deactivated: 6
+                    deleted: 2
+                    students: 102
+                    teachers: 14
+                    administrators: 4
+                  courses:
+                    total: 18
+                    draft: 4
+                    inReview: 2
+                    published: 10
+                    archived: 1
+                    deleted: 1
+                  enrollments:
+                    total: 480
+                    active: 350
+                    suspended: 10
+                    completed: 100
+                    cancelled: 20
+                  progress:
+                    trackedEnrollments: 430
+                    averageCompletionPercentage: 64
+                  certificates:
+                    total: 72
+                    issued: 68
+                    revoked: 4
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RateLimit:
+      description: Draft-8 combined limit, remaining, and reset information
+      schema:
+        type: string
+    RateLimitPolicy:
+      description: Draft-8 rate-limit policy for the operation
+      schema:
+        type: string
+  responses:
+    AuthenticationRequired:
+      description: Authentication is missing or the access token is invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            required:
+              value:
+                success: false
+                code: AUTHENTICATION_REQUIRED
+                message: Davom etish uchun tizimga kirish talab qilinadi.
+            invalidToken:
+              value:
+                success: false
+                code: INVALID_ACCESS_TOKEN
+                message: Kirish sessiyasi yaroqsiz yoki muddati tugagan.
+    AccessDenied:
+      description: ADMIN role or at least one required read permission is missing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: ACCESS_DENIED
+            message: Bu amal uchun ruxsat yetarli emas.
+    RateLimited:
+      description: Request rate limit exceeded
+      headers:
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: RATE_LIMIT_EXCEEDED
+            message: Juda ko‘p so‘rov yuborildi. Birozdan so‘ng qayta urinib ko‘ring.
+    InternalServerError:
+      description: Safe unexpected failure; no partial sections are returned
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: INTERNAL_SERVER_ERROR
+            message: Kutilmagan xatolik yuz berdi.
+  schemas:
+    NonNegativeCount:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740991
+    Percentage:
+      type: integer
+      minimum: 0
+      maximum: 100
+    UserSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - total
+        - active
+        - suspended
+        - deactivated
+        - deleted
+        - students
+        - teachers
+        - administrators
+      properties:
+        total:
+          $ref: '#/components/schemas/NonNegativeCount'
+        active:
+          $ref: '#/components/schemas/NonNegativeCount'
+        suspended:
+          $ref: '#/components/schemas/NonNegativeCount'
+        deactivated:
+          $ref: '#/components/schemas/NonNegativeCount'
+        deleted:
+          $ref: '#/components/schemas/NonNegativeCount'
+        students:
+          $ref: '#/components/schemas/NonNegativeCount'
+        teachers:
+          $ref: '#/components/schemas/NonNegativeCount'
+        administrators:
+          $ref: '#/components/schemas/NonNegativeCount'
+    CourseSummary:
+      type: object
+      additionalProperties: false
+      required: [total, draft, inReview, published, archived, deleted]
+      properties:
+        total:
+          $ref: '#/components/schemas/NonNegativeCount'
+        draft:
+          $ref: '#/components/schemas/NonNegativeCount'
+        inReview:
+          $ref: '#/components/schemas/NonNegativeCount'
+        published:
+          $ref: '#/components/schemas/NonNegativeCount'
+        archived:
+          $ref: '#/components/schemas/NonNegativeCount'
+        deleted:
+          $ref: '#/components/schemas/NonNegativeCount'
+    EnrollmentSummary:
+      type: object
+      additionalProperties: false
+      required: [total, active, suspended, completed, cancelled]
+      properties:
+        total:
+          $ref: '#/components/schemas/NonNegativeCount'
+        active:
+          $ref: '#/components/schemas/NonNegativeCount'
+        suspended:
+          $ref: '#/components/schemas/NonNegativeCount'
+        completed:
+          $ref: '#/components/schemas/NonNegativeCount'
+        cancelled:
+          $ref: '#/components/schemas/NonNegativeCount'
+    ProgressSummary:
+      type: object
+      additionalProperties: false
+      required: [trackedEnrollments, averageCompletionPercentage]
+      properties:
+        trackedEnrollments:
+          $ref: '#/components/schemas/NonNegativeCount'
+        averageCompletionPercentage:
+          $ref: '#/components/schemas/Percentage'
+    CertificateSummary:
+      type: object
+      additionalProperties: false
+      required: [total, issued, revoked]
+      properties:
+        total:
+          $ref: '#/components/schemas/NonNegativeCount'
+        issued:
+          $ref: '#/components/schemas/NonNegativeCount'
+        revoked:
+          $ref: '#/components/schemas/NonNegativeCount'
+    AdminDashboardSummary:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, users, courses, enrollments, progress, certificates]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        users:
+          $ref: '#/components/schemas/UserSummary'
+        courses:
+          $ref: '#/components/schemas/CourseSummary'
+        enrollments:
+          $ref: '#/components/schemas/EnrollmentSummary'
+        progress:
+          $ref: '#/components/schemas/ProgressSummary'
+        certificates:
+          $ref: '#/components/schemas/CertificateSummary'
+    AdminDashboardSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AdminDashboardSummary'
+    ErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - INVALID_ACCESS_TOKEN
+        - ACCESS_DENIED
+        - RATE_LIMIT_EXCEEDED
+        - INTERNAL_SERVER_ERROR
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+        requestId:
+          type: string
+          minLength: 1

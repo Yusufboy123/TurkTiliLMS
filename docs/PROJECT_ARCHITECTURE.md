@@ -1280,6 +1280,29 @@ flowchart LR
 Raw event retention should be bounded by privacy, cost, and reporting
 requirements.
 
+### 18.4 Admin Dashboard operational summary
+
+The first production Admin Dashboard uses the dedicated, fixed-size
+`GET /api/v1/admin/dashboard/summary` contract defined in the
+[Admin Dashboard Read Contract](./ADMIN_DASHBOARD_READ_CONTRACT.md) and
+[ADR-005](./design-system/decisions/ADR-005-admin-dashboard-read-contract.md).
+It summarizes canonical user, course, enrollment, progress-root, and
+certificate lifecycle records without asking the browser to compose unrelated
+statistics endpoints.
+
+The read requires `ADMIN` and all section permissions, returns one
+all-or-nothing repeatable-read snapshot, records the minimized
+`admin_dashboard.summary_read` audit event, uses private no-store HTTP caching,
+and contains counts only. Certificate totals come directly from `Certificate`
+`ISSUED` and `REVOKED` rows; they are never inferred from course completion or
+eligibility. Recent activity is excluded until a separate safe Audit Read
+contract approves an event allowlist, minimized actor projection, redaction,
+retention, pagination, and export policy.
+
+Module 9.4A is contract-only. Module 9.4B owns backend runtime. Module 9.4C owns
+the `/admin` page and role-aware redirect. Until 9.4C, `/admin/progress` remains
+the implemented administrator destination.
+
 ---
 
 ## 19. Notification architecture
@@ -1708,6 +1731,9 @@ operational runbooks where appropriate.
 - Deliver permission-scoped admin dashboards, asynchronous report export,
   certificate-template versioning, issuance, reissuance, and revocation.
 - Establish privacy and retention controls for analytics.
+- Deliver the Admin Dashboard sequentially: Module 9.4A contract approval,
+  Module 9.4B backend aggregate runtime, then Module 9.4C frontend route and
+  presentation. Management and audit pages remain separately owned modules.
 
 ### Phase 7 — Mobile and Telegram
 

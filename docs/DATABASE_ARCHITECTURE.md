@@ -1822,6 +1822,59 @@ part_of_speech)`; indexes on `(source_locale_id, status)`,
   representation for all-course totals; indexes on `(course_id,
 statistics_date)` and `(user_id, statistics_date)`.
 
+#### Admin Dashboard aggregate projection
+
+Module 9.4A introduces no table, materialized view, Prisma model, migration, or
+backfill. The contract-only
+[Admin Dashboard Read Contract](./ADMIN_DASHBOARD_READ_CONTRACT.md) defines a
+fixed projection over canonical tables:
+
+- user lifecycle and current unexpired role counts from `users`, `user_roles`,
+  and `roles`;
+- course lifecycle counts from `courses`, preserving the existing explicit
+  soft-delete distinction;
+- enrollment lifecycle counts from `course_enrollments`;
+- tracked-enrollment count and average canonical percentage from
+  `enrollment_progress_roots`;
+- certificate lifecycle counts from `certificates.status` only.
+
+Module 9.4B must execute these bounded aggregates and the minimized
+`admin_dashboard.summary_read` audit insert in one PostgreSQL `REPEATABLE READ`
+transaction and return no row-level records. Certificate aggregation groups
+`ISSUED` and `REVOKED`; zero rows produce zero counts. Completion events,
+eligibility evaluations, and artifact records must not be used to infer
+issuance. The projection never selects personal profiles, audit metadata,
+verification-token hashes, artifact keys, storage paths, checksums, or renderer
+fields. The access audit stores actor, time, correlation ID, and existing
+minimized request context only; it does not copy the counts or response body.
+
+The current user schema does not enforce `status = 'DELETED'` if and only if
+`deleted_at IS NOT NULL` with a database CHECK. Module 9.4B therefore requires a
+non-mutating release preflight for both mismatch directions and must fail the
+all-or-nothing summary on a lifecycle partition mismatch rather than omit or
+repair a row. Course deletion remains intentionally orthogonal to lifecycle
+status. Enrollments have no soft-delete state and all four enum values are
+represented. Progress averages include every progress root, including frozen
+and terminal-enrollment roots; existing percentage constraints remain
+authoritative.
+
+The 30-per-minute actor/IP rate limit uses a separate short `READ COMMITTED`
+transaction, a PostgreSQL advisory lock, database time, and minimized
+`admin_dashboard.summary_rate_slot_consumed` audit rows. This is the existing
+cross-node rate-limit pattern already used by security and certificate modules,
+not the process-local Express store. The rate event stores actor, privacy-safe
+IP hash, time, and correlation ID only. It requires no new table, package, or
+migration. Module 9.4B must verify the recent actor/action/time/IP count plan and
+retention impact alongside the aggregate EXPLAIN review.
+
+Current primary, foreign-key, lifecycle, and role-assignment indexes support
+the source relations. The certificate `(course_id, status, issued_at)` index is
+course-scoped and does not lead with `status`, so Module 9.4B must verify the
+single unfiltered certificate-grouping plan with representative data. It must
+avoid N+1 access. If measured plans require a new index, implementation stops
+for a separately reviewed additive migration rather than changing schema under
+the read-contract phase.
+
 ### 4.9 AI assistance
 
 #### `ai_conversations`
@@ -2166,6 +2219,8 @@ SQL words for new tables or fields.
 - Certificate verification
 - Audit lookup by actor, subject, action, and time
 - Learning events and aggregates by user, course, and date
+- Fixed Admin Dashboard lifecycle aggregates over users, courses, enrollments,
+  progress roots, and certificates
 - AI usage by user, provider, model, and time
 
 ### 11.3 High-volume tables
