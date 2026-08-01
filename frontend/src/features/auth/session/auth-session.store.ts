@@ -1,7 +1,7 @@
-import type { AuthenticationResult, AuthSessionSnapshot } from '../types/auth.types';
+import type { AuthEndReason, AuthenticationResult, AuthSessionSnapshot } from '../types/auth.types';
 
 export interface AuthSessionStore {
-  clear(): void;
+  clear(reason?: AuthEndReason | null): void;
   establish(result: AuthenticationResult): void;
   getAccessToken(): string | null;
   getSnapshot(): AuthSessionSnapshot;
@@ -10,13 +10,7 @@ export interface AuthSessionStore {
 
 const bootstrappingSnapshot: AuthSessionSnapshot = {
   status: 'bootstrapping',
-  user: null,
-  roles: [],
-  permissions: [],
-};
-
-const unauthenticatedSnapshot: AuthSessionSnapshot = {
-  status: 'unauthenticated',
+  reason: null,
   user: null,
   roles: [],
   permissions: [],
@@ -42,15 +36,24 @@ export function createAuthSessionStore(): AuthSessionStore {
   };
 
   return {
-    clear() {
+    clear(reason = null) {
       accessToken = null;
-      publish(unauthenticatedSnapshot);
+      const retainedReason =
+        reason ?? (snapshot.status === 'unauthenticated' ? snapshot.reason : null);
+      publish({
+        status: 'unauthenticated',
+        reason: retainedReason,
+        user: null,
+        roles: [],
+        permissions: [],
+      });
     },
 
     establish(result) {
       accessToken = result.accessToken;
       publish({
         status: 'authenticated',
+        reason: null,
         user: result.user,
         roles: [...result.roles],
         permissions: [...result.permissions],

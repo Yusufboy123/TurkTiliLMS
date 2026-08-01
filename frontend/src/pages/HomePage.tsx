@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Card, SkipLink } from '../components';
 import { getApiHealth } from '../services/health.service';
 
@@ -17,6 +18,7 @@ const statusPresentation = {
 } as const;
 
 export function HomePage() {
+  const navigate = useNavigate();
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
 
   useEffect(() => {
@@ -72,12 +74,7 @@ export function HomePage() {
               o‘rganish tajribasi.
             </p>
             <div className="mt-8 sm:w-fit">
-              <Button
-                onClick={() =>
-                  document.getElementById('yondashuv')?.scrollIntoView({ block: 'start' })
-                }
-                width="full"
-              >
+              <Button onClick={() => navigate('/login')} width="full">
                 O‘rganishni boshlash
               </Button>
             </div>

@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { SkipLink } from '../components';
-import { useAuth } from '../features/auth';
+import { SessionActions, useAuth } from '../features/auth';
 import { progressReportingPaths } from '../features/progress-reporting/progress-reporting.routes';
 import { useOnlineStatus } from '../hooks/use-online-status';
 import { progressReportingMessages } from '../locales/uz-Latn/progress-reporting';
@@ -46,6 +46,7 @@ export function ReportingLayout() {
         id="main-content"
         tabIndex={-1}
       >
+        <SessionActions className="mb-6" />
         <Outlet />
       </main>
     </div>

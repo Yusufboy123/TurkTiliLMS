@@ -4,6 +4,7 @@ import { useOnlineStatus } from '../hooks/use-online-status';
 import { classNames } from '../lib/class-names';
 import { progressMessages } from '../locales/uz-Latn/progress';
 import { progressPaths } from '../features/progress/progress.routes';
+import { SessionActions } from '../features/auth';
 
 const navigation = [
   {
@@ -105,6 +106,7 @@ export function StudentLayout() {
           id="main-content"
           tabIndex={-1}
         >
+          <SessionActions className="mb-6" />
           <Outlet />
         </main>
       </div>

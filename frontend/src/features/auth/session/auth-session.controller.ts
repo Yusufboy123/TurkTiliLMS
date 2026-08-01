@@ -25,18 +25,13 @@ export function createAuthSessionController(
     return result;
   };
 
-  const refreshAccessToken = (): Promise<string> => {
+  const requestRefresh = (): Promise<string> => {
     if (refreshPromise) return refreshPromise;
 
     const operation = serialize(async () => {
-      try {
-        const result = await api.refresh();
-        store.establish(result);
-        return result.accessToken;
-      } catch (error: unknown) {
-        store.clear();
-        throw error;
-      }
+      const result = await api.refresh();
+      store.establish(result);
+      return result.accessToken;
     });
     refreshPromise = operation;
     void operation.then(
@@ -51,11 +46,20 @@ export function createAuthSessionController(
     return operation;
   };
 
+  const refreshAccessToken = async (): Promise<string> => {
+    try {
+      return await requestRefresh();
+    } catch (error: unknown) {
+      store.clear('SESSION_EXPIRED');
+      throw error;
+    }
+  };
+
   return {
     async bootstrap() {
       if (store.getSnapshot().status !== 'bootstrapping') return;
 
-      await refreshAccessToken().catch(() => undefined);
+      await requestRefresh().catch(() => store.clear());
     },
 
     async login(input) {
@@ -67,22 +71,26 @@ export function createAuthSessionController(
 
     async logout() {
       await serialize(async () => {
+        let completed = false;
         try {
           await api.logout();
+          completed = true;
         } finally {
-          store.clear();
+          store.clear(completed ? 'SIGNED_OUT' : null);
         }
       });
     },
 
     async logoutAll() {
       await serialize(async () => {
+        let completed = false;
         try {
           if (store.getAccessToken()) {
             await api.logoutAll();
           }
+          completed = true;
         } finally {
-          store.clear();
+          store.clear(completed ? 'SIGNED_OUT' : null);
         }
       });
     },

@@ -73,6 +73,16 @@ function rejectUnauthorized(config: InternalAxiosRequestConfig): never {
   });
 }
 
+function rejectForbidden(config: InternalAxiosRequestConfig): never {
+  throw new AxiosError('Forbidden', 'ERR_BAD_REQUEST', config, undefined, {
+    data: { success: false, code: 'FORBIDDEN', message: 'Forbidden' },
+    status: 403,
+    statusText: 'Forbidden',
+    headers: {},
+    config,
+  });
+}
+
 function installTestTransport(
   adapter: AxiosAdapter,
   store: AuthSessionStore,
@@ -112,6 +122,7 @@ describe('frontend authentication session ownership', () => {
     expect(api.logout).toHaveBeenCalledOnce();
     expect(store.getAccessToken()).toBeNull();
     expect(store.getSnapshot().status).toBe('unauthenticated');
+    expect(store.getSnapshot()).toEqual(expect.objectContaining({ reason: 'SIGNED_OUT' }));
   });
 
   it('restores a full reload through the cookie-backed refresh API', async () => {
@@ -139,6 +150,7 @@ describe('frontend authentication session ownership', () => {
 
     expect(api.refresh).toHaveBeenCalledOnce();
     expect(store.getSnapshot().status).toBe('unauthenticated');
+    expect(store.getSnapshot()).toEqual(expect.objectContaining({ reason: null }));
     expect(store.getAccessToken()).toBeNull();
   });
 
@@ -153,6 +165,21 @@ describe('frontend authentication session ownership', () => {
     );
 
     await expect(controller.logout()).rejects.toThrow('network unavailable');
+    expect(store.getSnapshot().status).toBe('unauthenticated');
+    expect(store.getAccessToken()).toBeNull();
+  });
+
+  it('clears local session state even when logout-all fails', async () => {
+    const store = createAuthSessionStore();
+    store.establish(sessionResult());
+    const controller = createAuthSessionController(
+      createFakeApi({
+        logoutAll: vi.fn(async () => Promise.reject(new Error('network unavailable'))),
+      }),
+      store,
+    );
+
+    await expect(controller.logoutAll()).rejects.toThrow('network unavailable');
     expect(store.getSnapshot().status).toBe('unauthenticated');
     expect(store.getAccessToken()).toBeNull();
   });
@@ -373,6 +400,26 @@ describe('authenticated Axios transport', () => {
     expect(results.every((result) => result.status === 'rejected')).toBe(true);
     expect(store.getAccessToken()).toBeNull();
     expect(store.getSnapshot().status).toBe('unauthenticated');
+    expect(store.getSnapshot()).toEqual(expect.objectContaining({ reason: 'SESSION_EXPIRED' }));
+  });
+
+  it('preserves the authenticated session and does not refresh on a 403 response', async () => {
+    const store = createAuthSessionStore();
+    store.establish(sessionResult());
+    const api = createFakeApi();
+    const controller = createAuthSessionController(api, store);
+    const { client, dispose } = installTestTransport(
+      async (config) => rejectForbidden(config),
+      store,
+      controller,
+    );
+
+    await expect(client.get('/forbidden')).rejects.toMatchObject({ response: { status: 403 } });
+    dispose();
+
+    expect(api.refresh).not.toHaveBeenCalled();
+    expect(store.getSnapshot().status).toBe('authenticated');
+    expect(store.getAccessToken()).toBe('access-token-1');
   });
 });
 

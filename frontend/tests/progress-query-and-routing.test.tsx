@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes, matchPath } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { shouldRetryQuery } from '../src/app/query-client';
+import { AuthContext } from '../src/features/auth/auth-context';
 import { mergeProgressMutation } from '../src/features/progress/hooks/use-progress-mutations';
 import {
   enrollmentProgressQueryOptions,
@@ -70,13 +71,35 @@ describe('progress routing', () => {
 
   it('renders the responsive student navigation inside the student shell', () => {
     const markup = renderToStaticMarkup(
-      <MemoryRouter initialEntries={[progressPaths.overview]}>
-        <Routes>
-          <Route path="/app" element={<StudentLayout />}>
-            <Route path="progress" element={<p>Progress route</p>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
+      <AuthContext.Provider
+        value={{
+          ...{
+            status: 'authenticated' as const,
+            reason: null,
+            user: {
+              id: '019c0000-0000-7000-8000-000000000001',
+              email: 'student@turktili.local',
+              firstName: 'Ali',
+              lastName: 'Valiyev',
+              status: 'ACTIVE' as const,
+              lastLoginAt: null,
+            },
+            roles: ['STUDENT'] as const,
+            permissions: ['progress.self_read'],
+          },
+          login: async () => undefined,
+          logout: async () => undefined,
+          logoutAll: async () => undefined,
+        }}
+      >
+        <MemoryRouter initialEntries={[progressPaths.overview]}>
+          <Routes>
+            <Route path="/app" element={<StudentLayout />}>
+              <Route path="progress" element={<p>Progress route</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
     );
 
     expect(markup).toContain('Talaba navigatsiyasi');

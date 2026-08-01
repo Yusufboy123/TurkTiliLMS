@@ -1,6 +1,11 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { RequireAuthentication, RequireAuthorization } from './features/auth';
+import {
+  authPaths,
+  RequireAuthentication,
+  RequireAuthorization,
+  RequireGuest,
+} from './features/auth';
 import { ProgressSkeleton } from './features/progress/components';
 import { progressRouteSegments, progressPaths } from './features/progress/progress.routes';
 import { progressReportingPaths } from './features/progress-reporting/progress-reporting.routes';
@@ -23,6 +28,8 @@ const AdminProgressPage = lazy(
 const ProgressReportingDetailPage = lazy(
   () => import('./features/progress-reporting/pages/ProgressReportingDetailPage'),
 );
+const LoginPage = lazy(() => import('./features/auth/pages/LoginPage'));
+const TeacherHomePage = lazy(() => import('./features/auth/pages/TeacherHomePage'));
 
 function App() {
   return (
@@ -35,15 +42,27 @@ function App() {
     >
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route element={<RequireGuest />}>
+          <Route path={authPaths.login} element={<LoginPage />} />
+        </Route>
         <Route element={<RequireAuthentication />}>
-          <Route path={progressPaths.dashboard} element={<StudentLayout />}>
-            <Route index element={<StudentDashboardPage />} />
-            <Route path={progressRouteSegments.overview} element={<ProgressOverviewPage />} />
-            <Route path={progressRouteSegments.completed} element={<CompletedCoursesPage />} />
-            <Route path={progressRouteSegments.course} element={<CourseProgressPage />} />
-            <Route path={progressRouteSegments.resume} element={<ResumeLearningPage />} />
+          <Route element={<RequireAuthorization permissions={[]} roles={['TEACHER']} />}>
+            <Route path={authPaths.teacherHome} element={<TeacherHomePage />} />
           </Route>
-          <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
+          <Route
+            element={
+              <RequireAuthorization permissions={['progress.self_read']} roles={['STUDENT']} />
+            }
+          >
+            <Route path={progressPaths.dashboard} element={<StudentLayout />}>
+              <Route index element={<StudentDashboardPage />} />
+              <Route path={progressRouteSegments.overview} element={<ProgressOverviewPage />} />
+              <Route path={progressRouteSegments.completed} element={<CompletedCoursesPage />} />
+              <Route path={progressRouteSegments.course} element={<CourseProgressPage />} />
+              <Route path={progressRouteSegments.resume} element={<ResumeLearningPage />} />
+            </Route>
+            <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
+          </Route>
           <Route
             element={
               <RequireAuthorization

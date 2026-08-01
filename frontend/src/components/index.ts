@@ -15,6 +15,11 @@ export { SkipLink, type SkipLinkProps } from './primitives/SkipLink';
 export { Textarea, type TextareaProps } from './primitives/Textarea';
 
 export { Skeleton, type SkeletonProps } from './feedback/Skeleton';
+export {
+  ErrorSummary,
+  type ErrorSummaryItem,
+  type ErrorSummaryProps,
+} from './feedback/ErrorSummary';
 export { Spinner, type SpinnerProps, type SpinnerSize } from './feedback/Spinner';
 export { PermissionDeniedState } from './feedback/PermissionDeniedState';
 export { ToastProvider, type ToastProviderProps } from './feedback/Toast';

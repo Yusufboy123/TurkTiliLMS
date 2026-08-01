@@ -1,4 +1,5 @@
 export type AuthStatus = 'bootstrapping' | 'authenticated' | 'unauthenticated';
+export type AuthEndReason = 'SESSION_EXPIRED' | 'SIGNED_OUT';
 export type RoleCode = 'ADMIN' | 'TEACHER' | 'STUDENT';
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED' | 'DELETED';
 
@@ -27,19 +28,30 @@ export interface LoginInput {
 
 export interface AuthenticatedSession {
   status: 'authenticated';
+  reason: null;
   user: AuthUser;
   roles: RoleCode[];
   permissions: string[];
 }
 
-export interface EmptySession {
-  status: 'bootstrapping' | 'unauthenticated';
+export interface BootstrappingSession {
+  status: 'bootstrapping';
+  reason: null;
   user: null;
   roles: [];
   permissions: [];
 }
 
-export type AuthSessionSnapshot = AuthenticatedSession | EmptySession;
+export interface UnauthenticatedSession {
+  status: 'unauthenticated';
+  reason: AuthEndReason | null;
+  user: null;
+  roles: [];
+  permissions: [];
+}
+
+export type AuthSessionSnapshot =
+  AuthenticatedSession | BootstrappingSession | UnauthenticatedSession;
 
 export interface SuccessEnvelope<T> {
   success: true;
