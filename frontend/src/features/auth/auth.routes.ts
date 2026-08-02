@@ -1,10 +1,12 @@
 import type { AuthenticatedSession } from './types/auth.types';
+import { canAccessAdminDashboard } from '../admin-dashboard/admin-dashboard.routes';
 
 export const authPaths = {
   login: '/login',
   studentHome: '/app',
   teacherHome: '/teacher',
-  adminHome: '/admin/progress',
+  adminHome: '/admin',
+  adminProgress: '/admin/progress',
 } as const;
 
 function hasPermission(session: AuthenticatedSession, permission: string): boolean {
@@ -16,8 +18,12 @@ function hasRole(session: AuthenticatedSession, role: 'ADMIN' | 'TEACHER'): bool
 }
 
 export function defaultAuthenticatedPath(session: AuthenticatedSession): string {
-  if (hasRole(session, 'ADMIN') && hasPermission(session, 'progress.read')) {
+  if (canAccessAdminDashboard(session)) {
     return authPaths.adminHome;
+  }
+
+  if (hasRole(session, 'ADMIN') && hasPermission(session, 'progress.read')) {
+    return authPaths.adminProgress;
   }
 
   if (hasRole(session, 'TEACHER')) {
@@ -46,7 +52,10 @@ function canAccessReturnPath(session: AuthenticatedSession, path: string): boole
       hasPermission(session, 'progress.course.read')
     );
   }
-  if (pathname.startsWith('/admin/')) {
+  if (pathname === authPaths.adminHome) {
+    return canAccessAdminDashboard(session);
+  }
+  if (pathname === authPaths.adminProgress || pathname.startsWith(`${authPaths.adminProgress}/`)) {
     return hasRole(session, 'ADMIN') && hasPermission(session, 'progress.read');
   }
 

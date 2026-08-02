@@ -6,6 +6,11 @@ import {
   RequireAuthorization,
   RequireGuest,
 } from './features/auth';
+import {
+  adminDashboardPaths,
+  adminDashboardRequiredPermissions,
+  adminDashboardRequiredRoles,
+} from './features/admin-dashboard';
 import { ProgressSkeleton } from './features/progress/components';
 import { progressRouteSegments, progressPaths } from './features/progress/progress.routes';
 import { progressReportingPaths } from './features/progress-reporting/progress-reporting.routes';
@@ -31,6 +36,9 @@ const ProgressReportingDetailPage = lazy(
 const LoginPage = lazy(() => import('./features/auth/pages/LoginPage'));
 const TeacherDashboardPage = lazy(
   () => import('./features/teacher-dashboard/pages/TeacherDashboardPage'),
+);
+const AdminDashboardPage = lazy(
+  () => import('./features/admin-dashboard/pages/AdminDashboardPage'),
 );
 
 function App() {
@@ -102,6 +110,18 @@ function App() {
                 path={progressReportingPaths.adminEnrollmentPattern}
                 element={<ProgressReportingDetailPage admin />}
               />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={[...adminDashboardRequiredPermissions]}
+                roles={[...adminDashboardRequiredRoles]}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={adminDashboardPaths.dashboard} element={<AdminDashboardPage />} />
             </Route>
           </Route>
         </Route>
