@@ -1237,6 +1237,49 @@ should be idempotent and resilient to reconnection.
 - Speaking or written answers may require moderation or teacher review.
 - High-stakes testing may require additional identity and integrity controls.
 
+### 17.4 Public demo exercise boundary
+
+Module 9.5 introduces a low-stakes reusable exercise capability without treating
+the public demo as an enrollment assessment. The canonical demo resolves a real
+published preview lesson and composes two separately protected projections:
+
+- existing safe lesson content blocks for explanation and media; and
+- typed exercise presentation from a reusable exercise aggregate attached to
+  that lesson.
+
+Exercise presentation, private grading definition, lesson placement, anonymous
+attempt snapshot, attempt lifecycle, grader registry, and public projection are
+separate logical responsibilities. This separation prevents correct answers and
+normalization rules from entering public lesson metadata or client code. These
+responsibilities are conceptual architecture; Module 9.5A does not approve
+Prisma model or column names.
+
+Anonymous demo attempts use a dedicated-header, short-lived bearer capability
+whose raw value is reconstructed only for bounded idempotent creation replay;
+ordinary persistence retains versioned derivation metadata and a digest, never
+the raw token. GET/HEAD operations do not mutate expiry or attempt version.
+Attempts contain no account, enrollment, or PII association. Their answer evidence,
+points, streak, XP, skills, and completion cannot update learning progress,
+course completion, statistics, or certificate evidence. A later authenticated
+Course Player integration creates its own authorized attempt/progress evidence
+and never promotes anonymous results.
+
+Managed demo media has two authorization surfaces. Explanatory lesson-block
+audio is public only while reachable from the currently published preview
+projection. Exercise-prompt and terminal-feedback audio require the matching
+anonymous attempt capability and unexpired snapshot; terminal feedback also
+requires the corresponding exercise state to be terminal. Public object-storage
+paths, arbitrary remote URLs, previously observed feedback URLs, and media-ID
+knowledge alone do not grant access. Resource unpublication or security
+withdrawal revokes the relevant lesson and attempt media reachability.
+
+The exact lifecycle, type registry, scoring, retention, rate limits, threat
+model, media semantics, and phase gates are defined in the
+[Public Landing and Demo Lesson Contract](./PUBLIC_LANDING_DEMO_LESSON_CONTRACT.md)
+and [ADR-006](./design-system/decisions/ADR-006-public-demo-exercise-architecture.md).
+The [public demo OpenAPI](./openapi/public-demo.v1.yaml) remains
+`contract-only-not-available` until later phases implement and verify it.
+
 ---
 
 ## 18. Statistics architecture
@@ -1734,6 +1777,11 @@ operational runbooks where appropriate.
 - Deliver the Admin Dashboard sequentially: Module 9.4A contract approval,
   Module 9.4B backend aggregate runtime, then Module 9.4C frontend route and
   presentation. Management and audit pages remain separately owned modules.
+- Deliver the public learning preview sequentially: Module 9.5A contract,
+  9.5B additive persistence foundation, 9.5C public/admin backend, 9.5D
+  public/admin frontend,
+  9.5E contact workflow, and 9.5F authenticated Course Player reuse. Anonymous
+  demo evidence remains isolated from enrollment progress.
 
 ### Phase 7 — Mobile and Telegram
 

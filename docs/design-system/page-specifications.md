@@ -36,22 +36,92 @@ must meet the exact gzip budgets in
 
 ### Home — Specified
 
-**Purpose and hierarchy:** Announcement → public header → outcome-led hero →
-course categories → featured courses → benefits → verified statistics → how it
-works → teacher trust → consented testimonials → FAQ → final action → footer.
+**Purpose and hierarchy:** Public header → A1–C2 outcome-led hero →
+`A1`, `A2`, `B1`, `B2`, `C1`, `C2` learning path → `Nega Turk Tili LMS?` →
+three-step `Qanday ishlaydi?` → A1 `Türk Alfabesi` first-lesson-free card →
+honest teacher/group continuation explanation → approved FAQ → contact action →
+footer. Capability content covers interactive lessons, vocabulary,
+listening/pronunciation, quizzes/exercises, progress, teacher support, group
+learning, and certificates without inventing price, package, duration, or
+outcome claims. Published course cards, verified statistics, consented
+testimonials, teacher biographies, legal links, and support channels render only
+when their approved source exists.
 
-**Actions:** Primary `O‘rganishni boshlash` routes to the server-provided
-capability: registration only when enabled, otherwise login/invitation guidance.
-Secondary `Kurslarni ko‘rish`.
+**Actions:** Primary `1-darsni bepul sinab ko‘ring` routes to
+`/demo/turk-alfabesi`. Secondary `Tizimga kirish` routes to `/login`.
+`Kurslarni ko‘rish` is an optional tertiary action when the public catalog is
+available. Authenticated visitors receive a non-forcing link to their authorized
+area and are not redirected away from the landing page.
 
-**States/access:** Public. Dynamic course/statistic failures remain local.
-Authenticated visitors receive a valid role destination. Owner manages visible
-sections through typed admin content; legal/security copy remains controlled.
+**States/access:** Public. Static value and the demo action survive local
+catalog/content failures. Offline guidance preserves readable content and says
+that interactive practice needs a connection. Owner management is limited to
+typed, approved content and capability fields; security, validation, legal, and
+unsupported-claim rules remain code/review controlled.
 
 **Responsive/accessibility:** One-column hero below 1024 px; stacked actions at
-320 px; one eager intrinsic-size LCP image. No auto-rotating testimonial.
-Disclosures, announcement dismissal, landmarks, and artwork text alternatives
-follow the shared contracts.
+320 px; one eager intrinsic-size LCP image; reserved dynamic-card dimensions.
+There is no auto-rotating content or conversion countdown. Landmarks, heading
+order, focus states, long localization, and artwork alternatives follow the
+shared contracts. Strong typography, generous spacing, restrained red accents,
+and purposeful educational cards feel professional rather than childish.
+
+**Dependency:** Module 9.5A defines the contract only. Module 9.5D may implement
+the page only after the Module 9.5C public projection runtime is verified.
+
+### Public demo lesson — Specified
+
+**Route/purpose:** `/demo/turk-alfabesi` provides one free, 8–12 minute public
+preview of the real published `Türk Alfabesi` lesson. It teaches alphabet facts,
+Turkish-specific letters, dotted/dotless I, listening recognition, and simple
+word assembly before offering an honest next action.
+
+**Hierarchy:** Lesson identity/outcomes → alphabet reference → Turkish-specific
+letter guidance → optional managed pronunciation audio → question/progress
+region → immediate feedback → authoritative result/skills → retry/review →
+course/contact actions.
+
+**Interaction:** The 12-exercise sequence covers `LETTER_CHOICE`,
+`AUDIO_TO_LETTER`, `AUDIO_TO_WORD`, `MISSING_LETTER`, `MATCHING`,
+`WORD_ASSEMBLY`, `MULTIPLE_CHOICE`, and `QUICK_ROUND`. The client renders the
+typed public projection and submits typed responses; it never owns answers,
+grading, points, streak, XP, completion, or skill derivation. First incorrect
+answers may show a hint; terminal feedback explains the concept without
+returning machine answer keys.
+
+**Attempt states:** Not started, creating, in progress, submission pending,
+feedback, first-error retry, completed, result refresh, retry-all,
+retry-incorrect, reset confirmation, offline, rate limited, expired, generic
+not found, and recoverable server failure. Only the active answer command is
+disabled while pending. A stale version refetches the result; it never merges
+points locally. Reload clearly starts a new memory-only anonymous attempt.
+
+**Access/privacy:** Public to anonymous and authenticated visitors; no forced
+redirect, account, enrollment, persistent browser token, PII, third-party
+tracking, or enrollment-progress mutation. Lessons 2 and later remain protected
+by backend enrollment policy. Contact appears only from a server-approved
+capability and makes no placement or response-time promise.
+
+**Responsive/accessibility:** A centered reading column and sticky current-step
+action work at 320 px; result evidence becomes two columns only when each column
+retains readable width. One `h1`; Turkish text has `lang="tr"`; progress,
+feedback, points, and completion are announced deliberately. Choices use native
+semantics, matching/assembly have non-drag keyboard alternatives, controls are
+at least 44 by 44 CSS pixels, and sound is never the sole cue. Lesson and
+terminal audio have reviewed transcripts; pre-answer audio has only a
+non-answer-bearing label and a separately gradeable text-alternative snapshot.
+Reduced motion removes celebration movement.
+
+**Route/bundle:** The public demo is a lazy route separate from the landing and
+authenticated Course Player chunks. Exercise renderers are feature-owned and
+may later expose a deliberate shared public API; the player must not import the
+demo page's private files.
+
+**Dependencies:** The full policy and DTOs are in the
+[Public Landing and Demo Lesson Contract](../PUBLIC_LANDING_DEMO_LESSON_CONTRACT.md)
+and [public-demo OpenAPI](../openapi/public-demo.v1.yaml). Module 9.5C must
+activate public and typed owner APIs before Module 9.5D ships the route and
+graphical owner editors. Contact is 9.5E and real Course Player reuse is 9.5F.
 
 ### Course catalog — Specified
 
@@ -234,6 +304,11 @@ mutation controls. Curriculum conflicts refetch without local merge.
 **Content:** Captions/transcripts, no autoplay, accessible download fallback,
 meaningful image alt, external-link destination, file type/size, and safe
 unknown-block state.
+
+Reusable interactive exercises may be composed into this player only in Module
+9.5F, after the Module 9.5A architecture, later exercise runtime, and separate
+authenticated attempt/progress semantics are approved. Anonymous demo scores
+must never be promoted into enrollment progress.
 
 **Keyboard/accessibility:** No default global single-character shortcut.
 Scoped/remappable shortcuts and excluded typing contexts follow
@@ -447,6 +522,26 @@ and conflict rules remain blocking.
 A unified search/filter/list and moderation entry are defined. Bulk workflow
 rules and cross-owner reassignment remain unresolved; only the specified
 moderation page may ship first.
+
+### Admin Exercises and public demo — Specified for Modules 9.5C–9.5D
+
+**Purpose:** Give the non-programmer owner typed graphical management for the
+exercise library, immutable revisions, public/private validation boundary,
+localization, media attachments/usages, lesson placements/order, canonical demo
+mapping, landing content, and publication state.
+
+**Actions/states:** Bounded list/detail/create; edit draft; submit/reject review;
+preview; publish; archive; clone-to-restore; attach/detach managed media; inspect
+Restrict usages; activate/archive/reorder placements; enable/disable mapping;
+and view audit history. Destructive or revoking actions preview affected
+lessons, placements, media, and active attempts and require explicit
+confirmation. Permissions separate view/create/review/publish, placement,
+mapping, and landing-content authority. The UI uses typed APIs and never exposes
+raw grader JSON, code, SQL, CSS, scripts, templates, or storage credentials.
+
+**Dependency:** Module 9.5B may add only the approved persistence/permission
+foundation. Module 9.5C owns authorized services/APIs and audit. Module 9.5D
+owns these graphical routes and accessible validation/preview workflows.
 
 ### Admin Media — Partially Specified
 

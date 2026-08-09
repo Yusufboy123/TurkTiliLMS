@@ -1,0 +1,2458 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Public Demo API
+  version: 1.0.0-rc.1
+  description: |
+    Module 9.5A contract for the public `Türk Alfabesi` preview lesson,
+    reusable typed exercises, backend grading, ephemeral anonymous attempts,
+    results, retries, reset, and resource-reachable pronunciation audio.
+    Every operation is contract-only and unavailable until its named later
+    phase is approved and implemented.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development base path
+tags:
+  - name: Public Demo Lesson
+  - name: Public Demo Attempt
+  - name: Public Demo Media
+paths:
+  /public/demo-lessons/{demoSlug}:
+    get:
+      tags: [Public Demo Lesson]
+      operationId: getPublicDemoLesson
+      summary: Get a safe published preview lesson projection
+      description: |
+        Resolves a configured public demo slug to one real published course,
+        visible section, and published `isPreview=true` lesson. Returns safe
+        content and learning metadata, never exercise answers, grading rules,
+        lesson metadata, storage paths, or unpublished resources.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 60 requests per 60 seconds per privacy-safe network HMAC
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/DemoSlug'
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Public demo lesson returned
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicRevalidate'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+            Vary:
+              $ref: '#/components/headers/VaryAcceptLanguage'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoLessonResponse'
+        '304':
+          description: Cached public lesson projection remains current; no body
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicRevalidate'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+            Vary:
+              $ref: '#/components/headers/VaryAcceptLanguage'
+        '404':
+          $ref: '#/components/responses/DemoLessonNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/demo-lessons/{demoSlug}/attempts:
+    post:
+      tags: [Public Demo Attempt]
+      operationId: createPublicDemoAttempt
+      summary: Start an ephemeral anonymous demo attempt
+      description: |
+        Creates an immutable ordered snapshot. The raw 256-bit attempt token is
+        returned on creation or exact replay and is reconstructed from managed
+        key material; ordinary persistence retains only derivation metadata and
+        its digest. No account,
+        enrollment, progress, certificate, or personal-data record is created.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 10 create or reset requests per 15 minutes per privacy-safe network HMAC
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/DemoSlug'
+        - $ref: '#/components/parameters/CreationIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAttemptRequest'
+      responses:
+        '201':
+          description: Ephemeral attempt created
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            Location:
+              description: Relative result resource for the new attempt
+              schema:
+                type: string
+                example: /api/v1/public/demo-attempts/8a7c0ad7-c1f5-42a4-a6e6-7d8cc45149cf/result
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardAttemptCreatedResponse'
+        '404':
+          $ref: '#/components/responses/DemoLessonNotFound'
+        '409':
+          $ref: '#/components/responses/AttemptConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/demo-attempts/{attemptId}/answers:
+    post:
+      tags: [Public Demo Attempt]
+      operationId: submitPublicDemoAnswer
+      summary: Submit and grade the current exercise response
+      description: |
+        Validates the discriminated response against the immutable snapshot,
+        serializes the attempt transition, grades on the backend, and returns
+        safe feedback. Correct answer identifiers and grading definitions are
+        never returned.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 60 requests per 5 minutes per attempt and 120 per 5 minutes per privacy-safe network HMAC
+      security:
+        - demoAttemptToken: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitAnswerRequest'
+      responses:
+        '200':
+          description: Answer graded or original idempotent response replayed
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerFeedbackResponse'
+        '401':
+          $ref: '#/components/responses/AttemptCapabilityRequired'
+        '404':
+          $ref: '#/components/responses/AttemptNotFound'
+        '409':
+          $ref: '#/components/responses/AttemptConflict'
+        '410':
+          $ref: '#/components/responses/AttemptGone'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/demo-attempts/{attemptId}/result:
+    get:
+      tags: [Public Demo Attempt]
+      operationId: getPublicDemoAttemptResult
+      summary: Get authoritative attempt progress or completed result
+      description: |
+        Returns server-derived totals, per-skill evidence, and safe
+        per-exercise review. It never returns correct choice, pair, order, word,
+        normalization, randomization seed, or private grader fields. This read
+        never extends idle expiry or increments attempt version.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 30 requests per 60 seconds per attempt
+      security:
+        - demoAttemptToken: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Attempt progress or result returned
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptResultResponse'
+        '401':
+          $ref: '#/components/responses/AttemptCapabilityRequired'
+        '404':
+          $ref: '#/components/responses/AttemptNotFound'
+        '410':
+          $ref: '#/components/responses/AttemptGone'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/demo-attempts/{attemptId}/retries:
+    post:
+      tags: [Public Demo Attempt]
+      operationId: retryPublicDemoAttempt
+      summary: Create a fresh all or incorrect-only retry attempt
+      description: |
+        Creates a child attempt with a new raw capability. `INCORRECT_ONLY` is
+        allowed only for a completed attempt with terminal incorrect exercises.
+        Selection and order copy the immutable parent snapshot; no current
+        exercise revision is substituted. Exact replay reconstructs the same
+        child token without a second mutation.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 5 requests per hour per attempt lineage and 20 per hour per privacy-safe network HMAC
+      security:
+        - demoAttemptToken: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetryAttemptRequest'
+      responses:
+        '201':
+          description: Retry attempt created
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            Location:
+              description: Relative result resource for the new attempt
+              schema:
+                type: string
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetryAttemptCreatedResponse'
+        '401':
+          $ref: '#/components/responses/AttemptCapabilityRequired'
+        '404':
+          $ref: '#/components/responses/AttemptNotFound'
+        '409':
+          $ref: '#/components/responses/AttemptConflict'
+        '410':
+          $ref: '#/components/responses/AttemptGone'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/demo-attempts/{attemptId}/reset:
+    post:
+      tags: [Public Demo Attempt]
+      operationId: resetPublicDemoAttempt
+      summary: Abandon and replace an active attempt
+      description: |
+        Atomically marks the current attempt abandoned, invalidates its raw
+        capability for normal use, and returns an unrelated current-curriculum
+        attempt and token. A bounded replay-only old digest may reproduce only
+        the exact successful reset response.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 10 create or reset requests per 15 minutes per privacy-safe network HMAC
+      security:
+        - demoAttemptToken: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetAttemptRequest'
+      responses:
+        '201':
+          description: Replacement attempt created and old capability invalidated
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            Location:
+              description: Relative result resource for the replacement attempt
+              schema:
+                type: string
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardAttemptCreatedResponse'
+        '401':
+          $ref: '#/components/responses/AttemptCapabilityRequired'
+        '404':
+          $ref: '#/components/responses/AttemptNotFound'
+        '409':
+          $ref: '#/components/responses/AttemptConflict'
+        '410':
+          $ref: '#/components/responses/AttemptGone'
+        '422':
+          $ref: '#/components/responses/ValidationFailure'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/demo-attempts/{attemptId}/media/{mediaId}:
+    get:
+      tags: [Public Demo Media]
+      operationId: streamPublicDemoAttemptMedia
+      summary: Stream capability-protected snapshot audio
+      description: |
+        Streams managed exercise-prompt audio from the matching unexpired
+        snapshot or terminal-feedback audio only after its exercise is terminal.
+        The attempt capability and current media-state authorization are checked
+        on every request. No read extends expiry or attempt version.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 120 requests per minute per privacy-safe network HMAC and 30 per minute per media ID
+      security:
+        - demoAttemptToken: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/Range'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/AttemptAudioContent'
+        '206':
+          $ref: '#/components/responses/AttemptPartialAudioContent'
+        '304':
+          description: Cached private representation remains current
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+        '401':
+          $ref: '#/components/responses/AttemptCapabilityRequired'
+        '404':
+          $ref: '#/components/responses/AttemptMediaNotFound'
+        '410':
+          $ref: '#/components/responses/AttemptGone'
+        '416':
+          $ref: '#/components/responses/AttemptRangeNotSatisfiable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    head:
+      tags: [Public Demo Media]
+      operationId: headPublicDemoAttemptMedia
+      summary: Inspect capability-protected snapshot audio headers
+      description: |
+        Applies the same attempt and media-state authorization as GET and returns
+        no body. Terminal-feedback media remains unavailable until its exercise
+        is terminal. This read never extends expiry or attempt version.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 120 requests per minute per privacy-safe network HMAC and 30 per minute per media ID
+      security:
+        - demoAttemptToken: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Authorized snapshot audio metadata returned without a body
+          headers:
+            Accept-Ranges:
+              $ref: '#/components/headers/AcceptRanges'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            Content-Length:
+              $ref: '#/components/headers/ContentLength'
+            Content-Type:
+              $ref: '#/components/headers/AudioContentType'
+            Content-Disposition:
+              $ref: '#/components/headers/SafeAudioDisposition'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/NoSniff'
+        '304':
+          description: Cached private representation remains current
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+        '401':
+          $ref: '#/components/responses/HeadAttemptCapabilityRequired'
+        '404':
+          $ref: '#/components/responses/HeadAttemptNotFound'
+        '410':
+          $ref: '#/components/responses/HeadAttemptGone'
+        '429':
+          $ref: '#/components/responses/HeadRateLimited'
+        '500':
+          $ref: '#/components/responses/HeadInternalServerError'
+  /public/demo-lessons/{demoSlug}/media/{mediaId}:
+    get:
+      tags: [Public Demo Media]
+      operationId: streamPublicDemoPronunciationMedia
+      summary: Stream currently public explanatory lesson audio
+      description: |
+        Revalidates that the managed, non-deleted, inspected audio file is
+        referenced by the currently public explanatory lesson-block projection.
+        Snapshot prompt and terminal-feedback media use the capability-protected
+        attempt-media route. Supports one GET byte range and never redirects to
+        authored remote URLs or exposes a storage path.
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 120 requests per minute per privacy-safe network HMAC and 30 per minute per media ID
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/DemoSlug'
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/Range'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/AudioContent'
+        '206':
+          $ref: '#/components/responses/PartialAudioContent'
+        '304':
+          description: Cached representation remains current
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicMediaRevalidate'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+        '404':
+          $ref: '#/components/responses/PublicMediaNotFound'
+        '416':
+          $ref: '#/components/responses/RangeNotSatisfiable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    head:
+      tags: [Public Demo Media]
+      operationId: headPublicDemoPronunciationMedia
+      summary: Inspect currently public explanatory lesson audio headers
+      x-implementation-phase: Module 9.5C
+      x-implementation-status: contract-only-not-available
+      x-rate-limit-policy: 120 requests per minute per privacy-safe network HMAC and 30 per minute per media ID
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/DemoSlug'
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Reachable audio metadata returned without a body
+          headers:
+            Accept-Ranges:
+              $ref: '#/components/headers/AcceptRanges'
+            Cache-Control:
+              $ref: '#/components/headers/PublicMediaRevalidate'
+            Content-Length:
+              $ref: '#/components/headers/ContentLength'
+            Content-Type:
+              $ref: '#/components/headers/AudioContentType'
+            Content-Disposition:
+              $ref: '#/components/headers/SafeAudioDisposition'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+            X-Content-Type-Options:
+              $ref: '#/components/headers/NoSniff'
+        '304':
+          description: Cached representation remains current
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicMediaRevalidate'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            RateLimit:
+              $ref: '#/components/headers/RateLimit'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+        '404':
+          $ref: '#/components/responses/HeadPublicMediaNotFound'
+        '429':
+          $ref: '#/components/responses/HeadRateLimited'
+        '500':
+          $ref: '#/components/responses/HeadInternalServerError'
+components:
+  securitySchemes:
+    demoAttemptToken:
+      type: apiKey
+      in: header
+      name: X-Demo-Attempt-Token
+      description: Exact 43-character base64url 256-bit capability; memory-only in clients and never logged.
+  parameters:
+    DemoSlug:
+      name: demoSlug
+      in: path
+      required: true
+      description: Configured public demo slug; v1 supports `turk-alfabesi`.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        minLength: 3
+        maxLength: 80
+      example: turk-alfabesi
+    AttemptId:
+      name: attemptId
+      in: path
+      required: true
+      description: Non-secret attempt UUID; authority still requires the attempt token.
+      schema:
+        type: string
+        format: uuid
+    MediaId:
+      name: mediaId
+      in: path
+      required: true
+      description: Managed media UUID whose lesson reachability is revalidated.
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Required for capability-authorized answer/retry/reset commands. Bound to
+        operation scope and canonical fingerprint for a 15-minute exact replay
+        window.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+        pattern: '^[\x21-\x7E]+$'
+    CreationIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Cryptographically random client-generated UUIDv4 required for anonymous
+        attempt creation. Its unguessability prevents cross-user replay within a
+        shared network-HMAC scope.
+      schema:
+        type: string
+        format: uuid
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+    Range:
+      name: Range
+      in: header
+      required: false
+      description: One RFC 9110 byte range; multipart ranges are rejected.
+      schema:
+        type: string
+        pattern: '^bytes=(?:[0-9]+-[0-9]*|-[0-9]+)$'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 200
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      description: Interface-locale preference; resolved deterministically with uz-Latn fallback.
+      schema:
+        type: string
+        maxLength: 200
+  headers:
+    PrivateNoStore:
+      description: Prevents persistence of attempt capabilities and private attempt state.
+      schema:
+        type: string
+        const: private, no-store
+    PublicRevalidate:
+      description: Requires revalidation so publication/mapping revocation takes effect on next use.
+      schema:
+        type: string
+        const: public, max-age=0, must-revalidate
+    VaryAcceptLanguage:
+      description: Keeps localized public lesson representations in distinct cache variants.
+      schema:
+        type: string
+        const: Accept-Language
+    PublicMediaRevalidate:
+      description: Requires revalidation so publication/media revocation takes effect on next use.
+      schema:
+        type: string
+        const: public, max-age=0, must-revalidate
+    ETag:
+      description: Strong representation validator that changes when the projection or media changes.
+      schema:
+        type: string
+    RateLimit:
+      description: Combined limit, remaining, and reset information.
+      schema:
+        type: string
+    RateLimitPolicy:
+      description: Applied request-window policy.
+      schema:
+        type: string
+    RetryAfter:
+      description: Seconds until a request may be retried.
+      schema:
+        type: integer
+        minimum: 1
+    IdempotencyReplayed:
+      description: Whether the response is the stored result of the same key and fingerprint.
+      schema:
+        type: string
+        enum: ['true', 'false']
+    AcceptRanges:
+      description: Supported range unit.
+      schema:
+        type: string
+        const: bytes
+    ContentLength:
+      description: Representation length in bytes.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    AudioContentType:
+      description: Inspected and allowlisted audio MIME type.
+      schema:
+        type: string
+        enum: [audio/mpeg, audio/wav]
+    ContentRange:
+      description: Served byte range and full representation length.
+      schema:
+        type: string
+        pattern: '^bytes [0-9]+-[0-9]+/[0-9]+$'
+    UnsatisfiedContentRange:
+      description: Unsatisfied byte range and full representation length.
+      schema:
+        type: string
+        pattern: '^bytes \*/[0-9]+$'
+    NoSniff:
+      description: Prevents MIME sniffing.
+      schema:
+        type: string
+        const: nosniff
+    SafeAudioDisposition:
+      description: Inline disposition with a server-generated safe filename.
+      schema:
+        type: string
+        pattern: '^inline; filename="[A-Za-z0-9._-]+"$'
+  schemas:
+    ApiSuccessBase:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+          minLength: 1
+          maxLength: 240
+    DemoLessonResponse:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/DemoLesson'
+    DemoLesson:
+      type: object
+      additionalProperties: false
+      required:
+        - slug
+        - requestedLocale
+        - resolvedLocale
+        - course
+        - section
+        - lesson
+        - estimatedMinutes
+        - learningOutcomes
+        - contentBlocks
+        - exerciseCount
+        - supportedExerciseTypes
+        - contactCapability
+      properties:
+        slug:
+          type: string
+          const: turk-alfabesi
+        requestedLocale:
+          description: First supported requested locale after approved alias normalization; null when the header is absent or has no supported preference.
+          oneOf:
+            - $ref: '#/components/schemas/InterfaceLocale'
+            - type: 'null'
+        resolvedLocale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        course:
+          $ref: '#/components/schemas/PublicCourseIdentity'
+        section:
+          $ref: '#/components/schemas/PublicSectionIdentity'
+        lesson:
+          $ref: '#/components/schemas/PublicPreviewLessonIdentity'
+        estimatedMinutes:
+          type: integer
+          minimum: 1
+          maximum: 30
+          example: 10
+        learningOutcomes:
+          type: array
+          minItems: 1
+          maxItems: 8
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/LocalizedText'
+        contentBlocks:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/PublicContentBlock'
+        exerciseCount:
+          type: integer
+          const: 12
+        supportedExerciseTypes:
+          type: array
+          minItems: 8
+          maxItems: 8
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ExerciseType'
+        contactCapability:
+          $ref: '#/components/schemas/ContactCapability'
+    PublicSectionIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+    PublicCourseIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, slug, title, level]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 120
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        level:
+          type: string
+          const: A1
+    PublicPreviewLessonIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, slug, title, isPreview]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 120
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        isPreview:
+          type: boolean
+          const: true
+    LocalizedText:
+      type: object
+      additionalProperties: false
+      required: [locale, value]
+      properties:
+        locale:
+          type: string
+          enum: [uz-Latn, tr, en, ru]
+        value:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    InterfaceLocale:
+      type: string
+      enum: [uz-Latn, tr, en, ru]
+    PublicContentBlock:
+      oneOf:
+        - $ref: '#/components/schemas/DemoTextContentBlock'
+        - $ref: '#/components/schemas/DemoAudioContentBlock'
+      discriminator:
+        propertyName: blockType
+        mapping:
+          TEXT: '#/components/schemas/DemoTextContentBlock'
+          AUDIO: '#/components/schemas/DemoAudioContentBlock'
+    DemoTextContentBlock:
+      type: object
+      additionalProperties: false
+      required: [id, blockType, title, description, position, isRequired, textContent]
+      properties:
+        id:
+          type: string
+          format: uuid
+        blockType:
+          type: string
+          const: TEXT
+        position:
+          type: integer
+          minimum: 0
+        title:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        description:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        isRequired:
+          type: boolean
+        textContent:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+    DemoAudioContentBlock:
+      type: object
+      additionalProperties: false
+      required: [id, blockType, title, description, position, isRequired, media, durationSeconds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        blockType:
+          type: string
+          const: AUDIO
+        title:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        description:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        position:
+          type: integer
+          minimum: 0
+        isRequired:
+          type: boolean
+        media:
+          $ref: '#/components/schemas/LessonAudioReference'
+        durationSeconds:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 30
+    LessonAudioReference:
+      type: object
+      additionalProperties: false
+      required: [mediaId, href, mimeType, durationMs, transcript]
+      properties:
+        mediaId:
+          type: string
+          format: uuid
+        href:
+          type: string
+          pattern: '^/api/v1/public/demo-lessons/[a-z0-9-]+/media/[0-9a-fA-F-]{36}$'
+        mimeType:
+          type: string
+          enum: [audio/mpeg, audio/wav]
+        durationMs:
+          type: integer
+          minimum: 100
+          maximum: 30000
+        transcript:
+          $ref: '#/components/schemas/LocalizedText'
+    ExercisePromptAudioReference:
+      type: object
+      additionalProperties: false
+      required: [mediaId, href, mimeType, durationMs, accessibleLabel]
+      properties:
+        mediaId:
+          type: string
+          format: uuid
+        href:
+          type: string
+          pattern: '^/api/v1/public/demo-attempts/[0-9a-fA-F-]{36}/media/[0-9a-fA-F-]{36}$'
+        mimeType:
+          type: string
+          enum: [audio/mpeg, audio/wav]
+        durationMs:
+          type: integer
+          minimum: 100
+          maximum: 30000
+        accessibleLabel:
+          $ref: '#/components/schemas/LocalizedText'
+    TerminalFeedbackAudioReference:
+      type: object
+      additionalProperties: false
+      required: [mediaId, href, mimeType, durationMs, transcript]
+      properties:
+        mediaId:
+          type: string
+          format: uuid
+        href:
+          type: string
+          pattern: '^/api/v1/public/demo-attempts/[0-9a-fA-F-]{36}/media/[0-9a-fA-F-]{36}$'
+        mimeType:
+          type: string
+          enum: [audio/mpeg, audio/wav]
+        durationMs:
+          type: integer
+          minimum: 100
+          maximum: 30000
+        transcript:
+          $ref: '#/components/schemas/LocalizedText'
+    ContactCapability:
+      oneOf:
+        - $ref: '#/components/schemas/UnavailableContactCapability'
+        - $ref: '#/components/schemas/AvailableContactCapability'
+      discriminator:
+        propertyName: state
+    UnavailableContactCapability:
+      type: object
+      additionalProperties: false
+      required: [state, available]
+      properties:
+        state:
+          type: string
+          const: UNAVAILABLE
+        available:
+          type: boolean
+          const: false
+    AvailableContactCapability:
+      type: object
+      additionalProperties: false
+      required: [state, available, label, channels]
+      properties:
+        state:
+          type: string
+          const: AVAILABLE
+        available:
+          type: boolean
+          const: true
+        label:
+          $ref: '#/components/schemas/LocalizedText'
+        channels:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum: [FIRST_PARTY_FORM, TELEGRAM, PHONE, WHATSAPP]
+    CreateAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [locale, audioMode]
+      properties:
+        locale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        audioMode:
+          type: string
+          enum: [AUDIO_ENABLED, TEXT_ALTERNATIVE]
+    StandardAttemptCreatedResponse:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/StandardAttemptCreated'
+    RetryAttemptCreatedResponse:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/RetryAttemptCreated'
+    AttemptCreated:
+      type: object
+      additionalProperties: false
+      x-invariants:
+        - exerciseCount must equal exercises.length and progress.exerciseCount
+        - progress.totalPoints must equal the sum of exercises.maxPoints
+      required:
+        - attemptId
+        - attemptToken
+        - status
+        - version
+        - createdAt
+        - idleExpiresAt
+        - absoluteExpiresAt
+        - effectiveExpiresAt
+        - requestedLocale
+        - resolvedLocale
+        - currentQuestionNumber
+        - exerciseCount
+        - exercises
+        - progress
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+        attemptToken:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: Sensitive raw 256-bit base64url capability returned on creation or exact replay only.
+          x-sensitive: true
+        status:
+          type: string
+          const: IN_PROGRESS
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        idleExpiresAt:
+          type: string
+          format: date-time
+        absoluteExpiresAt:
+          type: string
+          format: date-time
+        effectiveExpiresAt:
+          type: string
+          format: date-time
+        requestedLocale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        resolvedLocale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        currentQuestionNumber:
+          type: integer
+          const: 1
+        exerciseCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        exercises:
+          type: array
+          minItems: 1
+          maxItems: 12
+          uniqueItems: true
+          x-unique-by: id
+          items:
+            $ref: '#/components/schemas/PublicExercise'
+        progress:
+          $ref: '#/components/schemas/InitialAttemptProgress'
+    InitialAttemptProgress:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - currentQuestionNumber
+        - exerciseCount
+        - completedCount
+        - correctCount
+        - incorrectCount
+        - earnedPoints
+        - totalPoints
+        - streak
+        - xp
+      properties:
+        status:
+          type: string
+          const: IN_PROGRESS
+        currentQuestionNumber:
+          type: integer
+          const: 1
+        exerciseCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        completedCount:
+          type: integer
+          const: 0
+        correctCount:
+          type: integer
+          const: 0
+        incorrectCount:
+          type: integer
+          const: 0
+        earnedPoints:
+          type: integer
+          const: 0
+        totalPoints:
+          type: integer
+          minimum: 1
+        streak:
+          type: integer
+          const: 0
+        xp:
+          type: integer
+          const: 0
+    StandardAttemptCreated:
+      allOf:
+        - $ref: '#/components/schemas/AttemptCreated'
+        - type: object
+          properties:
+            exerciseCount:
+              type: integer
+              const: 12
+            exercises:
+              type: array
+              minItems: 12
+              maxItems: 12
+              items:
+                $ref: '#/components/schemas/PublicExercise'
+    RetryAttemptCreated:
+      allOf:
+        - $ref: '#/components/schemas/AttemptCreated'
+        - type: object
+          properties:
+            exerciseCount:
+              type: integer
+              minimum: 1
+              maximum: 12
+            exercises:
+              type: array
+              minItems: 1
+              maxItems: 12
+              items:
+                $ref: '#/components/schemas/PublicExercise'
+    ExerciseType:
+      type: string
+      enum:
+        - LETTER_CHOICE
+        - AUDIO_TO_LETTER
+        - AUDIO_TO_WORD
+        - MISSING_LETTER
+        - MATCHING
+        - WORD_ASSEMBLY
+        - MULTIPLE_CHOICE
+        - QUICK_ROUND
+    SkillTag:
+      type: string
+      enum:
+        - alphabet-recognition
+        - special-letters
+        - pronunciation
+        - letter-case
+        - word-recognition
+    ExerciseCommonFields:
+      type: object
+      x-invariants:
+        - maxPoints must be greater than or equal to skillTags.length
+      required: [id, type, version, prompt, instruction, skillTags, maxPoints, maxSubmissions]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable exercise aggregate UUID; not an immutable revision or placement ID.
+        type:
+          $ref: '#/components/schemas/ExerciseType'
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Positive public revision number within the stable aggregate.
+        prompt:
+          $ref: '#/components/schemas/LocalizedText'
+        instruction:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        skillTags:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SkillTag'
+        maxPoints:
+          type: integer
+          minimum: 1
+          maximum: 100
+        maxSubmissions:
+          type: integer
+          enum: [1, 2]
+    Choice:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          $ref: '#/components/schemas/LocalizedText'
+    ChoiceList:
+      type: array
+      minItems: 2
+      maxItems: 8
+      uniqueItems: true
+      x-unique-by: id
+      items:
+        $ref: '#/components/schemas/Choice'
+    PublicExercise:
+      unevaluatedProperties: false
+      oneOf:
+        - $ref: '#/components/schemas/LetterChoiceExercise'
+        - $ref: '#/components/schemas/AudioToLetterExercise'
+        - $ref: '#/components/schemas/AudioToWordExercise'
+        - $ref: '#/components/schemas/MissingLetterExercise'
+        - $ref: '#/components/schemas/MatchingExercise'
+        - $ref: '#/components/schemas/WordAssemblyExercise'
+        - $ref: '#/components/schemas/MultipleChoiceExercise'
+        - $ref: '#/components/schemas/QuickRoundExercise'
+      discriminator:
+        propertyName: type
+        mapping:
+          LETTER_CHOICE: '#/components/schemas/LetterChoiceExercise'
+          AUDIO_TO_LETTER: '#/components/schemas/AudioToLetterExercise'
+          AUDIO_TO_WORD: '#/components/schemas/AudioToWordExercise'
+          MISSING_LETTER: '#/components/schemas/MissingLetterExercise'
+          MATCHING: '#/components/schemas/MatchingExercise'
+          WORD_ASSEMBLY: '#/components/schemas/WordAssemblyExercise'
+          MULTIPLE_CHOICE: '#/components/schemas/MultipleChoiceExercise'
+          QUICK_ROUND: '#/components/schemas/QuickRoundExercise'
+    LetterChoiceExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, choices]
+          properties:
+            type:
+              type: string
+              const: LETTER_CHOICE
+            maxSubmissions:
+              type: integer
+              const: 2
+            choices:
+              $ref: '#/components/schemas/ChoiceList'
+    AudioToLetterExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, audio, choices]
+          properties:
+            type:
+              type: string
+              const: AUDIO_TO_LETTER
+            maxSubmissions:
+              type: integer
+              const: 2
+            audio:
+              $ref: '#/components/schemas/ExercisePromptAudioReference'
+            choices:
+              $ref: '#/components/schemas/ChoiceList'
+    AudioToWordExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, audio, choices]
+          properties:
+            type:
+              type: string
+              const: AUDIO_TO_WORD
+            maxSubmissions:
+              type: integer
+              const: 2
+            audio:
+              $ref: '#/components/schemas/ExercisePromptAudioReference'
+            choices:
+              $ref: '#/components/schemas/ChoiceList'
+    MissingLetterExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, beforeBlank, afterBlank, choices]
+          properties:
+            type:
+              type: string
+              const: MISSING_LETTER
+            maxSubmissions:
+              type: integer
+              const: 2
+            beforeBlank:
+              type: string
+              maxLength: 40
+            afterBlank:
+              type: string
+              maxLength: 40
+            choices:
+              $ref: '#/components/schemas/ChoiceList'
+    MatchItem:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          $ref: '#/components/schemas/LocalizedText'
+    MatchItemList:
+      type: array
+      minItems: 2
+      maxItems: 8
+      uniqueItems: true
+      x-unique-by: id
+      items:
+        $ref: '#/components/schemas/MatchItem'
+    MatchingExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, leftItems, rightItems]
+          properties:
+            type:
+              type: string
+              const: MATCHING
+            maxSubmissions:
+              type: integer
+              const: 2
+            leftItems:
+              $ref: '#/components/schemas/MatchItemList'
+            rightItems:
+              $ref: '#/components/schemas/MatchItemList'
+    LetterTile:
+      type: object
+      additionalProperties: false
+      required: [id, value]
+      properties:
+        id:
+          type: string
+          format: uuid
+        value:
+          type: string
+          minLength: 1
+          maxLength: 3
+    WordAssemblyExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, tiles]
+          properties:
+            type:
+              type: string
+              const: WORD_ASSEMBLY
+            maxSubmissions:
+              type: integer
+              const: 2
+            tiles:
+              type: array
+              minItems: 2
+              maxItems: 12
+              uniqueItems: true
+              x-unique-by: id
+              items:
+                $ref: '#/components/schemas/LetterTile'
+    MultipleChoiceExercise:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, choices]
+          properties:
+            type:
+              type: string
+              const: MULTIPLE_CHOICE
+            maxSubmissions:
+              type: integer
+              const: 2
+            choices:
+              $ref: '#/components/schemas/ChoiceList'
+    QuickRoundSubPrompt:
+      unevaluatedProperties: false
+      oneOf:
+        - $ref: '#/components/schemas/QuickLetterChoiceSubPrompt'
+        - $ref: '#/components/schemas/QuickAudioToLetterSubPrompt'
+        - $ref: '#/components/schemas/QuickAudioToWordSubPrompt'
+        - $ref: '#/components/schemas/QuickMissingLetterSubPrompt'
+        - $ref: '#/components/schemas/QuickMultipleChoiceSubPrompt'
+      discriminator:
+        propertyName: kind
+    QuickLetterChoiceSubPrompt:
+      type: object
+      additionalProperties: false
+      required: [id, kind, prompt, skillTag, choices]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, const: LETTER_CHOICE }
+        prompt: { $ref: '#/components/schemas/LocalizedText' }
+        skillTag: { $ref: '#/components/schemas/SkillTag' }
+        choices: { $ref: '#/components/schemas/ChoiceList' }
+    QuickAudioToLetterSubPrompt:
+      type: object
+      additionalProperties: false
+      required: [id, kind, prompt, skillTag, audio, choices]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, const: AUDIO_TO_LETTER }
+        prompt: { $ref: '#/components/schemas/LocalizedText' }
+        skillTag: { $ref: '#/components/schemas/SkillTag' }
+        audio: { $ref: '#/components/schemas/ExercisePromptAudioReference' }
+        choices: { $ref: '#/components/schemas/ChoiceList' }
+    QuickAudioToWordSubPrompt:
+      type: object
+      additionalProperties: false
+      required: [id, kind, prompt, skillTag, audio, choices]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, const: AUDIO_TO_WORD }
+        prompt: { $ref: '#/components/schemas/LocalizedText' }
+        skillTag: { $ref: '#/components/schemas/SkillTag' }
+        audio: { $ref: '#/components/schemas/ExercisePromptAudioReference' }
+        choices: { $ref: '#/components/schemas/ChoiceList' }
+    QuickMissingLetterSubPrompt:
+      type: object
+      additionalProperties: false
+      required: [id, kind, prompt, skillTag, beforeBlank, afterBlank, choices]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, const: MISSING_LETTER }
+        prompt: { $ref: '#/components/schemas/LocalizedText' }
+        skillTag: { $ref: '#/components/schemas/SkillTag' }
+        beforeBlank: { type: string, maxLength: 40 }
+        afterBlank: { type: string, maxLength: 40 }
+        choices: { $ref: '#/components/schemas/ChoiceList' }
+    QuickMultipleChoiceSubPrompt:
+      type: object
+      additionalProperties: false
+      required: [id, kind, prompt, skillTag, choices]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, const: MULTIPLE_CHOICE }
+        prompt: { $ref: '#/components/schemas/LocalizedText' }
+        skillTag: { $ref: '#/components/schemas/SkillTag' }
+        choices: { $ref: '#/components/schemas/ChoiceList' }
+    QuickRoundExercise:
+      unevaluatedProperties: false
+      x-invariants:
+        - maxPoints must be greater than or equal to subPrompts.length
+        - skillTags must equal the unique set of every subPrompt.skillTag
+      allOf:
+        - $ref: '#/components/schemas/ExerciseCommonFields'
+        - type: object
+          required: [type, maxSubmissions, guidanceSeconds, subPrompts]
+          properties:
+            type:
+              type: string
+              const: QUICK_ROUND
+            maxSubmissions:
+              type: integer
+              const: 1
+            guidanceSeconds:
+              type: integer
+              minimum: 20
+              maximum: 180
+              description: Non-enforcing guidance; never expires or reduces points.
+            subPrompts:
+              type: array
+              minItems: 2
+              maxItems: 8
+              uniqueItems: true
+              x-unique-by: id
+              items:
+                $ref: '#/components/schemas/QuickRoundSubPrompt'
+    SubmitAnswerRequest:
+      type: object
+      additionalProperties: false
+      required: [exerciseId, expectedVersion, response]
+      properties:
+        exerciseId:
+          type: string
+          format: uuid
+        expectedVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        response:
+          $ref: '#/components/schemas/ExerciseResponse'
+    ExerciseResponse:
+      oneOf:
+        - $ref: '#/components/schemas/LetterChoiceResponse'
+        - $ref: '#/components/schemas/AudioToLetterResponse'
+        - $ref: '#/components/schemas/AudioToWordResponse'
+        - $ref: '#/components/schemas/MissingLetterResponse'
+        - $ref: '#/components/schemas/MatchingResponse'
+        - $ref: '#/components/schemas/WordAssemblyResponse'
+        - $ref: '#/components/schemas/MultipleChoiceResponse'
+        - $ref: '#/components/schemas/QuickRoundResponse'
+      discriminator:
+        propertyName: type
+    SingleChoiceResponseBase:
+      type: object
+      additionalProperties: false
+      required: [type, choiceId]
+      properties:
+        type:
+          $ref: '#/components/schemas/ExerciseType'
+        choiceId:
+          type: string
+          format: uuid
+    LetterChoiceResponse:
+      allOf:
+        - $ref: '#/components/schemas/SingleChoiceResponseBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              const: LETTER_CHOICE
+    AudioToLetterResponse:
+      allOf:
+        - $ref: '#/components/schemas/SingleChoiceResponseBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              const: AUDIO_TO_LETTER
+    AudioToWordResponse:
+      allOf:
+        - $ref: '#/components/schemas/SingleChoiceResponseBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              const: AUDIO_TO_WORD
+    MissingLetterResponse:
+      allOf:
+        - $ref: '#/components/schemas/SingleChoiceResponseBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              const: MISSING_LETTER
+    MultipleChoiceResponse:
+      allOf:
+        - $ref: '#/components/schemas/SingleChoiceResponseBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              const: MULTIPLE_CHOICE
+    SubmittedPair:
+      type: object
+      additionalProperties: false
+      required: [leftId, rightId]
+      properties:
+        leftId:
+          type: string
+          format: uuid
+        rightId:
+          type: string
+          format: uuid
+    MatchingResponse:
+      type: object
+      additionalProperties: false
+      required: [type, pairs]
+      properties:
+        type:
+          type: string
+          const: MATCHING
+        pairs:
+          type: array
+          minItems: 2
+          maxItems: 8
+          uniqueItems: true
+          x-unique-by-each: [leftId, rightId]
+          items:
+            $ref: '#/components/schemas/SubmittedPair'
+    WordAssemblyResponse:
+      type: object
+      additionalProperties: false
+      required: [type, orderedTileIds]
+      properties:
+        type:
+          type: string
+          const: WORD_ASSEMBLY
+        orderedTileIds:
+          type: array
+          minItems: 2
+          maxItems: 12
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    QuickRoundSubAnswer:
+      type: object
+      additionalProperties: false
+      required: [subPromptId, choiceId]
+      properties:
+        subPromptId:
+          type: string
+          format: uuid
+        choiceId:
+          type: string
+          format: uuid
+    QuickRoundResponse:
+      type: object
+      additionalProperties: false
+      required: [type, answers]
+      properties:
+        type:
+          type: string
+          const: QUICK_ROUND
+        answers:
+          type: array
+          minItems: 2
+          maxItems: 8
+          uniqueItems: true
+          x-unique-by: subPromptId
+          items:
+            $ref: '#/components/schemas/QuickRoundSubAnswer'
+    AnswerFeedbackResponse:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AnswerFeedback'
+    AnswerFeedback:
+      type: object
+      additionalProperties: false
+      allOf:
+        - if:
+            properties:
+              outcome:
+                const: INCORRECT_RETRY_ALLOWED
+            required: [outcome]
+          then:
+            properties:
+              feedback:
+                properties:
+                  correctConcept:
+                    type: 'null'
+                  example:
+                    type: 'null'
+                  replayMedia:
+                    type: 'null'
+              quickRoundBreakdown:
+                type: 'null'
+      required:
+        - attemptId
+        - exerciseId
+        - version
+        - outcome
+        - canRetry
+        - exercisePoints
+        - progress
+        - feedback
+        - quickRoundBreakdown
+        - nextExerciseId
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+        exerciseId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          minimum: 2
+        outcome:
+          type: string
+          enum: [CORRECT, INCORRECT_RETRY_ALLOWED, INCORRECT_FINAL]
+        canRetry:
+          type: boolean
+        exercisePoints:
+          $ref: '#/components/schemas/Points'
+        progress:
+          $ref: '#/components/schemas/AttemptProgress'
+        feedback:
+          $ref: '#/components/schemas/SafeFeedback'
+        quickRoundBreakdown:
+          oneOf:
+            - type: array
+              minItems: 2
+              maxItems: 8
+              uniqueItems: true
+              x-unique-by: subPromptId
+              items:
+                $ref: '#/components/schemas/QuickRoundSubResult'
+            - type: 'null'
+        nextExerciseId:
+          type: [string, 'null']
+          format: uuid
+    Points:
+      type: object
+      additionalProperties: false
+      x-invariants:
+        - earned must be less than or equal to maximum
+      required: [earned, maximum]
+      properties:
+        earned:
+          type: integer
+          minimum: 0
+        maximum:
+          type: integer
+          minimum: 1
+    AttemptProgress:
+      type: object
+      additionalProperties: false
+      x-invariants:
+        - completedCount must equal correctCount plus incorrectCount
+        - completedCount must be less than or equal to exerciseCount
+        - earnedPoints must be less than or equal to totalPoints
+        - status is COMPLETED if and only if completedCount equals exerciseCount
+        - currentQuestionNumber must be completedCount plus one while IN_PROGRESS and exerciseCount when COMPLETED
+      required:
+        - status
+        - currentQuestionNumber
+        - exerciseCount
+        - completedCount
+        - correctCount
+        - incorrectCount
+        - earnedPoints
+        - totalPoints
+        - streak
+        - xp
+      properties:
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETED]
+        currentQuestionNumber:
+          type: integer
+          minimum: 1
+          maximum: 12
+        exerciseCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        completedCount:
+          type: integer
+          minimum: 0
+          maximum: 12
+        correctCount:
+          type: integer
+          minimum: 0
+          maximum: 12
+        incorrectCount:
+          type: integer
+          minimum: 0
+          maximum: 12
+        earnedPoints:
+          type: integer
+          minimum: 0
+        totalPoints:
+          type: integer
+          minimum: 1
+        streak:
+          type: integer
+          minimum: 0
+          maximum: 12
+        xp:
+          type: integer
+          minimum: 0
+    SafeFeedback:
+      type: object
+      additionalProperties: false
+      required: [title, message, explanation, correctConcept, example, replayMedia]
+      properties:
+        title:
+          $ref: '#/components/schemas/LocalizedText'
+        message:
+          $ref: '#/components/schemas/LocalizedText'
+        explanation:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+        correctConcept:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+          description: Human learning explanation only; never an answer identifier or grader rule.
+        example:
+          oneOf:
+            - $ref: '#/components/schemas/LocalizedText'
+            - type: 'null'
+          description: Short Turkish learning example; never a machine answer definition.
+        replayMedia:
+          oneOf:
+            - $ref: '#/components/schemas/TerminalFeedbackAudioReference'
+            - type: 'null'
+          description: Reachable managed audio that may be replayed with the feedback.
+    QuickRoundSubResult:
+      type: object
+      additionalProperties: false
+      required: [subPromptId, outcome, points, skillTag, feedback]
+      properties:
+        subPromptId:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+          enum: [CORRECT, INCORRECT]
+        points:
+          $ref: '#/components/schemas/Points'
+        skillTag:
+          $ref: '#/components/schemas/SkillTag'
+        feedback:
+          $ref: '#/components/schemas/SafeFeedback'
+    AttemptResultResponse:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AttemptResult'
+    AttemptResult:
+      type: object
+      additionalProperties: false
+      x-invariants:
+        - earnedPoints must be less than or equal to totalPoints
+        - percentage must equal floor(earnedPoints times 100 divided by totalPoints)
+        - correctCount plus incorrectCount must equal perExercise.length and be less than or equal to exerciseCount
+        - COMPLETED requires completedAt and perExercise.length equal to exerciseCount; IN_PROGRESS requires completedAt null
+      required:
+        - attemptId
+        - status
+        - version
+        - idleExpiresAt
+        - absoluteExpiresAt
+        - effectiveExpiresAt
+        - requestedLocale
+        - resolvedLocale
+        - completedAt
+        - totalPoints
+        - earnedPoints
+        - percentage
+        - correctCount
+        - incorrectCount
+        - exerciseCount
+        - perExercise
+        - perSkill
+        - strongestSkills
+        - skillsToPractice
+        - actions
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETED]
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        idleExpiresAt:
+          type: string
+          format: date-time
+        absoluteExpiresAt:
+          type: string
+          format: date-time
+        effectiveExpiresAt:
+          type: string
+          format: date-time
+        requestedLocale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        resolvedLocale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        totalPoints:
+          type: integer
+          minimum: 1
+        earnedPoints:
+          type: integer
+          minimum: 0
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        correctCount:
+          type: integer
+          minimum: 0
+          maximum: 12
+        incorrectCount:
+          type: integer
+          minimum: 0
+          maximum: 12
+        exerciseCount:
+          type: integer
+          minimum: 1
+          maximum: 12
+        perExercise:
+          type: array
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/ExerciseResult'
+        perSkill:
+          type: array
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/SkillResult'
+        strongestSkills:
+          type: array
+          maxItems: 12
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SkillTag'
+        skillsToPractice:
+          type: array
+          maxItems: 12
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SkillTag'
+        actions:
+          $ref: '#/components/schemas/ResultActions'
+    ExerciseResult:
+      type: object
+      additionalProperties: false
+      x-invariants:
+        - points.earned must be less than or equal to points.maximum
+        - QUICK_ROUND requires attemptsUsed 1 and a non-null quickRoundBreakdown; every other type requires quickRoundBreakdown null
+      required:
+        [exerciseId, type, outcome, attemptsUsed, points, skillTags, feedback, quickRoundBreakdown]
+      properties:
+        exerciseId:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/ExerciseType'
+        outcome:
+          type: string
+          enum: [CORRECT, INCORRECT]
+        attemptsUsed:
+          type: integer
+          minimum: 1
+          maximum: 2
+        points:
+          $ref: '#/components/schemas/Points'
+        skillTags:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SkillTag'
+        feedback:
+          $ref: '#/components/schemas/SafeFeedback'
+        quickRoundBreakdown:
+          oneOf:
+            - type: array
+              minItems: 2
+              maxItems: 8
+              uniqueItems: true
+              x-unique-by: subPromptId
+              items:
+                $ref: '#/components/schemas/QuickRoundSubResult'
+            - type: 'null'
+    SkillResult:
+      type: object
+      additionalProperties: false
+      x-invariants:
+        - earnedPoints must be less than or equal to totalPoints
+        - percentage must equal floor(earnedPoints times 100 divided by totalPoints)
+        - correctCount must be less than or equal to exerciseCount
+      required:
+        [skillTag, earnedPoints, totalPoints, percentage, correctCount, exerciseCount, level]
+      properties:
+        skillTag:
+          $ref: '#/components/schemas/SkillTag'
+        earnedPoints:
+          type: integer
+          minimum: 0
+        totalPoints:
+          type: integer
+          minimum: 1
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        correctCount:
+          type: integer
+          minimum: 0
+        exerciseCount:
+          type: integer
+          minimum: 1
+        level:
+          type: string
+          enum: [STRONG, DEVELOPING, PRACTICE]
+    ResultActions:
+      type: object
+      additionalProperties: false
+      required: [canRetryAll, canRetryIncorrect, canReview, contactCapability]
+      properties:
+        canRetryAll:
+          type: boolean
+        canRetryIncorrect:
+          type: boolean
+        canReview:
+          type: boolean
+        contactCapability:
+          $ref: '#/components/schemas/ContactCapability'
+    RetryAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [mode, expectedVersion]
+      properties:
+        mode:
+          type: string
+          enum: [ALL, INCORRECT_ONLY]
+        expectedVersion:
+          type: integer
+          format: int64
+          minimum: 1
+    ResetAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, locale, audioMode]
+      properties:
+        expectedVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        locale:
+          $ref: '#/components/schemas/InterfaceLocale'
+        audioMode:
+          type: string
+          enum: [AUDIO_ENABLED, TEXT_ALTERNATIVE]
+    ApiErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [success, code, message, requestId]
+      properties:
+        success:
+          type: boolean
+          const: false
+        code:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]+$'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 240
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        details:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, message]
+            properties:
+              path:
+                type: string
+                maxLength: 120
+              message:
+                type: string
+                maxLength: 240
+  responses:
+    DemoLessonNotFound:
+      description: Demo slug is unknown or its canonical resource is not currently public.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: DEMO_LESSON_NOT_FOUND
+            message: Demo dars topilmadi.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    AttemptCapabilityRequired:
+      description: Capability header is missing, malformed, or wrong-length; rejected before attempt lookup.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: DEMO_ATTEMPT_AUTH_REQUIRED
+            message: Demo urinishini davom ettirish uchun qayta boshlang.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    AttemptNotFound:
+      description: Attempt ID is unknown or the well-formed capability does not match; cases are indistinguishable.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: DEMO_ATTEMPT_NOT_FOUND
+            message: Demo urinishi topilmadi.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    AttemptMediaNotFound:
+      description: Attempt, capability match, media identity, or authorized exercise state is unavailable; all cases are indistinguishable.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: DEMO_ATTEMPT_MEDIA_NOT_FOUND
+            message: Audio topilmadi.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    AttemptGone:
+      description: Matching capability belongs to an expired, abandoned, or revoked attempt.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: DEMO_ATTEMPT_GONE
+            message: Demo urinishi yakunlangan. Yangisini boshlang.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    AttemptConflict:
+      description: |
+        Stable code is `ATTEMPT_VERSION_CONFLICT`, `IDEMPOTENCY_KEY_REUSED`,
+        `EXERCISE_OUT_OF_ORDER`, `EXERCISE_ALREADY_TERMINAL`, or
+        `RETRY_NOT_AVAILABLE`.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+    ValidationFailure:
+      description: Request validation failed without revealing grading information.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: VALIDATION_ERROR
+            message: Kiritilgan ma’lumotlarni tekshiring.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+            details: []
+    RateLimited:
+      description: Request limit exceeded.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: RATE_LIMIT_EXCEEDED
+            message: Juda ko‘p urinish bo‘ldi. Birozdan keyin qayta urinib ko‘ring.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    InternalServerError:
+      description: Unexpected failure with no internal details disclosed.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: INTERNAL_SERVER_ERROR
+            message: Kutilmagan xatolik yuz berdi. Keyinroq qayta urinib ko‘ring.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    PublicMediaNotFound:
+      description: Media is unknown, unavailable, unsafe, or not reachable from the public preview.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+          example:
+            success: false
+            code: PUBLIC_MEDIA_NOT_FOUND
+            message: Audio topilmadi.
+            requestId: req_01JZ8W4GE4J4Y3S4Z6FR2M7C9D
+    HeadPublicMediaNotFound:
+      description: Media is unknown, unavailable, unsafe, or not reachable from the public preview; no response body is returned.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+    HeadRateLimited:
+      description: Request limit exceeded; no response body is returned.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+    HeadInternalServerError:
+      description: Unexpected failure with no internal details or response body disclosed.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+    HeadAttemptCapabilityRequired:
+      description: Attempt capability is missing or malformed; no response body is returned.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+    HeadAttemptNotFound:
+      description: Attempt, capability match, or authorized media state is unavailable; no response body is returned.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+    HeadAttemptGone:
+      description: Matching attempt is expired, abandoned, or revoked; no response body is returned.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+    AttemptAudioContent:
+      description: Complete authorized snapshot audio.
+      headers:
+        Accept-Ranges:
+          $ref: '#/components/headers/AcceptRanges'
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Content-Disposition:
+          $ref: '#/components/headers/SafeAudioDisposition'
+        Content-Length:
+          $ref: '#/components/headers/ContentLength'
+        Content-Type:
+          $ref: '#/components/headers/AudioContentType'
+        ETag:
+          $ref: '#/components/headers/ETag'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+        X-Content-Type-Options:
+          $ref: '#/components/headers/NoSniff'
+      content:
+        audio/mpeg:
+          schema:
+            type: string
+            format: binary
+        audio/wav:
+          schema:
+            type: string
+            format: binary
+    AttemptPartialAudioContent:
+      description: Requested authorized snapshot byte range returned.
+      headers:
+        Accept-Ranges:
+          $ref: '#/components/headers/AcceptRanges'
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        Content-Disposition:
+          $ref: '#/components/headers/SafeAudioDisposition'
+        Content-Length:
+          $ref: '#/components/headers/ContentLength'
+        Content-Range:
+          $ref: '#/components/headers/ContentRange'
+        Content-Type:
+          $ref: '#/components/headers/AudioContentType'
+        ETag:
+          $ref: '#/components/headers/ETag'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+        X-Content-Type-Options:
+          $ref: '#/components/headers/NoSniff'
+      content:
+        audio/mpeg:
+          schema:
+            type: string
+            format: binary
+        audio/wav:
+          schema:
+            type: string
+            format: binary
+    AttemptRangeNotSatisfiable:
+      description: Range is invalid, multipart, or outside the authorized snapshot representation; no response body is returned.
+      headers:
+        Content-Range:
+          $ref: '#/components/headers/UnsatisfiedContentRange'
+        Cache-Control:
+          $ref: '#/components/headers/PrivateNoStore'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+    AudioContent:
+      description: Complete currently public explanatory lesson audio.
+      headers:
+        Accept-Ranges:
+          $ref: '#/components/headers/AcceptRanges'
+        Cache-Control:
+          $ref: '#/components/headers/PublicMediaRevalidate'
+        Content-Disposition:
+          $ref: '#/components/headers/SafeAudioDisposition'
+        Content-Length:
+          $ref: '#/components/headers/ContentLength'
+        Content-Type:
+          $ref: '#/components/headers/AudioContentType'
+        ETag:
+          $ref: '#/components/headers/ETag'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+        X-Content-Type-Options:
+          $ref: '#/components/headers/NoSniff'
+      content:
+        audio/mpeg:
+          schema:
+            type: string
+            format: binary
+        audio/wav:
+          schema:
+            type: string
+            format: binary
+    PartialAudioContent:
+      description: Requested single byte range returned.
+      headers:
+        Accept-Ranges:
+          $ref: '#/components/headers/AcceptRanges'
+        Cache-Control:
+          $ref: '#/components/headers/PublicMediaRevalidate'
+        Content-Disposition:
+          $ref: '#/components/headers/SafeAudioDisposition'
+        Content-Length:
+          $ref: '#/components/headers/ContentLength'
+        Content-Range:
+          $ref: '#/components/headers/ContentRange'
+        Content-Type:
+          $ref: '#/components/headers/AudioContentType'
+        ETag:
+          $ref: '#/components/headers/ETag'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'
+        X-Content-Type-Options:
+          $ref: '#/components/headers/NoSniff'
+      content:
+        audio/mpeg:
+          schema:
+            type: string
+            format: binary
+        audio/wav:
+          schema:
+            type: string
+            format: binary
+    RangeNotSatisfiable:
+      description: Range is invalid, multipart, or outside the representation.
+      headers:
+        Content-Range:
+          $ref: '#/components/headers/UnsatisfiedContentRange'
+        Cache-Control:
+          $ref: '#/components/headers/PublicMediaRevalidate'
+        RateLimit:
+          $ref: '#/components/headers/RateLimit'
+        RateLimit-Policy:
+          $ref: '#/components/headers/RateLimitPolicy'

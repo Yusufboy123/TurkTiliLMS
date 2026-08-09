@@ -193,6 +193,43 @@ specified items do not authorize blocked backend or frontend behavior. The
 existing `/admin/progress` route remains the admin landing destination until
 Module 9.4C is complete.
 
+## Phase 9.5 — Public landing, demo lesson, and reusable exercises
+
+This stream is sequential and independently gated from the Admin Dashboard:
+
+- **9.5A — Contract:** specify the public landing, one canonical published
+  `Türk Alfabesi` preview, eight typed exercise kinds, server grading,
+  short-lived anonymous attempts, results/skills, reachable public audio,
+  threat model, page behavior, ADR, and OpenAPI. No schema or runtime work.
+- **9.5B — Persistence foundation:** only after approval, add the reviewed
+  exercise aggregate/revision/placement, demo mapping, private grading, media
+  usage, attempt snapshot/idempotency/expiry cleanup, permissions, typed owner
+  settings, and seed foundation through additive schema/migration work. No
+  endpoint or frontend activation.
+- **9.5C — Public/admin backend runtime:** implement public projection, isolated
+  attempts, typed graders, idempotency/concurrency, result/retry/reset, shared
+  limits, cleanup, media delivery/usage reporting, and typed authorized/audited
+  exercise revision, placement, mapping, preview, publish/archive, restore, and
+  reorder APIs.
+- **9.5D — Public/admin frontend:** implement `/` and
+  `/demo/turk-alfabesi`, typed renderers, feedback/results, and secure graphical
+  owner editors for landing content, exercises/revisions, localization,
+  placement/reorder, demo mapping, media attachment/usage, validation, preview,
+  publication/archive, and restore. Include responsive/accessibility behavior
+  and only activated 9.5C contracts; never expose a generic code/JSON editor.
+- **9.5E — Contact/placement request:** separately approve and implement typed
+  channel capabilities, privacy/retention, provider adapters, owner workflow,
+  abuse controls, and honest request status. Do not claim automatic placement.
+- **9.5F — Course Player reuse:** integrate the reusable exercise capability
+  into enrolled lessons only after authenticated attempt, progress, completion,
+  and analytics semantics are separately approved. Anonymous evidence is never
+  promoted.
+
+Exit: one accessible public demo uses canonical published lesson content and
+server-authoritative exercises without exposing answer keys, broadening later
+lesson access, or contaminating enrollment progress. Approval or completion of
+one subphase does not authorize the next.
+
 ## Phase 10 — Hardening
 
 - Full four-locale review.
