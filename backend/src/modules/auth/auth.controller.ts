@@ -2,8 +2,14 @@ import { SessionClientType } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/app-error.js';
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
-import { changePasswordSchema, loginSchema, refreshSchema } from './auth.schemas.js';
+import {
+  changePasswordSchema,
+  loginSchema,
+  refreshSchema,
+  registrationSchema,
+} from './auth.schemas.js';
 import type { AuthenticationService } from './auth.service.js';
+import type { RegistrationService } from './registration.service.js';
 import type { RequestMetadata } from './auth.types.js';
 import {
   authenticationTransport,
@@ -47,7 +53,19 @@ export class AuthController {
   constructor(
     private readonly authentication: AuthenticationService,
     private readonly browserSession: BrowserSessionConfiguration,
+    private readonly registration?: RegistrationService,
   ) {}
+
+  register = async (request: Request, response: Response): Promise<void> => {
+    if (!this.registration) {
+      throw new AppError('Ro‘yxatdan o‘tish xizmati sozlanmagan.', 503, 'REGISTRATION_UNAVAILABLE');
+    }
+    await this.registration.register(registrationSchema.parse(request.body));
+    response.status(200).json({
+      success: true,
+      message: 'Agar ma’lumotlar qabul qilingan bo‘lsa, tizimga kirish orqali davom eting.',
+    });
+  };
 
   login = async (request: Request, response: Response): Promise<void> => {
     const transport = authenticationTransport(request);

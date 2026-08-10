@@ -7,6 +7,7 @@ export const progressRouteSegments = {
 
 export const progressPaths = {
   dashboard: '/app',
+  courses: '/app/courses',
   overview: '/app/progress',
   completed: '/app/progress/completed',
   course: (enrollmentId: string) => `/app/progress/${enrollmentId}`,

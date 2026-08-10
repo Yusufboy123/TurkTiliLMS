@@ -1,6 +1,8 @@
 import type { SignOptions } from 'jsonwebtoken';
 import { environment } from '../../config/environment.js';
 import { PrismaUserRepository } from '../users/user.repository.js';
+import { PrismaRegistrationRepository } from './registration.repository.js';
+import { RegistrationService } from './registration.service.js';
 import { PrismaAuthRepository } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
 import type { BrowserSessionConfiguration } from './browser-session-transport.js';
@@ -35,4 +37,9 @@ export const authenticationService = new AuthService(
     maximumFailedAttempts: environment.AUTH_MAX_FAILED_ATTEMPTS,
     lockoutDurationMs: environment.AUTH_LOCKOUT_MINUTES * 60_000,
   },
+);
+
+export const registrationService = new RegistrationService(
+  new PrismaRegistrationRepository(),
+  passwordService,
 );

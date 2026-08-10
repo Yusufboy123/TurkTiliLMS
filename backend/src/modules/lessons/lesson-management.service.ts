@@ -2,6 +2,7 @@ import { CourseStatus, LessonStatus, RoleCode } from '@prisma/client';
 import { AppError } from '../../utils/app-error.js';
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
 import type { CourseRepository } from '../courses/course.repository.js';
+import type { StudentCourseContentAccess } from '../course-enrollments/course-content-access.js';
 import { courseSlugSchema } from '../courses/course.schemas.js';
 import { generateCourseSlug } from '../courses/course.slug.js';
 import type { CourseRecord } from '../courses/course.types.js';
@@ -64,6 +65,16 @@ export interface NonPreviewLessonAccessPolicy {
   canAccess(principal: AuthenticatedPrincipal, lesson: CatalogLesson): Promise<boolean>;
 }
 
+export class EnrollmentLessonAccessPolicy implements NonPreviewLessonAccessPolicy {
+  constructor(private readonly enrollments: StudentCourseContentAccess) {}
+
+  canAccess(principal: AuthenticatedPrincipal, lesson: CatalogLesson): Promise<boolean> {
+    if (!principal.roles.includes(RoleCode.STUDENT)) return Promise.resolve(false);
+    return this.enrollments.hasAccess(lesson.courseId, principal.userId);
+  }
+}
+
+/** Retained for isolated legacy tests; production wiring uses enrollment access. */
 export class EnrollmentPendingLessonAccessPolicy implements NonPreviewLessonAccessPolicy {
   canAccess(): Promise<boolean> {
     return Promise.resolve(false);
@@ -507,7 +518,7 @@ export class LessonManagementService {
       );
     if (!(await this.accessPolicy.canAccess(principal, lesson))) {
       throw new AppError(
-        'Ushbu darsga kirish uchun faol kurs yoziluvi talab qilinadi. Yoziluv tekshiruvi keyingi modulda ulanadi.',
+          'Ushbu darsga kirish uchun faol kurs yoziluvi talab qilinadi.',
         403,
         'LESSON_ENROLLMENT_REQUIRED',
       );

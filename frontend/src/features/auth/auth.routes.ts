@@ -3,6 +3,7 @@ import { canAccessAdminDashboard } from '../admin-dashboard/admin-dashboard.rout
 
 export const authPaths = {
   login: '/login',
+  register: '/register',
   studentHome: '/app',
   teacherHome: '/teacher',
   adminHome: '/admin',

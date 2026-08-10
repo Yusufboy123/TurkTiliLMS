@@ -7,6 +7,9 @@ import { useOnlineStatus } from '../hooks/use-online-status';
 import { progressReportingMessages } from '../locales/uz-Latn/progress-reporting';
 import { teacherDashboardMessages } from '../locales/uz-Latn/teacher-dashboard';
 import { adminDashboardMessages } from '../locales/uz-Latn/admin-dashboard';
+import { teacherGroupPaths } from '../features/teacher-groups';
+import { teacherStudentPaths } from '../features/teacher-students';
+import { teacherCoursePaths } from '../features/teacher-courses';
 
 export function ReportingLayout() {
   const auth = useAuth();
@@ -29,6 +32,24 @@ export function ReportingLayout() {
           <span className="type-heading-4">Turk Tili LMS</span>
           {isAdmin ? (
             <div className="flex flex-wrap items-center justify-end gap-1">
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherGroupPaths.list}
+              >
+                Guruhlar
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherCoursePaths.list}
+              >
+                Kurslar
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherStudentPaths.list}
+              >
+                Talabalar
+              </NavLink>
               {canViewAdminDashboard ? (
                 <NavLink
                   className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
@@ -45,12 +66,32 @@ export function ReportingLayout() {
               </NavLink>
             </div>
           ) : (
-            <NavLink
-              className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              to={authPaths.teacherHome}
-            >
-              {teacherDashboardMessages.navigation}
-            </NavLink>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={authPaths.teacherHome}
+              >
+                {teacherDashboardMessages.navigation}
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherGroupPaths.list}
+              >
+                Guruhlar
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherCoursePaths.list}
+              >
+                Kurslar
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherStudentPaths.list}
+              >
+                Talabalar
+              </NavLink>
+            </div>
           )}
         </nav>
       </header>

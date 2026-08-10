@@ -299,11 +299,43 @@ model User {
   certificateDisclosures     CertificateDisclosureControl[]     @relation("CertificateDisclosureSuppressor")
   stepUpChallenges           StepUpChallenge[]                  @relation("StepUpChallengeUser")
   stepUpProofs               StepUpProof[]                      @relation("StepUpProofUser")
+  groupsCreated              Group[]                            @relation("GroupCreator")
+  groupsTaught               Group[]                            @relation("GroupTeacher")
+  groupMemberships           GroupStudent[]
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
   @@index([deletedAt], map: "users_deleted_at_idx")
   @@map("users")
+}
+
+model Group {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  name        String        @db.VarChar(160)
+  level       CourseLevel
+  teacherId   String        @map("teacher_id") @db.Uuid
+  createdById String        @map("created_by_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  teacher     User          @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  memberships GroupStudent[]
+
+  @@index([teacherId, updatedAt], map: "groups_teacher_id_updated_at_idx")
+  @@index([createdById], map: "groups_created_by_id_idx")
+  @@map("groups")
+}
+
+model GroupStudent {
+  groupId   String   @map("group_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([groupId, studentId], map: "group_students_pkey")
+  @@index([studentId, joinedAt], map: "group_students_student_id_joined_at_idx")
+  @@map("group_students")
 }
 
 /// Local password security state is isolated from the general user profile.

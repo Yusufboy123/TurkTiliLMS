@@ -14,6 +14,12 @@ const navigation = [
     end: true,
   },
   {
+    label: progressMessages.navigation.courses,
+    shortLabel: 'Kurslar',
+    to: progressPaths.courses,
+    end: true,
+  },
+  {
     label: progressMessages.navigation.progress,
     shortLabel: 'Jarayon',
     to: progressPaths.overview,
@@ -113,7 +119,7 @@ export function StudentLayout() {
 
       <nav
         aria-label={progressMessages.navigation.studentMobile}
-        className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky grid grid-cols-3 border-t border-border-decorative bg-surface px-2 py-2 shadow-navigation md:hidden"
+        className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky grid grid-cols-4 border-t border-border-decorative bg-surface px-2 py-2 shadow-navigation md:hidden"
       >
         <NavigationItems compact />
       </nav>

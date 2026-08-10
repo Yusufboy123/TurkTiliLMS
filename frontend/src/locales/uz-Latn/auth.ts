@@ -16,11 +16,30 @@ export const authMessages = {
     recovery: 'Parolni unutdingizmi? Platforma administratoriga murojaat qiling.',
     accountProvisioning: 'Hisoblar platforma administratori tomonidan yaratiladi.',
   },
+  registration: {
+    title: 'Ro‘yxatdan o‘tish',
+    description: 'Mustaqil o‘qishni boshlash uchun talaba hisobini yarating.',
+    firstName: 'Ism',
+    lastName: 'Familiya',
+    email: 'Elektron pochta',
+    password: 'Parol',
+    passwordConfirmation: 'Parolni tasdiqlash',
+    submit: 'Ro‘yxatdan o‘tish',
+    success: 'Hisob yaratildi. O‘qishni davom ettirish uchun tizimga kiring.',
+    alreadyHaveAccount: 'Hisobingiz bormi?',
+    loginLink: 'Tizimga kirish',
+  },
   validation: {
     emailRequired: 'Elektron pochta manzilini kiriting.',
     emailInvalid: 'Elektron pochta manzilini to‘g‘ri formatda kiriting.',
     passwordRequired: 'Parolni kiriting.',
     passwordTooLong: 'Parol 128 ta belgidan oshmasligi kerak.',
+    nameRequired: 'Bu maydonni to‘ldiring.',
+    nameTooLong: 'Bu maydon 100 ta belgidan oshmasligi kerak.',
+    passwordPolicy:
+      'Parol kamida 12 ta belgidan iborat bo‘lib, katta-kichik harf, raqam va maxsus belgi saqlashi kerak.',
+    passwordConfirmationRequired: 'Parol tasdig‘ini kiriting.',
+    passwordConfirmationMismatch: 'Parol tasdig‘i parol bilan bir xil bo‘lishi kerak.',
     summary: 'Quyidagi ma’lumotlarni tekshiring:',
   },
   errors: {
@@ -32,6 +51,7 @@ export const authMessages = {
     network: 'Tarmoqqa ulanib bo‘lmadi. Internet aloqasini tekshirib, qayta urinib ko‘ring.',
     server: 'Xizmat vaqtincha ishlamayapti. Birozdan so‘ng qayta urinib ko‘ring.',
     unknown: 'Tizimga kirishda xatolik yuz berdi. Qayta urinib ko‘ring.',
+    registration: 'Ro‘yxatdan o‘tishda xatolik yuz berdi. Qayta urinib ko‘ring.',
   },
   session: {
     expired: 'Seans muddati tugadi. Qayta kiring.',

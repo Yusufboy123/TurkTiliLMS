@@ -3,7 +3,11 @@ import { environment } from '../../config/environment.js';
 import { createRequireTrustedBrowserOrigin } from '../../middlewares/trusted-origin.middleware.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { requireAuthentication } from '../authorization/authorization.middleware.js';
-import { authenticationService, browserSessionConfiguration } from './auth.container.js';
+import {
+  authenticationService,
+  browserSessionConfiguration,
+  registrationService,
+} from './auth.container.js';
 import { AuthController } from './auth.controller.js';
 import { authRateLimiter, credentialRateLimiter } from './auth.rate-limiters.js';
 import { isBrowserCookieRequest } from './browser-session-transport.js';
@@ -34,6 +38,12 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     ...(dependencies.credentialRateLimiter ? [dependencies.credentialRateLimiter] : []),
     ...(dependencies.browserCsrfProtection ? [dependencies.browserCsrfProtection] : []),
     asyncHandler(dependencies.controller.login),
+  );
+  router.post(
+    '/register',
+    ...(dependencies.credentialRateLimiter ? [dependencies.credentialRateLimiter] : []),
+    ...(dependencies.browserCsrfProtection ? [dependencies.browserCsrfProtection] : []),
+    asyncHandler(dependencies.controller.register),
   );
   router.post(
     '/refresh',
@@ -74,7 +84,11 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
 }
 
 export const authRouter = createAuthRouter({
-  controller: new AuthController(authenticationService, browserSessionConfiguration),
+  controller: new AuthController(
+    authenticationService,
+    browserSessionConfiguration,
+    registrationService,
+  ),
   authenticationMiddleware: requireAuthentication,
   generalRateLimiter: authRateLimiter,
   credentialRateLimiter,

@@ -33,6 +33,20 @@ export const changePasswordSchema = z
     message: 'Yangi parol joriy paroldan farq qilishi kerak.',
   });
 
+export const registrationSchema = z
+  .object({
+    firstName: z.string().trim().min(1, 'Ism kiritilishi shart.').max(100),
+    lastName: z.string().trim().min(1, 'Familiya kiritilishi shart.').max(100),
+    email: z.email('Email manzil noto‘g‘ri.').transform(normalizeEmail),
+    password: strongPasswordSchema,
+    passwordConfirmation: z.string().max(128),
+  })
+  .refine((input) => input.password === input.passwordConfirmation, {
+    path: ['passwordConfirmation'],
+    message: 'Parol tasdig‘i parol bilan bir xil bo‘lishi kerak.',
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type RegistrationInput = z.infer<typeof registrationSchema>;

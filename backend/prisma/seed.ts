@@ -225,6 +225,24 @@ const permissionDefinitions = [
     description: 'View platform-wide course statistics.',
   },
   {
+    code: 'groups.read',
+    resource: 'groups',
+    action: 'read',
+    description: 'View permitted teacher groups and student search results.',
+  },
+  {
+    code: 'groups.create',
+    resource: 'groups',
+    action: 'create',
+    description: 'Create groups within the permitted teacher scope.',
+  },
+  {
+    code: 'groups.update_members',
+    resource: 'groups',
+    action: 'update_members',
+    description: 'Add or remove students from permitted groups.',
+  },
+  {
     code: 'sections.read',
     resource: 'sections',
     action: 'read',
@@ -527,6 +545,9 @@ const permissionDefinitions = [
 ] as const;
 
 const teacherPermissionCodes = [
+  'groups.read',
+  'groups.create',
+  'groups.update_members',
   'courses.read',
   'courses.create',
   'courses.update',

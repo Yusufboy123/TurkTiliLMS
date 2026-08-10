@@ -19,6 +19,30 @@ import { useEnrollmentProgress } from '../hooks/use-progress-queries';
 import { createLessonVisitStateMachine } from '../lesson-visit-state-machine';
 import { progressPaths } from '../progress.routes';
 import { unavailableReasonLabel } from '../utils/progress-format';
+import { useStudentLessonContent } from '../../student-player';
+import type { StudentLessonBlock } from '../../student-player';
+
+function blockMediaUrl(block: StudentLessonBlock): string | null {
+  return block.media?.previewUrl ?? block.media?.downloadUrl ?? block.sourceUrl ?? block.fileUrl;
+}
+
+function LessonContentBlockView({ block }: { block: StudentLessonBlock }) {
+  const mediaUrl = blockMediaUrl(block);
+  return (
+    <div className="mt-4">
+      {block.blockType === 'TEXT' ? (
+        <p className="whitespace-pre-wrap text-body-lg leading-8 text-text-primary">{block.textContent}</p>
+      ) : null}
+      {block.blockType === 'VIDEO' && mediaUrl ? (
+        <video aria-label={block.title ?? 'Video dars materiali'} className="mt-2 aspect-video w-full rounded-lg bg-black" controls preload="metadata" src={mediaUrl} />
+      ) : null}
+      {block.blockType === 'AUDIO' && mediaUrl ? (
+        <div className="mt-2 rounded-lg bg-subtle p-4"><audio aria-label={block.title ?? 'Audio dars materiali'} className="w-full" controls preload="metadata" src={mediaUrl} /></div>
+      ) : null}
+      {!mediaUrl && block.blockType !== 'TEXT' ? <p className="text-body-sm text-text-secondary">Media materiali hozircha mavjud emas.</p> : null}
+    </div>
+  );
+}
 
 export default function LessonProgressPage() {
   const { enrollmentId = '', lessonId = '' } = useParams();
@@ -42,6 +66,11 @@ export default function LessonProgressPage() {
   const lessonIndex = lessons.findIndex((item) => item.id === lessonId);
   const previousLesson = lessonIndex > 0 ? lessons[lessonIndex - 1] : null;
   const nextLesson = lessonIndex >= 0 ? lessons[lessonIndex + 1] : null;
+  const content = useStudentLessonContent(
+    progress.data?.course.slug ?? '',
+    lesson?.slug ?? '',
+    Boolean(progress.data?.capabilities.canAccessCourseContent && lesson),
+  );
   const recordVisit = visitMutation.mutateAsync;
 
   useEffect(() => {
@@ -102,6 +131,10 @@ export default function LessonProgressPage() {
   const unavailable =
     unavailableReasonLabel(lesson.capabilities.unavailableReason) ??
     unavailableReasonLabel(progress.data.capabilities.unavailableReason);
+  const lessonCompleted =
+    lesson.status === 'COMPLETED' ||
+    (completionMutation.data?.affectedLesson.id === lesson.id &&
+      completionMutation.data.affectedLesson.status === 'COMPLETED');
 
   return (
     <div className="min-h-screen bg-canvas pb-32 text-text-primary md:pb-8">
@@ -151,6 +184,35 @@ export default function LessonProgressPage() {
           <ProgressBar label={progressMessages.progress.lessonProgress} value={lesson.percentage} />
         </div>
 
+        {content.lesson.data?.summary || content.lesson.data?.content ? (
+          <Card className="mt-8 max-w-reading" elevation="none" padding="lg">
+            {content.lesson.data.summary ? <p className="text-body-lg leading-8">{content.lesson.data.summary}</p> : null}
+            {content.lesson.data.content ? <p className="mt-4 whitespace-pre-wrap text-body-lg leading-8">{content.lesson.data.content}</p> : null}
+          </Card>
+        ) : null}
+
+        {content.lesson.isError || content.blocks.isError ? (
+          <p className="mt-6 rounded-md border border-warning-border bg-warning-bg p-4 text-body-sm text-warning-text" role="status">
+            Dars materiali hozircha yuklanmadi. Jarayon ma’lumotlari mavjud.
+          </p>
+        ) : null}
+
+        {content.blocks.data?.length ? (
+          <section aria-labelledby="lesson-content-heading" className="mt-10 max-w-reading">
+            <h2 className="type-heading-2" id="lesson-content-heading">Dars materiali</h2>
+            <div className="mt-5 space-y-5">
+              {content.blocks.data.map((block) => (
+                <Card elevation="none" key={block.id} padding="lg">
+                  <p className="text-caption text-text-muted">{block.position}. {block.blockType}</p>
+                  <h3 className="type-heading-4 mt-1">{block.title ?? 'Material'}</h3>
+                  {block.description ? <p className="mt-2 text-body-sm text-text-secondary">{block.description}</p> : null}
+                  <LessonContentBlockView block={block} />
+                </Card>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {unavailable ? (
           <p
             className="mt-6 rounded-md border border-warning-border bg-warning-bg p-4 text-body-sm text-warning-text"
@@ -158,6 +220,19 @@ export default function LessonProgressPage() {
           >
             {unavailable}
           </p>
+        ) : null}
+
+        {lessonCompleted ? (
+          <Card className="mt-8 border-success-border bg-success-bg" role="status">
+            <h2 className="type-heading-3 text-success-text">Dars tugallandi</h2>
+            {progress.data.status === 'COMPLETED' ? (
+              <p className="mt-2 text-body-md text-success-text">Kurs ham yakunlandi.</p>
+            ) : nextLesson ? (
+              <Link className="mt-4 inline-flex min-h-target items-center text-button text-success-text" to={progressPaths.lesson(enrollmentId, nextLesson.id)}>
+                Keyingi dars: {nextLesson.title}
+              </Link>
+            ) : null}
+          </Card>
         ) : null}
 
         <section aria-labelledby="lesson-blocks-heading" className="mt-10">

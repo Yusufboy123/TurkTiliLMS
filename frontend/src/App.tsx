@@ -16,7 +16,30 @@ import { progressRouteSegments, progressPaths } from './features/progress/progre
 import { progressReportingPaths } from './features/progress-reporting/progress-reporting.routes';
 import { ReportingLayout } from './layouts/ReportingLayout';
 import { StudentLayout } from './layouts/StudentLayout';
-import { HomePage } from './pages/HomePage';
+import { PublicLandingPage, TurkAlphabetDemoPage } from './features/public-demo';
+import { StudentCoursePage, StudentCoursesPage, studentCoursesPaths } from './features/student-courses';
+import {
+  TeacherGroupDetailPage,
+  TeacherGroupsPage,
+  teacherGroupPaths,
+} from './features/teacher-groups';
+import {
+  TeacherStudentDetailPage,
+  TeacherStudentsPage,
+  teacherStudentPaths,
+} from './features/teacher-students';
+import {
+  TeacherCourseDetailPage,
+  TeacherCourseEditorPage,
+  TeacherCoursesPage,
+  teacherCoursePaths,
+} from './features/teacher-courses';
+import {
+  TeacherLessonDetailPage,
+  TeacherLessonEditorPage,
+  TeacherLessonsPage,
+  teacherLessonPaths,
+} from './features/teacher-lessons';
 
 const StudentDashboardPage = lazy(() => import('./features/progress/pages/StudentDashboardPage'));
 const ProgressOverviewPage = lazy(() => import('./features/progress/pages/ProgressOverviewPage'));
@@ -34,6 +57,7 @@ const ProgressReportingDetailPage = lazy(
   () => import('./features/progress-reporting/pages/ProgressReportingDetailPage'),
 );
 const LoginPage = lazy(() => import('./features/auth/pages/LoginPage'));
+const RegisterPage = lazy(() => import('./features/auth/register/RegisterPage'));
 const TeacherDashboardPage = lazy(
   () => import('./features/teacher-dashboard/pages/TeacherDashboardPage'),
 );
@@ -51,9 +75,11 @@ function App() {
       }
     >
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<PublicLandingPage />} />
+        <Route path="/demo/turk-alfabesi" element={<TurkAlphabetDemoPage />} />
         <Route element={<RequireGuest />}>
           <Route path={authPaths.login} element={<LoginPage />} />
+          <Route path={authPaths.register} element={<RegisterPage />} />
         </Route>
         <Route element={<RequireAuthentication />}>
           <Route
@@ -66,6 +92,47 @@ function App() {
           >
             <Route element={<ReportingLayout />}>
               <Route path={authPaths.teacherHome} element={<TeacherDashboardPage />} />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={['progress.course.read']}
+                roles={['ADMIN', 'TEACHER']}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={teacherStudentPaths.list} element={<TeacherStudentsPage />} />
+              <Route
+                path={teacherStudentPaths.detailPattern}
+                element={<TeacherStudentDetailPage />}
+              />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization permissions={['courses.read']} roles={['ADMIN', 'TEACHER']} />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={teacherCoursePaths.list} element={<TeacherCoursesPage />} />
+              <Route path={teacherCoursePaths.new} element={<TeacherCourseEditorPage />} />
+              <Route path={teacherCoursePaths.detailPattern} element={<TeacherCourseDetailPage />} />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={['sections.read', 'lessons.read']}
+                roles={['ADMIN', 'TEACHER']}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={teacherLessonPaths.listPattern} element={<TeacherLessonsPage />} />
+              <Route path={teacherLessonPaths.newPattern} element={<TeacherLessonEditorPage />} />
+              <Route path={teacherLessonPaths.detailPattern} element={<TeacherLessonDetailPage />} />
             </Route>
           </Route>
           <Route
@@ -85,6 +152,19 @@ function App() {
           <Route
             element={
               <RequireAuthorization
+                permissions={['enrollments.self_create', 'enrollments.self_read']}
+                roles={['STUDENT']}
+              />
+            }
+          >
+            <Route path={studentCoursesPaths.list} element={<StudentLayout />}>
+              <Route index element={<StudentCoursesPage />} />
+              <Route path={studentCoursesPaths.coursePattern.replace('/app/courses/', '')} element={<StudentCoursePage />} />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization
                 permissions={['progress.course.read']}
                 roles={['ADMIN', 'TEACHER']}
               />
@@ -99,6 +179,19 @@ function App() {
                 path={progressReportingPaths.teacherEnrollmentPattern}
                 element={<ProgressReportingDetailPage />}
               />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={['groups.read', 'groups.create', 'groups.update_members']}
+                roles={['ADMIN', 'TEACHER']}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={teacherGroupPaths.list} element={<TeacherGroupsPage />} />
+              <Route path={teacherGroupPaths.detailPattern} element={<TeacherGroupDetailPage />} />
             </Route>
           </Route>
           <Route

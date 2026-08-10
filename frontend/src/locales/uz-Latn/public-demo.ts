@@ -1,0 +1,78 @@
+export const publicDemoMessages = {
+  brand: {
+    name: 'Turk Tili LMS',
+    homeLabel: 'Turk Tili LMS bosh sahifasi',
+  },
+  nav: {
+    levels: 'Darajalar',
+    method: 'Yondashuv',
+    lesson: 'Bepul dars',
+    login: 'Tizimga kirish',
+  },
+  landing: {
+    eyebrow: 'Turk tilini o‘rganish uchun aniq yo‘l',
+    headline: 'Turk tilini A1 dan C2 gacha tizimli va interaktiv o‘rganing',
+    description:
+      'Video darslar, yozma materiallar, mashqlar, testlar, o‘qituvchi yordami va sertifikatlar bilan bilimni bosqichma-bosqich mustahkamlang.',
+    primaryCta: '1-darsni bepul boshlash',
+    secondaryCta: 'Tizimga kirish',
+    heroNote: 'Birinchi dars ochiq. Hech qanday to‘lov yoki ro‘yxatdan o‘tish shart emas.',
+    levelsEyebrow: 'Yo‘l xaritasi',
+    levelsTitle: 'Maqsadingizga mos daraja',
+    levelsDescription: 'A1 dan C2 gacha har bir bosqich uchun izchil o‘quv yo‘li.',
+    whyEyebrow: 'Nega Turk Tili LMS?',
+    whyTitle: 'O‘rganishning barcha muhim qismlari bir joyda',
+    whyDescription:
+      'Sizga kerakli tushuntirish, mashq va tahlilni bir xil tajribaga birlashtiramiz.',
+    demoEyebrow: 'Bepul namuna dars',
+    demoTitle: 'Türk Alfabesi bilan boshlang',
+    demoDescription:
+      'Turk alifbosining 29 harfini o‘rganing, maxsus belgilarni farqlang va qisqa test bilan bilimingizni tekshiring.',
+    demoCta: 'Darsni boshlash',
+    stepsEyebrow: 'Qanday ishlaydi?',
+    stepsTitle: 'Oson, tushunarli, izchil',
+    faqEyebrow: 'Savollar',
+    faqTitle: 'Ko‘p so‘raladigan savollar',
+    finalTitle: 'Birinchi darsni bepul sinab ko‘ring',
+    finalDescription:
+      'Bir necha daqiqada turk alifbosini ko‘rib chiqing va keyingi qadamni aniqlang.',
+    finalCta: 'Bepul darsni ochish',
+  },
+  demo: {
+    back: 'Bosh sahifaga qaytish',
+    login: 'Tizimga kirish',
+    eyebrow: 'A1 · 1-dars · bepul',
+    title: 'Türk Alfabesi',
+    intro:
+      'Turk alifbosining asosiy harflari va o‘ziga xos belgilarini o‘rganing. Avval videoni ko‘ring, keyin yozma dars va mashqlar bilan bilimni mustahkamlang.',
+    videoLabel: 'Türk Alfabesi video darsi',
+    lessonEyebrow: 'Yozma dars',
+    lessonTitle: '29 harf bilan tanishing',
+    practiceEyebrow: 'Amaliy mashqlar',
+    practiceTitle: 'Bilimingizni darhol sinab ko‘ring',
+    practiceDescription: 'Har bir javobdan keyin aniq fikr-mulohaza oling. Bu natija saqlanmaydi.',
+    finalEyebrow: 'Yakuniy sinov',
+    finalTitle: 'O‘zingizni tekshirib ko‘ring',
+    finalDescription: '10 ta qisqa savol orqali darsdagi asosiy farqlarni qayta ko‘rib chiqing.',
+    resultEyebrow: 'Natijangiz',
+    retry: 'Testni qayta ishlash',
+    review: 'Xatolarni ko‘rib chiqish',
+    conversionTitle: 'Birinchi darsni tugatdingiz 🎉',
+    conversionDescription:
+      'Turk tilini tizimli davom ettirish uchun tizimga kiring va kursga qo‘shilish imkoniyatlarini o‘qituvchi yoki administrator bilan muhokama qiling.',
+    conversionCta: 'Tizimga kirish',
+    conversionRegisterCta: 'Ro‘yxatdan o‘tib kursni davom ettirish',
+    conversionNote:
+      'Yangi o‘quvchini kursga qo‘shish uchun o‘qituvchi yoki administrator bilan bog‘laning.',
+  },
+  feedback: {
+    correct: 'Ajoyib!',
+    incorrect: 'Hali emas.',
+    next: 'Keyingi savol',
+    finish: 'Natijani ko‘rish',
+    tryAgain: 'Qayta boshlash',
+    correctAnswer: 'To‘g‘ri javob',
+    points: 'ball',
+    streak: 'ketma-ket',
+  },
+} as const;

@@ -12,8 +12,10 @@ export default function LoginPage() {
   const location = useLocation();
   const routeState = location.state as LoginRouteState | null;
   const reason = routeState?.reason ?? null;
-  const sessionMessage =
-    reason === 'SESSION_EXPIRED'
+  const registered = new URLSearchParams(location.search).get('registered') === '1';
+  const sessionMessage = registered
+    ? authMessages.registration.success
+    : reason === 'SESSION_EXPIRED'
       ? authMessages.session.expired
       : reason === 'SIGNED_OUT'
         ? authMessages.session.signedOut
