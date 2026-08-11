@@ -63,12 +63,13 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-canvas text-text-primary">
       <SkipLink targetId="main-content" />
-      <header className="border-b border-border-decorative bg-surface">
-        <div className="mx-auto flex min-h-16 max-w-marketing items-center px-4 md:px-6">
+      <header className="border-b border-border-decorative/80 bg-surface/95 backdrop-blur">
+        <div className="mx-auto flex min-h-16 max-w-marketing items-center px-4 md:px-6 lg:px-8">
           <Link
-            className="rounded-md text-heading-4 font-semibold text-text-primary no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="flex min-h-target items-center gap-3 rounded-lg text-heading-4 font-semibold text-text-primary no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             to="/"
           >
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-lg bg-action-primary-bg text-button text-action-primary-text shadow-subtle">T</span>
             {authMessages.brand.name}
           </Link>
         </div>
@@ -78,7 +79,8 @@ export default function RegisterPage() {
         id="main-content"
         tabIndex={-1}
       >
-        <Card padding="lg">
+        <Card className="relative overflow-hidden" padding="lg">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-action-primary-bg" />
           <h1 className="type-heading-1">{authMessages.registration.title}</h1>
           <p className="mt-3 text-body-md text-text-secondary">
             {authMessages.registration.description}

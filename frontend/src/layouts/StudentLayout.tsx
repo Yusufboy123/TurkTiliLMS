@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { SkipLink } from '../components';
 import { useOnlineStatus } from '../hooks/use-online-status';
 import { classNames } from '../lib/class-names';
@@ -80,12 +80,13 @@ export function StudentLayout() {
 
       <header className="fixed inset-x-0 top-0 z-sticky border-b border-border-decorative bg-surface md:left-[4.5rem] lg:left-64">
         <div className="mx-auto flex h-16 max-w-dashboard items-center px-4 md:px-6 lg:px-8">
-          <NavLink
-            className="text-heading-4 font-semibold text-text-primary no-underline visited:text-text-primary"
+          <Link
+            className="flex min-h-target items-center gap-3 rounded-lg px-2 text-heading-4 font-semibold text-text-primary no-underline visited:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             to={progressPaths.dashboard}
           >
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-lg bg-action-primary-bg text-button text-action-primary-text shadow-subtle">T</span>
             {progressMessages.appName}
-          </NavLink>
+          </Link>
         </div>
       </header>
 
@@ -119,7 +120,7 @@ export function StudentLayout() {
 
       <nav
         aria-label={progressMessages.navigation.studentMobile}
-        className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky grid grid-cols-4 border-t border-border-decorative bg-surface px-2 py-2 shadow-navigation md:hidden"
+        className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky grid grid-cols-4 border-t border-border-decorative bg-surface/95 px-2 py-2 shadow-navigation backdrop-blur md:hidden"
       >
         <NavigationItems compact />
       </nav>

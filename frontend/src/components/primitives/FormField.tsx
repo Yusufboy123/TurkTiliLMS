@@ -34,7 +34,7 @@ export function FormField({
       value={{ controlId, describedBy, invalid: Boolean(error), required }}
     >
       <div {...props} className={classNames('grid gap-2', className)}>
-        <label className="text-label-md text-text-primary" htmlFor={controlId}>
+        <label className="text-label-md tracking-[0.01em] text-text-primary" htmlFor={controlId}>
           {label}
           {required ? (
             <>

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, Select } from '../../../components';
+import { Badge, Button, Card, Input, Select } from '../../../components';
 import { useAuth } from '../../auth';
 import type { RoleCode, UserStatus } from '../../auth/types/auth.types';
 import { adminUsersPaths } from '../admin-users.routes';
@@ -47,7 +47,7 @@ export default function AdminUsersPage() {
 
       <section aria-label="Foydalanuvchi filtrlari" className="mt-8 grid gap-4 rounded-lg border border-border-decorative bg-surface p-5 md:grid-cols-3">
         <label className="grid gap-2 text-label-md" htmlFor="admin-user-search">Qidirish
-          <input className="min-h-target rounded-md border border-border-control px-3 py-2 text-body-md focus:outline-none focus:ring-2 focus:ring-focus" id="admin-user-search" onChange={(event) => { const next = new URLSearchParams(searchParams); if (event.target.value) next.set('search', event.target.value); else next.delete('search'); setSearchParams(next); }} placeholder="Ism yoki email" value={search} />
+          <Input id="admin-user-search" onChange={(event) => { const next = new URLSearchParams(searchParams); if (event.target.value) next.set('search', event.target.value); else next.delete('search'); setSearchParams(next); }} placeholder="Ism yoki email" value={search} />
         </label>
         <label className="grid gap-2 text-label-md" htmlFor="admin-user-role">Rol
           <Select id="admin-user-role" onChange={(event) => setFilter('role', event.target.value)} value={role ?? ''}>

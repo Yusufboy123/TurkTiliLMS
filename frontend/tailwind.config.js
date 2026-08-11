@@ -21,6 +21,9 @@ export default {
           muted: channel('--color-text-muted'),
           inverse: channel('--color-text-inverse'),
         },
+        brand: {
+          text: channel('--color-brand-text'),
+        },
         placeholder: channel('--color-placeholder'),
         border: {
           decorative: channel('--color-border-decorative'),

@@ -27,7 +27,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     <div
       {...props}
       className={classNames(
-        'rounded-lg border border-border-decorative bg-surface text-text-primary',
+        'rounded-xl border border-border-decorative bg-surface text-text-primary transition-[border-color,box-shadow] duration-base motion-reduce:transition-none',
         elevationClasses[elevation],
         paddingClasses[padding],
         className,

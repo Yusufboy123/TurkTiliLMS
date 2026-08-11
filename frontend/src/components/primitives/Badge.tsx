@@ -20,7 +20,7 @@ export function Badge({ className, intent = 'neutral', ...props }: BadgeProps) {
     <span
       {...props}
       className={classNames(
-        'inline-flex min-h-6 items-center rounded-sm border px-2 py-1 text-label-sm',
+        'inline-flex min-h-6 items-center rounded-full border px-2.5 py-1 text-label-sm tracking-[0.01em]',
         intentClasses[intent],
         className,
       )}

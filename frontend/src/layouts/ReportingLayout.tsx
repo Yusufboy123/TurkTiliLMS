@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { SkipLink } from '../components';
+import { classNames } from '../lib/class-names';
 import { authPaths, SessionActions, useAuth } from '../features/auth';
 import { adminDashboardPaths, canAccessAdminDashboard } from '../features/admin-dashboard';
 import { progressReportingPaths } from '../features/progress-reporting/progress-reporting.routes';
@@ -12,11 +13,27 @@ import { teacherStudentPaths } from '../features/teacher-students';
 import { teacherCoursePaths } from '../features/teacher-courses';
 import { adminUsersPaths } from '../features/admin-users';
 
+const reportingNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+  classNames(
+    'relative inline-flex min-h-target items-center rounded-lg px-3 py-2 text-button no-underline transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+    isActive
+      ? 'bg-nav-selected text-nav-selected-text visited:text-nav-selected-text'
+      : 'text-text-secondary visited:text-text-secondary hover:bg-nav-hover hover:text-text-primary',
+  );
+
 export function ReportingLayout() {
   const auth = useAuth();
+  const location = useLocation();
   const isOnline = useOnlineStatus();
   const isAdmin = auth.status === 'authenticated' && auth.roles.includes('ADMIN');
   const canViewAdminDashboard = auth.status === 'authenticated' && canAccessAdminDashboard(auth);
+  const isAdminUsersViewActive = (view: 'all' | 'teachers' | 'students') =>
+    location.pathname === adminUsersPaths.list &&
+    (view === 'all'
+      ? !location.search
+      : location.search === `?role=${view === 'teachers' ? 'TEACHER' : 'STUDENT'}`);
+  const adminUsersNavClass = (view: 'all' | 'teachers' | 'students') =>
+    reportingNavLinkClass({ isActive: isAdminUsersViewActive(view) });
 
   return (
     <div className="min-h-screen bg-canvas text-text-primary">
@@ -30,55 +47,65 @@ export function ReportingLayout() {
           }
           className="mx-auto flex min-h-16 max-w-dashboard items-center justify-between gap-4 px-4 md:px-6"
         >
-          <span className="type-heading-4">Turk Tili LMS</span>
+          <Link
+            className="flex min-h-target items-center gap-3 rounded-lg px-2 text-heading-4 font-semibold text-text-primary no-underline visited:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            to={isAdmin ? adminDashboardPaths.dashboard : authPaths.teacherHome}
+          >
+            <span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-lg bg-action-primary-bg text-button text-action-primary-text shadow-subtle">T</span>
+            <span>Turk Tili LMS</span>
+          </Link>
           {isAdmin ? (
             <div className="flex flex-wrap items-center justify-end gap-1">
-              <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              <Link
+                className={adminUsersNavClass('all')}
                 to={adminUsersPaths.list}
+                aria-current={isAdminUsersViewActive('all') ? 'page' : undefined}
               >
                 Foydalanuvchilar
-              </NavLink>
-              <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              </Link>
+              <Link
+                className={adminUsersNavClass('teachers')}
                 to={adminUsersPaths.teachers}
+                aria-current={isAdminUsersViewActive('teachers') ? 'page' : undefined}
               >
                 O‘qituvchilar
-              </NavLink>
-              <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              </Link>
+              <Link
+                className={adminUsersNavClass('students')}
                 to={adminUsersPaths.students}
+                aria-current={isAdminUsersViewActive('students') ? 'page' : undefined}
               >
                 Talabalar
-              </NavLink>
+              </Link>
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={teacherGroupPaths.list}
               >
                 Guruhlar
               </NavLink>
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={teacherCoursePaths.list}
               >
                 Kurslar
               </NavLink>
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={teacherStudentPaths.list}
               >
                 Talabalar
               </NavLink>
               {canViewAdminDashboard ? (
                 <NavLink
-                  className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                  className={reportingNavLinkClass}
+                  end
                   to={adminDashboardPaths.dashboard}
                 >
                   {adminDashboardMessages.navigation}
                 </NavLink>
               ) : null}
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={progressReportingPaths.admin}
               >
                 {progressReportingMessages.title.admin}
@@ -87,25 +114,26 @@ export function ReportingLayout() {
           ) : (
             <div className="flex flex-wrap items-center justify-end gap-1">
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
+                end
                 to={authPaths.teacherHome}
               >
                 {teacherDashboardMessages.navigation}
               </NavLink>
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={teacherGroupPaths.list}
               >
                 Guruhlar
               </NavLink>
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={teacherCoursePaths.list}
               >
                 Kurslar
               </NavLink>
               <NavLink
-                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className={reportingNavLinkClass}
                 to={teacherStudentPaths.list}
               >
                 Talabalar

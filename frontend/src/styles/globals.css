@@ -21,7 +21,7 @@
     background-color: rgb(var(--color-bg-canvas));
     color: rgb(var(--color-text-primary));
     font-size: 1rem;
-    line-height: 1.5rem;
+    line-height: 1.55rem;
     overflow-wrap: break-word;
   }
 
@@ -98,36 +98,42 @@
     font-size: 2.5rem;
     font-weight: 700;
     line-height: 3rem;
+    letter-spacing: -0.035em;
   }
 
   .type-display-sm {
     font-size: 2.125rem;
     font-weight: 700;
     line-height: 2.625rem;
+    letter-spacing: -0.03em;
   }
 
   .type-heading-1 {
     font-size: 1.875rem;
     font-weight: 700;
     line-height: 2.375rem;
+    letter-spacing: -0.025em;
   }
 
   .type-heading-2 {
     font-size: 1.625rem;
     font-weight: 700;
     line-height: 2.125rem;
+    letter-spacing: -0.02em;
   }
 
   .type-heading-3 {
     font-size: 1.375rem;
     font-weight: 600;
     line-height: 1.875rem;
+    letter-spacing: -0.015em;
   }
 
   .type-heading-4 {
     font-size: 1.125rem;
     font-weight: 600;
     line-height: 1.625rem;
+    letter-spacing: -0.01em;
   }
 
   .safe-area-bottom {

@@ -16,7 +16,7 @@ const intentClasses: Record<ButtonIntent, string> = {
 };
 
 const sharedButtonClasses =
-  'rounded-lg border transition-colors duration-fast focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:border-action-disabled-border disabled:bg-action-disabled-bg disabled:text-action-disabled-text';
+  'rounded-xl border shadow-subtle transition-[background-color,border-color,box-shadow,transform] duration-fast hover:-translate-y-px active:translate-y-0 active:shadow-subtle motion-reduce:transform-none motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:border-action-disabled-border disabled:bg-action-disabled-bg disabled:text-action-disabled-text disabled:shadow-none';
 
 export interface ButtonBaseProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   intent?: ButtonIntent;

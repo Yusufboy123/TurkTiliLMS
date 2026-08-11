@@ -38,7 +38,7 @@ export default function StudentCoursePage() {
 
   return (
     <div className="grid gap-8">
-      <header>
+      <header className="rounded-2xl border border-border-decorative bg-surface p-5 shadow-card sm:p-6">
         <Link className="text-body-sm text-action-primary-text" to="/app/courses">← {messages.title}</Link>
         <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
           <div>

@@ -210,9 +210,9 @@ export default function TeacherLessonDetailPage() {
         ) : null}
       </header>
 
-      <div aria-label="Dars bo‘limlari" className="flex flex-wrap gap-2 border-b border-border-decorative pb-2" role="tablist">
+      <div aria-label="Dars bo‘limlari" className="flex gap-1 overflow-x-auto border-b border-border-decorative pb-px" role="tablist">
         {([['content', 'Kontent'], ['vocabulary', 'Lug‘atlar'], ['quiz', 'Test'], ['results', 'Natijalar']] as const).map(([value, label]) => (
-          <button aria-selected={tab === value} className={`min-h-target rounded-md px-4 py-2 text-button ${tab === value ? 'bg-action-primary text-white' : 'text-text-secondary hover:bg-subtle'}`} key={value} onClick={() => setTab(value)} role="tab" type="button">{label}</button>
+          <button aria-selected={tab === value} className={`min-h-target shrink-0 rounded-t-lg border-b-2 px-4 py-3 text-button transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${tab === value ? 'border-action-primary-bg bg-nav-selected-bg text-nav-selected-text' : 'border-transparent text-text-secondary hover:bg-subtle hover:text-text-primary'}`} key={value} onClick={() => setTab(value)} role="tab" type="button">{label}</button>
         ))}
       </div>
 

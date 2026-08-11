@@ -139,7 +139,7 @@ export default function LessonProgressPage() {
   return (
     <div className="min-h-screen bg-canvas pb-32 text-text-primary md:pb-8">
       <SkipLink targetId="lesson-main-content" />
-      <header className="sticky top-0 z-sticky border-b border-border-decorative bg-surface">
+      <header className="sticky top-0 z-sticky border-b border-border-decorative/80 bg-surface/95 shadow-subtle backdrop-blur">
         <div className="mx-auto flex h-16 max-w-content items-center gap-4 px-4 md:px-6">
           <Link
             className="inline-flex min-h-target items-center text-button"
@@ -167,7 +167,9 @@ export default function LessonProgressPage() {
         id="lesson-main-content"
         tabIndex={-1}
       >
-        <ProgressPageHeader title={lesson.title} />
+        <div className="max-w-reading">
+          <ProgressPageHeader title={lesson.title} />
+        </div>
         <ProgressRefreshStatus
           error={progress.error}
           isError={progress.isError}
@@ -198,7 +200,7 @@ export default function LessonProgressPage() {
         ) : null}
 
         {content.blocks.data?.length ? (
-          <section aria-labelledby="lesson-content-heading" className="mt-10 max-w-reading">
+          <section aria-labelledby="lesson-content-heading" className="mt-12 max-w-reading">
             <h2 className="type-heading-2" id="lesson-content-heading">Dars materiali</h2>
             <div className="mt-5 space-y-5">
               {content.blocks.data.map((block) => (

@@ -1,15 +1,15 @@
 :root {
   color-scheme: light;
 
-  --color-bg-canvas: 248 249 251;
+  --color-bg-canvas: 247 248 250;
   --color-bg-surface: 255 255 255;
-  --color-bg-subtle: 241 243 246;
+  --color-bg-subtle: 243 245 247;
   --color-bg-raised: 255 255 255;
-  --color-text-primary: 16 24 40;
+  --color-text-primary: 22 28 39;
   --color-text-secondary: 71 84 103;
   --color-text-muted: 102 112 133;
   --color-text-inverse: 255 255 255;
-  --color-border-decorative: 227 231 236;
+  --color-border-decorative: 224 228 234;
   --color-border-control: 102 112 133;
   --color-border-control-hover: 71 84 103;
   --color-border-control-focus: 37 99 235;
@@ -23,10 +23,10 @@
   --color-skeleton-bg: 227 231 236;
   --color-skeleton-shimmer: 248 249 251;
 
-  --color-action-primary-bg: 196 0 0;
+  --color-action-primary-bg: 181 35 43;
   --color-action-primary-text: 255 255 255;
-  --color-action-primary-border: 196 0 0;
-  --color-action-primary-hover-bg: 163 0 0;
+  --color-action-primary-border: 181 35 43;
+  --color-action-primary-hover-bg: 151 27 35;
   --color-action-primary-active-bg: 127 17 21;
   --color-action-secondary-bg: 255 255 255;
   --color-action-secondary-text: 16 24 40;
@@ -52,9 +52,10 @@
   --color-link-focus: 23 92 211;
 
   --color-nav-hover-bg: 241 243 246;
-  --color-nav-selected-bg: 255 241 241;
-  --color-nav-selected-text: 127 17 21;
-  --color-nav-selected-indicator: 196 0 0;
+  --color-nav-selected-bg: 255 244 244;
+  --color-nav-selected-text: 133 28 35;
+  --color-nav-selected-indicator: 181 35 43;
+  --color-brand-text: 146 31 40;
   --color-icon-default: 71 84 103;
   --color-icon-muted: 102 112 133;
   --color-icon-brand: 163 0 0;
@@ -92,7 +93,7 @@
   --color-chart-series-2: 6 118 71;
   --color-chart-series-3: 181 71 8;
   --color-chart-series-4: 105 65 198;
-  --color-chart-series-5: 196 0 0;
+  --color-chart-series-5: 181 35 43;
   --color-chart-grid: 203 209 217;
 
   --focus-ring-width: 2px;
@@ -107,15 +108,15 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg-canvas: 14 16 20;
+  --color-bg-canvas: 15 17 21;
   --color-bg-surface: 23 26 32;
-  --color-bg-subtle: 32 36 44;
+  --color-bg-subtle: 31 35 42;
   --color-bg-raised: 32 36 44;
   --color-text-primary: 247 248 250;
   --color-text-secondary: 181 189 201;
   --color-text-muted: 152 162 179;
   --color-text-inverse: 16 24 40;
-  --color-border-decorative: 43 48 58;
+  --color-border-decorative: 46 51 61;
   --color-border-control: 152 162 179;
   --color-border-control-hover: 181 189 201;
   --color-border-control-focus: 96 165 250;
@@ -161,6 +162,7 @@
   --color-nav-selected-bg: 67 20 23;
   --color-nav-selected-text: 255 224 224;
   --color-nav-selected-indicator: 240 68 68;
+  --color-brand-text: 255 150 150;
   --color-icon-default: 181 189 201;
   --color-icon-muted: 152 162 179;
   --color-icon-brand: 255 138 138;
