@@ -2,11 +2,13 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Badge, Button, Card } from '../../../components';
 import { ProgressError, ProgressSkeleton } from '../../progress/components';
+import { ProgressBar } from '../../progress/components';
+import { useEnrollmentProgress } from '../../progress/hooks/use-progress-queries';
 import { progressPaths } from '../../progress/progress.routes';
 import { studentCoursesMessages as messages } from '../student-courses.messages';
 import { studentCoursesPaths } from '../student-courses.routes';
 import { useStudentCourses, latestEnrollmentsByCourse } from '../hooks/use-student-courses';
-import type { EnrollmentStatus } from '../types/student-courses.types';
+import type { EnrollmentStatus, CatalogCourse, StudentEnrollment } from '../types/student-courses.types';
 
 const statusIntent: Record<EnrollmentStatus, 'success' | 'warning' | 'danger'> = {
   ACTIVE: 'success',
@@ -34,6 +36,17 @@ function enrollmentErrorMessage(error: unknown): string {
 
 function date(value: string) {
   return new Intl.DateTimeFormat('uz-Latn-UZ', { dateStyle: 'medium' }).format(new Date(value));
+}
+
+function StudentCatalogCourseCard({ course, currentEnrollment, isPending, onEnroll, enrollmentError }: { course: CatalogCourse; currentEnrollment: StudentEnrollment | undefined; isPending: boolean; onEnroll: () => void; enrollmentError?: string }) {
+  const canReadProgress = currentEnrollment?.status === 'ACTIVE' || currentEnrollment?.status === 'COMPLETED';
+  const progress = useEnrollmentProgress(canReadProgress ? currentEnrollment?.id ?? '' : '');
+  const isActive = currentEnrollment?.status === 'ACTIVE';
+  const isCompleted = currentEnrollment?.status === 'COMPLETED';
+  const isSuspended = currentEnrollment?.status === 'SUSPENDED';
+  const canStart = Boolean(currentEnrollment && (isActive || isCompleted));
+  const activeLabel = progress.data && progress.data.percentage > 0 ? messages.continue : messages.start;
+  return <Card className="flex h-full flex-col" padding="lg"><div className="flex flex-wrap items-start justify-between gap-3"><h2 className="type-heading-3 break-words">{course.title}</h2>{currentEnrollment ? <Badge intent={statusIntent[currentEnrollment.status]}>{messages.status[currentEnrollment.status]}</Badge> : <Badge intent="neutral">{messages.notEnrolled}</Badge>}</div><p className="mt-3 text-body-sm text-text-secondary">{messages.level}: {course.level}</p><p className="mt-3 min-h-12 text-body-md text-text-secondary">{course.shortDescription ?? messages.noDescription}</p>{canReadProgress && progress.data ? <div className="mt-4"><ProgressBar label="Kurs jarayoni" value={progress.data.percentage} /></div> : null}{course.estimatedDurationMinutes ? <p className="mt-3 text-caption text-text-muted">{messages.duration}: {course.estimatedDurationMinutes} {messages.minutes}</p> : null}<div className="mt-auto pt-6">{canStart && currentEnrollment ? <Link className="inline-flex min-h-target w-full items-center justify-center rounded-md bg-action-primary px-4 py-3 text-button text-white no-underline visited:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" to={studentCoursesPaths.course(course.id)}>{isCompleted ? messages.viewResult : activeLabel}</Link> : isSuspended ? <p className="text-body-sm text-warning-text">{messages.suspended}</p> : <Button disabled={isPending} loading={isPending} onClick={onEnroll} width="full">{messages.enroll}</Button>}{enrollmentError ? <p className="mt-3 text-body-sm text-danger-text" role="alert">{enrollmentError}</p> : null}{currentEnrollment ? <p className="mt-3 text-caption text-text-muted">{messages.state}: {messages.status[currentEnrollment.status]}. {currentEnrollment.status === 'COMPLETED' ? messages.completed : `Yozilgan sana: ${date(currentEnrollment.enrolledAt)}`}</p> : null}</div></Card>;
 }
 
 export default function StudentCoursesPage() {
@@ -83,78 +96,7 @@ export default function StudentCoursesPage() {
           {catalog.data.items.map((course) => {
             const currentEnrollment = enrollmentByCourse.get(course.id);
             const isPending = enrollment.isPending && enrollment.variables === course.id;
-            const isActive = currentEnrollment?.status === 'ACTIVE';
-            const isCompleted = currentEnrollment?.status === 'COMPLETED';
-            const isSuspended = currentEnrollment?.status === 'SUSPENDED';
-            const canStart = Boolean(currentEnrollment && (isActive || isCompleted));
-            return (
-              <Card className="flex h-full flex-col" key={course.id} padding="lg">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <h2 className="type-heading-3">{course.title}</h2>
-                  {currentEnrollment ? (
-                    <Badge intent={statusIntent[currentEnrollment.status]}>
-                      {messages.status[currentEnrollment.status]}
-                    </Badge>
-                  ) : (
-                    <Badge intent="neutral">{messages.notEnrolled}</Badge>
-                  )}
-                </div>
-                <p className="mt-3 text-body-sm text-text-secondary">
-                  {messages.level}: {course.level}
-                </p>
-                <p className="mt-3 min-h-12 text-body-md text-text-secondary">
-                  {course.shortDescription ?? messages.noDescription}
-                </p>
-                {course.estimatedDurationMinutes ? (
-                  <p className="mt-3 text-caption text-text-muted">
-                    {messages.duration}: {course.estimatedDurationMinutes} {messages.minutes}
-                  </p>
-                ) : null}
-                <div className="mt-auto pt-6">
-                  {canStart && currentEnrollment ? (
-                    <Link
-                      className="inline-flex min-h-target w-full items-center justify-center rounded-md bg-action-primary px-4 py-3 text-button text-white no-underline visited:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                      to={studentCoursesPaths.course(course.id)}
-                    >
-                      {messages.start}
-                    </Link>
-                  ) : isSuspended ? (
-                    <p className="text-body-sm text-warning-text">{messages.suspended}</p>
-                  ) : currentEnrollment?.status === 'CANCELLED' ? (
-                    <Button
-                      disabled={isPending}
-                      loading={isPending}
-                      onClick={() => enrollment.mutate(course.id)}
-                      width="full"
-                    >
-                      {messages.enroll}
-                    </Button>
-                  ) : (
-                    <Button
-                      disabled={isPending}
-                      loading={isPending}
-                      onClick={() => enrollment.mutate(course.id)}
-                      width="full"
-                    >
-                      {messages.enroll}
-                    </Button>
-                  )}
-                  {enrollment.isError && enrollment.variables === course.id ? (
-                    <p className="mt-3 text-body-sm text-danger-text" role="alert">
-                      {enrollmentErrorMessage(enrollment.error)}
-                    </p>
-                  ) : null}
-                  {currentEnrollment ? (
-                    <p className="mt-3 text-caption text-text-muted">
-                      {messages.state}: {messages.status[currentEnrollment.status]}.{' '}
-                      {currentEnrollment.status === 'COMPLETED'
-                        ? messages.completed
-                        : `Yozilgan sana: ${date(currentEnrollment.enrolledAt)}`}
-                    </p>
-                  ) : null}
-                </div>
-              </Card>
-            );
+            return <StudentCatalogCourseCard key={course.id} course={course} currentEnrollment={currentEnrollment} enrollmentError={enrollment.isError && enrollment.variables === course.id ? enrollmentErrorMessage(enrollment.error) : undefined} isPending={isPending} onEnroll={() => enrollment.mutate(course.id)} />;
           })}
         </div>
       ) : null}

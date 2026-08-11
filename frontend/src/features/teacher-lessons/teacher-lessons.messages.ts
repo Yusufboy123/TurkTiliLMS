@@ -38,7 +38,7 @@ export const teacherLessonsMessages = {
   required: 'Majburiy',
   visible: 'Ko‘rinadi',
   noBlocks: 'Hozircha kontent bloklari mavjud emas.',
-  blockTypes: { TEXT: 'Matn', VIDEO: 'Video', AUDIO: 'Audio' },
+  blockTypes: { TEXT: 'Matn', VIDEO: 'Video', AUDIO: 'Audio', IMAGE: 'Rasm' },
   types: { TEXT: 'Matn', VIDEO: 'Video', AUDIO: 'Audio', PDF: 'PDF', QUIZ: 'Test', ASSIGNMENT: 'Topshiriq', LIVE: 'Jonli dars' },
   status: { DRAFT: 'Qoralama', IN_REVIEW: 'Ko‘rib chiqilmoqda', PUBLISHED: 'Nashr qilingan', ARCHIVED: 'Arxivlangan' },
   action: { submitReview: 'Ko‘rib chiqishga yuborish', returnDraft: 'Qoralamaga qaytarish', publish: 'Nashr qilish', archive: 'Arxivlash' },

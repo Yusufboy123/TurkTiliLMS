@@ -158,6 +158,9 @@ describe('Module 9.2 student dashboard', () => {
 
     const markup = renderDashboard(client);
 
+    expect(markup).toContain('Kurslarni ko‘rish');
+    expect(markup).toContain('href="/app/courses"');
+
     expect(markup).toContain('Faol kurslar yo‘q');
     expect(markup).toContain('Yakunlangan kurslar yo‘q');
     expect(markup).toContain('Davom ettirish uchun dars yo‘q');

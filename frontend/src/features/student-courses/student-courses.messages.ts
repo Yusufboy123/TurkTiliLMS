@@ -8,6 +8,8 @@ export const studentCoursesMessages = {
   noDescription: 'Kurs tavsifi hozircha mavjud emas.',
   enroll: 'Kursga yozilish',
   start: 'Kursni boshlash',
+  continue: 'Kursni davom ettirish',
+  viewResult: 'Natijani ko‘rish',
   state: 'Holat',
   notEnrolled: 'Yozilmagan',
   status: {

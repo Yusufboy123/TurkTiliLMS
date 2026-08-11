@@ -19,7 +19,7 @@ import { useEnrollmentProgress } from '../hooks/use-progress-queries';
 import { createLessonVisitStateMachine } from '../lesson-visit-state-machine';
 import { progressPaths } from '../progress.routes';
 import { unavailableReasonLabel } from '../utils/progress-format';
-import { useStudentLessonContent } from '../../student-player';
+import { StudentQuizPanel, StudentVocabularyPanel, useStudentLessonContent } from '../../student-player';
 import type { StudentLessonBlock } from '../../student-player';
 
 function blockMediaUrl(block: StudentLessonBlock): string | null {
@@ -212,6 +212,9 @@ export default function LessonProgressPage() {
             </div>
           </section>
         ) : null}
+
+        <StudentVocabularyPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent)} enrollmentId={enrollmentId} lessonId={lessonId} />
+        <StudentQuizPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent)} enrollmentId={enrollmentId} lessonId={lessonId} />
 
         {unavailable ? (
           <p

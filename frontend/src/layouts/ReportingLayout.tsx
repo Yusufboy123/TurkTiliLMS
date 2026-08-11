@@ -10,6 +10,7 @@ import { adminDashboardMessages } from '../locales/uz-Latn/admin-dashboard';
 import { teacherGroupPaths } from '../features/teacher-groups';
 import { teacherStudentPaths } from '../features/teacher-students';
 import { teacherCoursePaths } from '../features/teacher-courses';
+import { adminUsersPaths } from '../features/admin-users';
 
 export function ReportingLayout() {
   const auth = useAuth();
@@ -32,6 +33,24 @@ export function ReportingLayout() {
           <span className="type-heading-4">Turk Tili LMS</span>
           {isAdmin ? (
             <div className="flex flex-wrap items-center justify-end gap-1">
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={adminUsersPaths.list}
+              >
+                Foydalanuvchilar
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={adminUsersPaths.teachers}
+              >
+                O‘qituvchilar
+              </NavLink>
+              <NavLink
+                className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={adminUsersPaths.students}
+              >
+                Talabalar
+              </NavLink>
               <NavLink
                 className="rounded-md px-3 py-2 text-button text-action-secondary-text no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 to={teacherGroupPaths.list}

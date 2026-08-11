@@ -51,6 +51,7 @@ export interface TeacherContentBlock {
   id: string;
   lessonId: string;
   mediaFileId: string | null;
+  media: TeacherMediaReference | null;
   blockType: TeacherLessonBlockType;
   title: string | null;
   description: string | null;
@@ -106,7 +107,8 @@ export interface CreateTeacherSectionInput {
 }
 
 export interface CreateTeacherBlockInput {
-  blockType: Extract<TeacherLessonBlockType, 'TEXT' | 'VIDEO' | 'AUDIO'>;
+  blockType: Extract<TeacherLessonBlockType, 'TEXT' | 'VIDEO' | 'AUDIO' | 'IMAGE'>;
+  mediaFileId?: string;
   title?: string;
   textContent?: string;
   sourceUrl?: string;
@@ -115,8 +117,92 @@ export interface CreateTeacherBlockInput {
 }
 
 export interface UpdateTeacherBlockInput {
+  mediaFileId?: string | null;
   title?: string | null;
   textContent?: string | null;
   sourceUrl?: string | null;
   isRequired?: boolean;
+}
+
+export interface TeacherMediaReference {
+  id: string;
+  originalFileName: string;
+  mimeType: string;
+  extension: string;
+  category: 'IMAGE' | 'DOCUMENT' | 'AUDIO' | 'VIDEO';
+  sizeBytes: string;
+  downloadUrl: string | null;
+  previewUrl: string | null;
+  deletedAt: string | null;
+}
+
+export interface TeacherMediaFile extends TeacherMediaReference {
+  storageProvider: 'LOCAL';
+}
+
+export type TeacherQuizQuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD';
+
+export interface TeacherVocabulary {
+  id: string;
+  lessonId: string;
+  turkishWord: string;
+  uzbekMeaning: string;
+  exampleSentence: string | null;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTeacherVocabularyInput {
+  turkishWord: string;
+  uzbekMeaning: string;
+  exampleSentence?: string | null;
+  position?: number;
+}
+
+export type UpdateTeacherVocabularyInput = Partial<CreateTeacherVocabularyInput>;
+
+export interface TeacherQuizOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+  position: number;
+}
+
+export interface TeacherQuizQuestion {
+  id: string;
+  lessonId: string;
+  type: TeacherQuizQuestionType;
+  prompt: string;
+  explanation: string | null;
+  points: number;
+  position: number;
+  options: TeacherQuizOption[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeacherQuizOptionInput {
+  text: string;
+  isCorrect: boolean;
+  position?: number;
+}
+
+export interface CreateTeacherQuizQuestionInput {
+  type: TeacherQuizQuestionType;
+  prompt: string;
+  explanation?: string | null;
+  points: number;
+  position?: number;
+  options?: TeacherQuizOptionInput[];
+}
+
+export type UpdateTeacherQuizQuestionInput = Partial<CreateTeacherQuizQuestionInput>;
+
+export interface TeacherQuizResult {
+  student: { id: string; name: string; email: string };
+  score: number | null;
+  maxScore: number | null;
+  percentage: number | null;
+  submittedAt: string | null;
 }

@@ -47,3 +47,47 @@ export interface StudentLessonBlock {
   durationSeconds: number | null;
   thumbnailUrl: string | null;
 }
+
+export interface StudentVocabulary {
+  id: string;
+  lessonId: string;
+  turkishWord: string;
+  uzbekMeaning: string;
+  exampleSentence: string | null;
+  position: number;
+}
+
+export type StudentQuizQuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD';
+
+export interface StudentQuizQuestion {
+  id: string;
+  type: StudentQuizQuestionType;
+  prompt: string;
+  points: number;
+  position: number;
+  options: Array<{ id: string; text: string; position: number }>;
+}
+
+export interface StudentQuiz {
+  lessonId: string;
+  questions: StudentQuizQuestion[];
+}
+
+export interface StudentQuizAttempt {
+  id: string;
+  lessonId: string;
+  enrollmentId: string;
+  startedAt: string;
+  submittedAt: string | null;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  correctCount: number;
+  incorrectCount: number;
+  status: 'IN_PROGRESS' | 'SUBMITTED';
+}
+
+export interface StudentQuizAnswerInput {
+  questionId: string;
+  submittedAnswer: string;
+}

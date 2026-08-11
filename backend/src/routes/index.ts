@@ -21,6 +21,7 @@ import {
   lessonRouter,
   sectionRouter,
 } from '../modules/lessons/lesson-management.routes.js';
+import { lessonLearningRouter } from '../modules/lesson-learning/lesson-learning.routes.js';
 import { mediaRouter } from '../modules/media/media.routes.js';
 import { progressReportingRouter } from '../modules/progress-reporting/progress-reporting.routes.js';
 import { progressTrackingRouter } from '../modules/progress-tracking/progress-tracking.routes.js';
@@ -41,6 +42,7 @@ apiV1Router.use(certificateEligibilityRouter);
 apiV1Router.use(certificateIssuanceRouter);
 apiV1Router.use(progressTrackingRouter);
 apiV1Router.use(progressReportingRouter);
+apiV1Router.use(lessonLearningRouter);
 apiV1Router.use('/courses/:courseId/enrollments', courseEnrollmentRouter);
 apiV1Router.use('/me/enrollments', myEnrollmentRouter);
 apiV1Router.use('/enrollments', enrollmentManagementRouter);

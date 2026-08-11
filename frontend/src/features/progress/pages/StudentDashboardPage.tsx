@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Button, Card } from '../../../components';
 import { useAuth } from '../../auth';
 import { progressMessages } from '../../../locales/uz-Latn/progress';
 import {
@@ -14,6 +15,7 @@ import {
 } from '../components';
 import { useCompletedCourses, useProgressSummary } from '../hooks/use-progress-queries';
 import { progressPaths } from '../progress.routes';
+import { studentCoursesPaths } from '../../student-courses/student-courses.routes';
 
 export const STUDENT_DASHBOARD_ACTIVE_LIMIT = 6;
 export const STUDENT_DASHBOARD_COMPLETED_QUERY = {
@@ -74,6 +76,15 @@ export default function StudentDashboardPage() {
               emptyBody={progressMessages.dashboard.noCoursesBody}
               emptyTitle={progressMessages.dashboard.noCoursesTitle}
             />
+            {!summary.data.activeCourses.length ? (
+              <Card className="mt-5 border-info-border bg-info-bg" elevation="none" padding="lg">
+                <h3 className="type-heading-3">Yangi kurs boshlang</h3>
+                <p className="mt-2 text-body-sm text-text-secondary">O‘zingizga mos kursni tanlab, o‘qishni boshlashingiz mumkin.</p>
+                <Link className="mt-4 inline-flex no-underline" to={studentCoursesPaths.list}>
+                  <Button>Kurslarni ko‘rish</Button>
+                </Link>
+              </Card>
+            ) : null}
           </section>
         </>
       ) : null}

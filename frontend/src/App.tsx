@@ -14,6 +14,7 @@ import {
 import { ProgressSkeleton } from './features/progress/components';
 import { progressRouteSegments, progressPaths } from './features/progress/progress.routes';
 import { progressReportingPaths } from './features/progress-reporting/progress-reporting.routes';
+import { AdminUserDetailPage, AdminUsersPage, adminUsersPaths } from './features/admin-users';
 import { ReportingLayout } from './layouts/ReportingLayout';
 import { StudentLayout } from './layouts/StudentLayout';
 import { PublicLandingPage, TurkAlphabetDemoPage } from './features/public-demo';
@@ -203,6 +204,19 @@ function App() {
                 path={progressReportingPaths.adminEnrollmentPattern}
                 element={<ProgressReportingDetailPage admin />}
               />
+            </Route>
+          </Route>
+          <Route
+            element={
+              <RequireAuthorization
+                permissions={['users.read', 'roles.assign']}
+                roles={['ADMIN']}
+              />
+            }
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={adminUsersPaths.list} element={<AdminUsersPage />} />
+              <Route path={adminUsersPaths.detailPattern} element={<AdminUserDetailPage />} />
             </Route>
           </Route>
           <Route

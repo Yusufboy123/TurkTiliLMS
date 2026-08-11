@@ -8,6 +8,10 @@ import type {
   UpdateTeacherBlockInput,
   UpdateTeacherLessonInput,
   ReorderTeacherLessonInput,
+  CreateTeacherVocabularyInput,
+  UpdateTeacherVocabularyInput,
+  CreateTeacherQuizQuestionInput,
+  UpdateTeacherQuizQuestionInput,
 } from '../types/teacher-lessons.types';
 import { teacherLessonsQueryKeys } from './teacher-lessons-query-keys';
 
@@ -99,5 +103,77 @@ export function useUpdateTeacherBlock(courseId: string, lessonId: string) {
     mutationFn: ({ blockId, input }: { blockId: string; input: UpdateTeacherBlockInput }) =>
       teacherLessonsApi.updateBlock(courseId, lessonId, blockId, input),
     onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.blocks(courseId, lessonId) }),
+  });
+}
+
+export function useTeacherLessonVocabulary(courseId: string, lessonId: string, enabled = true) {
+  return useQuery({
+    queryKey: teacherLessonsQueryKeys.vocabulary(courseId, lessonId),
+    queryFn: () => teacherLessonsApi.listVocabulary(courseId, lessonId),
+    enabled: enabled && Boolean(courseId && lessonId),
+  });
+}
+
+export function useCreateTeacherVocabulary(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTeacherVocabularyInput) => teacherLessonsApi.createVocabulary(courseId, lessonId, input),
+    onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.vocabulary(courseId, lessonId) }),
+  });
+}
+
+export function useUpdateTeacherVocabulary(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vocabularyId, input }: { vocabularyId: string; input: UpdateTeacherVocabularyInput }) => teacherLessonsApi.updateVocabulary(courseId, lessonId, vocabularyId, input),
+    onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.vocabulary(courseId, lessonId) }),
+  });
+}
+
+export function useDeleteTeacherVocabulary(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vocabularyId: string) => teacherLessonsApi.deleteVocabulary(courseId, lessonId, vocabularyId),
+    onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.vocabulary(courseId, lessonId) }),
+  });
+}
+
+export function useTeacherLessonQuizQuestions(courseId: string, lessonId: string, enabled = true) {
+  return useQuery({
+    queryKey: teacherLessonsQueryKeys.quizQuestions(courseId, lessonId),
+    queryFn: () => teacherLessonsApi.listQuizQuestions(courseId, lessonId),
+    enabled: enabled && Boolean(courseId && lessonId),
+  });
+}
+
+export function useCreateTeacherQuizQuestion(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTeacherQuizQuestionInput) => teacherLessonsApi.createQuizQuestion(courseId, lessonId, input),
+    onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.quizQuestions(courseId, lessonId) }),
+  });
+}
+
+export function useUpdateTeacherQuizQuestion(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ questionId, input }: { questionId: string; input: UpdateTeacherQuizQuestionInput }) => teacherLessonsApi.updateQuizQuestion(courseId, lessonId, questionId, input),
+    onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.quizQuestions(courseId, lessonId) }),
+  });
+}
+
+export function useDeleteTeacherQuizQuestion(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: string) => teacherLessonsApi.deleteQuizQuestion(courseId, lessonId, questionId),
+    onSuccess: () => void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.quizQuestions(courseId, lessonId) }),
+  });
+}
+
+export function useTeacherLessonQuizResults(courseId: string, lessonId: string, enabled = true) {
+  return useQuery({
+    queryKey: teacherLessonsQueryKeys.quizResults(courseId, lessonId),
+    queryFn: () => teacherLessonsApi.listQuizResults(courseId, lessonId),
+    enabled: enabled && Boolean(courseId && lessonId),
   });
 }

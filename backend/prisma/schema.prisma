@@ -236,6 +236,21 @@ enum LessonStatus {
   @@map("lesson_status")
 }
 
+enum LessonQuizQuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  MISSING_WORD
+
+  @@map("lesson_quiz_question_type")
+}
+
+enum LessonQuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+
+  @@map("lesson_quiz_attempt_status")
+}
+
 enum LessonContentBlockType {
   TEXT
   VIDEO
@@ -544,6 +559,7 @@ model CourseEnrollment {
   eligibilityEvaluations CertificateEligibilityEvaluation[]
   certificate            Certificate?
   idempotencyRecords     IdempotencyRecord[]
+  quizAttempts           LessonQuizAttempt[]
 
   @@unique([id, courseId], map: "course_enrollments_id_course_id_key")
   @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
@@ -1013,6 +1029,9 @@ model Lesson {
   lastVisitedProgressRoots EnrollmentProgressRoot[] @relation("EnrollmentProgressLastVisitedLesson")
   progress                 LessonProgress[]
   progressEvents           ProgressEvent[]
+  vocabulary               LessonVocabulary[]
+  quizQuestions            LessonQuizQuestion[]
+  quizAttempts             LessonQuizAttempt[]
 
   @@unique([courseId, slug], map: "lessons_course_id_slug_key")
   @@index([courseId, status, deletedAt], map: "lessons_course_id_status_deleted_at_idx")
@@ -1022,6 +1041,89 @@ model Lesson {
   @@index([createdById], map: "lessons_created_by_id_idx")
   @@index([deletedAt], map: "lessons_deleted_at_idx")
   @@map("lessons")
+}
+
+model LessonVocabulary {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  lessonId        String   @map("lesson_id") @db.Uuid
+  turkishWord     String   @map("turkish_word") @db.VarChar(200)
+  uzbekMeaning    String   @map("uzbek_meaning") @db.VarChar(500)
+  exampleSentence String?  @map("example_sentence") @db.Text
+  position        Int
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
+  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([lessonId, deletedAt, position], map: "lesson_vocabulary_lesson_id_deleted_at_position_idx")
+  @@map("lesson_vocabulary")
+}
+
+model LessonQuizQuestion {
+  id            String                    @id @default(uuid(7)) @db.Uuid
+  lessonId      String                    @map("lesson_id") @db.Uuid
+  type          LessonQuizQuestionType
+  prompt        String                    @db.Text
+  explanation   String?                   @db.Text
+  points        Int
+  position      Int
+  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamptz(3)
+  lesson        Lesson                    @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  options       LessonQuizOption[]
+  answers       LessonQuizAnswer[]
+
+  @@index([lessonId, deletedAt, position], map: "lesson_quiz_questions_lesson_id_deleted_at_position_idx")
+  @@map("lesson_quiz_questions")
+}
+
+model LessonQuizOption {
+  id         String             @id @default(uuid(7)) @db.Uuid
+  questionId String             @map("question_id") @db.Uuid
+  text       String             @db.Text
+  isCorrect  Boolean            @map("is_correct")
+  position   Int
+  question   LessonQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([questionId, position], map: "lesson_quiz_options_question_id_position_idx")
+  @@map("lesson_quiz_options")
+}
+
+model LessonQuizAttempt {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  enrollmentId   String                  @map("enrollment_id") @db.Uuid
+  lessonId       String                  @map("lesson_id") @db.Uuid
+  startedAt      DateTime                @default(now()) @map("started_at") @db.Timestamptz(3)
+  submittedAt    DateTime?               @map("submitted_at") @db.Timestamptz(3)
+  score          Int                     @default(0)
+  maxScore       Int                     @map("max_score")
+  percentage     Int                     @default(0)
+  correctCount   Int                     @default(0) @map("correct_count")
+  incorrectCount Int                     @default(0) @map("incorrect_count")
+  status         LessonQuizAttemptStatus @default(IN_PROGRESS)
+  enrollment     CourseEnrollment        @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lesson         Lesson                  @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  answers        LessonQuizAnswer[]
+
+  @@index([enrollmentId, lessonId, status, startedAt], map: "lesson_quiz_attempts_enrollment_lesson_status_started_idx")
+  @@index([lessonId, status, submittedAt], map: "lesson_quiz_attempts_lesson_status_submitted_idx")
+  @@map("lesson_quiz_attempts")
+}
+
+model LessonQuizAnswer {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  attemptId      String            @map("attempt_id") @db.Uuid
+  questionId     String            @map("question_id") @db.Uuid
+  submittedAnswer String           @map("submitted_answer") @db.Text
+  isCorrect      Boolean           @map("is_correct")
+  awardedPoints  Int               @map("awarded_points")
+  attempt        LessonQuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  question       LessonQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([attemptId, questionId], map: "lesson_quiz_answers_attempt_id_question_id_key")
+  @@index([questionId], map: "lesson_quiz_answers_question_id_idx")
+  @@map("lesson_quiz_answers")
 }
 
 /// Ordered lesson content keeps delivery references and metadata only. Binary

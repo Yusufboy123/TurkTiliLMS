@@ -13,6 +13,14 @@ import type {
   ReorderTeacherLessonInput,
   UpdateTeacherBlockInput,
   UpdateTeacherLessonInput,
+  CreateTeacherVocabularyInput,
+  TeacherVocabulary,
+  UpdateTeacherVocabularyInput,
+  CreateTeacherQuizQuestionInput,
+  TeacherQuizQuestion,
+  UpdateTeacherQuizQuestionInput,
+  TeacherQuizResult,
+  TeacherMediaFile,
 } from '../types/teacher-lessons.types';
 
 export const teacherLessonsApi = {
@@ -82,6 +90,51 @@ export const teacherLessonsApi = {
       `/courses/${courseId}/lessons/${lessonId}/blocks/${blockId}`,
       input,
     );
+    return response.data.data;
+  },
+  async uploadMedia(file: File, onUploadProgress?: (percentage: number) => void): Promise<TeacherMediaFile> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<SuccessEnvelope<TeacherMediaFile>>('/media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (event) => {
+        if (event.total) onUploadProgress?.(Math.round((event.loaded / event.total) * 100));
+      },
+    });
+    return response.data.data;
+  },
+  async listVocabulary(courseId: string, lessonId: string): Promise<TeacherVocabulary[]> {
+    const response = await apiClient.get<SuccessEnvelope<TeacherVocabulary[]>>(`/courses/${courseId}/lessons/${lessonId}/vocabulary`);
+    return response.data.data;
+  },
+  async createVocabulary(courseId: string, lessonId: string, input: CreateTeacherVocabularyInput): Promise<TeacherVocabulary> {
+    const response = await apiClient.post<SuccessEnvelope<TeacherVocabulary>>(`/courses/${courseId}/lessons/${lessonId}/vocabulary`, input);
+    return response.data.data;
+  },
+  async updateVocabulary(courseId: string, lessonId: string, vocabularyId: string, input: UpdateTeacherVocabularyInput): Promise<TeacherVocabulary> {
+    const response = await apiClient.patch<SuccessEnvelope<TeacherVocabulary>>(`/courses/${courseId}/lessons/${lessonId}/vocabulary/${vocabularyId}`, input);
+    return response.data.data;
+  },
+  async deleteVocabulary(courseId: string, lessonId: string, vocabularyId: string): Promise<void> {
+    await apiClient.delete(`/courses/${courseId}/lessons/${lessonId}/vocabulary/${vocabularyId}`);
+  },
+  async listQuizQuestions(courseId: string, lessonId: string): Promise<TeacherQuizQuestion[]> {
+    const response = await apiClient.get<SuccessEnvelope<TeacherQuizQuestion[]>>(`/courses/${courseId}/lessons/${lessonId}/quiz/questions`);
+    return response.data.data;
+  },
+  async createQuizQuestion(courseId: string, lessonId: string, input: CreateTeacherQuizQuestionInput): Promise<TeacherQuizQuestion> {
+    const response = await apiClient.post<SuccessEnvelope<TeacherQuizQuestion>>(`/courses/${courseId}/lessons/${lessonId}/quiz/questions`, input);
+    return response.data.data;
+  },
+  async updateQuizQuestion(courseId: string, lessonId: string, questionId: string, input: UpdateTeacherQuizQuestionInput): Promise<TeacherQuizQuestion> {
+    const response = await apiClient.patch<SuccessEnvelope<TeacherQuizQuestion>>(`/courses/${courseId}/lessons/${lessonId}/quiz/questions/${questionId}`, input);
+    return response.data.data;
+  },
+  async deleteQuizQuestion(courseId: string, lessonId: string, questionId: string): Promise<void> {
+    await apiClient.delete(`/courses/${courseId}/lessons/${lessonId}/quiz/questions/${questionId}`);
+  },
+  async listQuizResults(courseId: string, lessonId: string): Promise<TeacherQuizResult[]> {
+    const response = await apiClient.get<SuccessEnvelope<TeacherQuizResult[]>>(`/courses/${courseId}/lessons/${lessonId}/quiz/results`);
     return response.data.data;
   },
 };
