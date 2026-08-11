@@ -18,7 +18,7 @@ function idempotencyKey(): string {
 export const adminUsersApi = {
   async list(params: { page: number; pageSize: number; search?: string; role?: RoleCode; status?: UserStatus }): Promise<AdminUserPage> {
     const response = await apiClient.get<SuccessEnvelope<AdminUserPage>>('/users', {
-      params: { ...params, deleted: 'exclude', sortBy: 'createdAt', sortDirection: 'desc' },
+      params: { ...params, deleted: 'include', sortBy: 'createdAt', sortDirection: 'desc' },
     });
     return response.data.data;
   },
@@ -32,6 +32,13 @@ export const adminUsersApi = {
   },
   async updateStatus(userId: string, status: Exclude<UserStatus, 'DELETED'>): Promise<AdminUser> {
     const response = await apiClient.patch<SuccessEnvelope<AdminUser>>(`/users/${userId}/status`, { status });
+    return response.data.data;
+  },
+  async delete(userId: string): Promise<void> {
+    await apiClient.delete(`/users/${userId}`, { data: { confirmation: true } });
+  },
+  async restore(userId: string): Promise<AdminUser> {
+    const response = await apiClient.post<SuccessEnvelope<AdminUser>>(`/users/${userId}/restore`, {});
     return response.data.data;
   },
   async courses(teacherId?: string): Promise<AdminCoursePage> {
@@ -60,6 +67,10 @@ export const adminUsersApi = {
   },
   async updateEnrollmentStatus(enrollmentId: string, status: string): Promise<unknown> {
     const response = await apiClient.patch<SuccessEnvelope<unknown>>(`/enrollments/${enrollmentId}/status`, { status });
+    return response.data.data;
+  },
+  async updateEnrollmentAccess(enrollmentId: string, input: { durationMonths?: number; accessExpiresAt?: string }): Promise<unknown> {
+    const response = await apiClient.patch<SuccessEnvelope<unknown>>(`/enrollments/${enrollmentId}/access`, input);
     return response.data.data;
   },
   async eligibility(courseId: string, enrollmentId: string): Promise<CertificateEligibility> {

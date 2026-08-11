@@ -38,4 +38,14 @@ export const teacherGroupsApi = {
   async removeStudent(groupId: string, studentId: string) {
     await apiClient.delete(`/groups/${groupId}/students/${studentId}`);
   },
+  async delete(groupId: string) {
+    await apiClient.delete(`/groups/${groupId}`, { data: { confirmation: true } });
+  },
+  async restore(groupId: string) {
+    const response = await apiClient.post<SuccessEnvelope<TeacherGroup>>(
+      `/groups/${groupId}/restore`,
+      {},
+    );
+    return response.data.data;
+  },
 };

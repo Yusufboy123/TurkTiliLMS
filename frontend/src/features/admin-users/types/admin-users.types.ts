@@ -47,6 +47,10 @@ export interface AdminEnrollment {
   studentId: string;
   status: EnrollmentStatus;
   enrolledAt: string;
+  accessStartsAt: string;
+  accessExpiresAt: string;
+  accessActive: boolean;
+  daysRemaining: number;
   course: { id: string; title: string; slug: string; teacherId: string | null };
 }
 
@@ -59,6 +63,8 @@ export interface AdminStudentCourse {
   enrollmentId: string;
   course: { id: string; title: string; slug: string };
   enrollmentStatus: EnrollmentStatus;
+  accessStartsAt: string;
+  accessExpiresAt: string;
   percentage: number;
   completedLessons: number;
   totalEligibleLessons: number;

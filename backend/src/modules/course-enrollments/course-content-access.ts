@@ -15,6 +15,8 @@ export class PrismaStudentCourseContentAccess implements StudentCourseContentAcc
         courseId,
         studentId,
         status: { in: [CourseEnrollmentStatus.ACTIVE, CourseEnrollmentStatus.COMPLETED] },
+        accessStartsAt: { lte: new Date() },
+        accessExpiresAt: { gt: new Date() },
         student: {
           status: 'ACTIVE',
           roles: { some: { role: { code: RoleCode.STUDENT } } },

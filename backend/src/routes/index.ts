@@ -12,6 +12,7 @@ import {
 import { healthRouter } from '../modules/health/health.routes.js';
 import { groupsRouter } from '../modules/groups/groups.routes.js';
 import { studentMonitoringRouter } from '../modules/student-monitoring/student-monitoring.routes.js';
+import { studentProfileRouter } from '../modules/student-profile/student-profile.routes.js';
 import {
   lessonContentBlockCatalogRouter,
   lessonContentBlockRouter,
@@ -37,6 +38,7 @@ apiV1Router.use('/auth/step-up', stepUpAuthenticationRouter);
 apiV1Router.use('/users', userManagementRouter);
 apiV1Router.use('/groups', groupsRouter);
 apiV1Router.use('/students', studentMonitoringRouter);
+apiV1Router.use(studentProfileRouter);
 apiV1Router.use('/media', mediaRouter);
 apiV1Router.use(certificateEligibilityRouter);
 apiV1Router.use(certificateIssuanceRouter);

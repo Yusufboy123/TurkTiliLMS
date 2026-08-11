@@ -43,6 +43,7 @@ class EmptyRepository implements GroupRepository {
         lastName: null,
       },
       studentCount: 0,
+      deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as GroupRecord;
@@ -59,6 +60,12 @@ class EmptyRepository implements GroupRepository {
   async addStudent() {}
   async removeStudent() {
     return false;
+  }
+  async softDelete() {
+    return null;
+  }
+  async restore() {
+    return null;
   }
 }
 function authenticationMiddleware(): RequestHandler {

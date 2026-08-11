@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from '../../../components';
+import { teacherStudentsApi } from '../api/teacher-students.api';
 import { teacherStudentPaths } from '../teacher-students.routes';
 import { useTeacherStudent } from '../hooks/use-teacher-students';
 
@@ -10,6 +14,9 @@ function date(value: string | null) {
 export default function TeacherStudentDetailPage() {
   const { studentId = '' } = useParams();
   const student = useTeacherStudent(studentId);
+  const client = useQueryClient();
+  const access = useMutation({ mutationFn: (input: { enrollmentId: string; months?: number; date?: string }) => teacherStudentsApi.updateAccess(input.enrollmentId, input.months ? { durationMonths: input.months } : { accessExpiresAt: input.date }), onSuccess: () => { void client.invalidateQueries({ queryKey: ['teacher-students', 'detail', studentId] }); } });
+  const [customExpiry, setCustomExpiry] = useState('');
   if (student.isPending) return <p role="status">Yuklanmoqda…</p>;
   if (student.isError || !student.data)
     return (
@@ -75,6 +82,11 @@ export default function TeacherStudentDetailPage() {
                     : '—'}
                 </p>
                 <p>Sertifikat: {course.certificateStatus ?? 'Mavjud emas'}</p>
+                <p>Kirish muddati: {date(course.accessExpiresAt)}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="Kursga kirish muddatini uzaytirish">
+                <span className="self-center text-caption text-text-secondary">Uzaytirish:</span>
+                {[1, 3, 6, 12].map((months) => <Button key={months} intent="secondary" disabled={access.isPending} onClick={() => access.mutate({ enrollmentId: course.enrollmentId, months })}>{months} oy</Button>)}<input aria-label="Maxsus tugash sanasi" className="min-h-target rounded-md border border-border-decorative px-3" type="date" value={customExpiry} onChange={(event) => setCustomExpiry(event.target.value)} /><Button intent="secondary" disabled={!customExpiry || access.isPending} onClick={() => access.mutate({ enrollmentId: course.enrollmentId, date: new Date(`${customExpiry}T23:59:59.000Z`).toISOString() })}>Sanani saqlash</Button>
               </div>
             </article>
           ))}

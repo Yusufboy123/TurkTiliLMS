@@ -27,4 +27,13 @@ describe('teacher group contracts', () => {
       params: { search: 'Ali' },
     });
   });
+
+  it('uses the soft-delete and restore group endpoints', async () => {
+    mocks.del.mockResolvedValueOnce({ data: { success: true } });
+    mocks.post.mockResolvedValueOnce({ data: { data: { id: 'group-1', deletedAt: null } } });
+    await teacherGroupsApi.delete('group-1');
+    await teacherGroupsApi.restore('group-1');
+    expect(mocks.del).toHaveBeenCalledWith('/groups/group-1', { data: { confirmation: true } });
+    expect(mocks.post).toHaveBeenCalledWith('/groups/group-1/restore', {});
+  });
 });

@@ -43,16 +43,20 @@ export function calculateProgressAggregate(
 }
 
 export function isCourseAvailable(enrollment: ProgressEnrollmentRecord): boolean {
+  const now = new Date();
   return (
     enrollment.course.status === CourseStatus.PUBLISHED &&
     enrollment.course.publishedAt !== null &&
-    enrollment.course.deletedAt === null
+    enrollment.course.deletedAt === null &&
+    now >= enrollment.accessStartsAt &&
+    now < enrollment.accessExpiresAt
   );
 }
 
 function unavailableReason(enrollment: ProgressEnrollmentRecord): ProgressUnavailableReason {
   if (enrollment.status === CourseEnrollmentStatus.SUSPENDED) return 'ENROLLMENT_SUSPENDED';
   if (enrollment.status === CourseEnrollmentStatus.CANCELLED) return 'ENROLLMENT_CANCELLED';
+  if (new Date() >= enrollment.accessExpiresAt) return 'ACCESS_EXPIRED';
   if (enrollment.status === CourseEnrollmentStatus.COMPLETED) return 'ENROLLMENT_COMPLETED';
   if (!isCourseAvailable(enrollment)) return 'COURSE_UNAVAILABLE';
   return null;
@@ -271,6 +275,9 @@ export function presentCourseSummary(
       slug: enrollment.course.slug,
     },
     enrollmentStatus: enrollment.status,
+    accessExpiresAt: enrollment.accessExpiresAt.toISOString(),
+    accessActive: isCourseAvailable(enrollment),
+    daysRemaining: Math.max(0, Math.ceil((enrollment.accessExpiresAt.getTime() - Date.now()) / 86_400_000)),
     status: courseState(enrollment, root),
     curriculumVersion: root.curriculumVersion,
     completionVersion: root.completionVersion,

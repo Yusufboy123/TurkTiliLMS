@@ -90,7 +90,8 @@ export class LessonLearningRepository {
   }
 
   findActiveStudentEnrollment(enrollmentId: string, lessonId: string, studentId: string) {
-    return this.client.courseEnrollment.findFirst({ where: { id: enrollmentId, studentId, status: { in: ['ACTIVE', 'COMPLETED'] }, student: { status: 'ACTIVE', roles: { some: { role: { code: 'STUDENT' } } } }, course: { status: 'PUBLISHED', publishedAt: { not: null }, deletedAt: null, lessons: { some: { id: lessonId, status: 'PUBLISHED', deletedAt: null, section: { isPublished: true } } } } }, select: { id: true, courseId: true, studentId: true } });
+    const now = new Date();
+    return this.client.courseEnrollment.findFirst({ where: { id: enrollmentId, studentId, status: { in: ['ACTIVE', 'COMPLETED'] }, accessStartsAt: { lte: now }, accessExpiresAt: { gt: now }, student: { status: 'ACTIVE', roles: { some: { role: { code: 'STUDENT' } } } }, course: { status: 'PUBLISHED', publishedAt: { not: null }, deletedAt: null, lessons: { some: { id: lessonId, status: 'PUBLISHED', deletedAt: null, section: { isPublished: true } } } } }, select: { id: true, courseId: true, studentId: true } });
   }
 
   findStudentQuestions(lessonId: string) {

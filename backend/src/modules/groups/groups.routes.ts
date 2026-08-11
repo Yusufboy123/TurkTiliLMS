@@ -35,6 +35,8 @@ export function createGroupRouter(
     permission('groups.update_members'),
     asyncHandler(controller.removeStudent),
   );
+  router.delete('/:groupId', permission('groups.delete'), asyncHandler(controller.delete));
+  router.post('/:groupId/restore', permission('groups.restore'), asyncHandler(controller.restore));
   return router;
 }
 

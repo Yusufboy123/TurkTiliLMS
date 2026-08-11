@@ -14,6 +14,7 @@ export type ProgressUnavailableReason =
   | 'ENROLLMENT_SUSPENDED'
   | 'ENROLLMENT_CANCELLED'
   | 'ENROLLMENT_COMPLETED'
+  | 'ACCESS_EXPIRED'
   | 'COURSE_UNAVAILABLE'
   | 'LESSON_UNAVAILABLE'
   | 'CONTENT_BLOCK_UNAVAILABLE'
@@ -103,6 +104,8 @@ export interface ProgressEnrollmentRecord {
   studentId: string;
   status: CourseEnrollmentStatus;
   enrolledAt: Date;
+  accessStartsAt: Date;
+  accessExpiresAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
@@ -218,6 +221,9 @@ export interface CourseProgressSummaryDto {
   enrollmentId: string;
   course: CourseReferenceDto;
   enrollmentStatus: CourseEnrollmentStatus;
+  accessExpiresAt: string;
+  accessActive: boolean;
+  daysRemaining: number;
   status: ProjectedCourseProgressState;
   curriculumVersion: number;
   completionVersion: number;

@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { teacherGroupPaths } from '../teacher-groups.routes';
-import { useCreateTeacherGroup, useTeacherGroups } from '../hooks/use-teacher-groups';
+import {
+  useCreateTeacherGroup,
+  useDeleteTeacherGroup,
+  useRestoreTeacherGroup,
+  useTeacherGroups,
+} from '../hooks/use-teacher-groups';
 import type { GroupLevel } from '../types/teacher-groups.types';
 
 const levels: GroupLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -11,9 +16,16 @@ export default function TeacherGroupsPage() {
   const [name, setName] = useState('');
   const [level, setLevel] = useState<GroupLevel>('A1');
   const [open, setOpen] = useState(false);
-  const groups = useTeacherGroups({ page: 1, pageSize: 50 });
+  const groups = useTeacherGroups({ page: 1, pageSize: 50, deleted: 'include' });
   const create = useCreateTeacherGroup();
+  const remove = useDeleteTeacherGroup();
+  const restore = useRestoreTeacherGroup();
   const canCreate = auth.status === 'authenticated' && auth.roles.includes('TEACHER');
+  const canManage =
+    auth.status === 'authenticated' &&
+    (auth.roles.includes('TEACHER') || auth.roles.includes('ADMIN'));
+  const canDelete = canManage && auth.permissions.includes('groups.delete');
+  const canRestore = canManage && auth.permissions.includes('groups.restore');
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || auth.status !== 'authenticated') return;
@@ -111,12 +123,16 @@ export default function TeacherGroupsPage() {
       {groups.data && groups.data.items.length > 0 ? (
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {groups.data.items.map((group) => (
-            <Link
-              className="rounded-lg border border-border-decorative bg-surface p-5 no-underline transition hover:border-action-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            <article
+              className={`rounded-lg border border-border-decorative bg-surface p-5 ${group.deletedAt ? 'opacity-75' : ''}`}
               key={group.id}
-              to={teacherGroupPaths.detail(group.id)}
             >
-              <h2 className="type-heading-3 text-text-primary">{group.name}</h2>
+              <Link
+                className="rounded-md text-text-primary no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                to={teacherGroupPaths.detail(group.id)}
+              >
+                <h2 className="type-heading-3 text-text-primary">{group.name}</h2>
+              </Link>
               <p className="mt-2 text-body-sm text-text-secondary">Daraja: {group.level}</p>
               <p className="mt-1 text-body-sm text-text-secondary">
                 Talabalar: {group.studentCount}
@@ -124,7 +140,35 @@ export default function TeacherGroupsPage() {
               <p className="mt-1 text-body-sm text-text-secondary">
                 O‘qituvchi: {group.teacher.displayName ?? group.teacher.email}
               </p>
-            </Link>
+              {group.deletedAt ? (
+                <p className="mt-3 text-body-sm text-warning-text">Arxivlangan</p>
+              ) : null}
+              {canDelete || canRestore ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {group.deletedAt && canRestore ? (
+                    <button
+                      className="rounded-md border border-action-primary px-3 py-2 text-button text-action-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50"
+                      disabled={restore.isPending}
+                      onClick={() => restore.mutate(group.id)}
+                      type="button"
+                    >
+                      Tiklash
+                    </button>
+                  ) : !group.deletedAt && canDelete ? (
+                    <button
+                      className="rounded-md border border-danger-text px-3 py-2 text-button text-danger-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50"
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        if (window.confirm('Bu guruh arxivlansinmi?')) remove.mutate(group.id);
+                      }}
+                      type="button"
+                    >
+                      Guruhni o‘chirish
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </article>
           ))}
         </div>
       ) : null}

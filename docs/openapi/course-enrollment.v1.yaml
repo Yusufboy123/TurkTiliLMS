@@ -267,6 +267,37 @@ paths:
         '404': { $ref: '#/components/responses/EnrollmentNotFound' }
         '409': { $ref: '#/components/responses/EnrollmentConflict' }
         '422': { $ref: '#/components/responses/ValidationOrEligibilityError' }
+  /enrollments/{enrollmentId}/access:
+    patch:
+      tags: [Enrollment Management]
+      summary: Set or extend a course access period
+      description: Requires ADMIN or TEACHER and `enrollments.update_status`; teachers are course-scoped. Send exactly one preset duration or custom future expiry.
+      x-required-roles: [ADMIN, TEACHER]
+      x-required-permissions: [enrollments.update_status]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/EnrollmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                durationMonths: { type: integer, enum: [1, 2, 3, 6, 12] }
+                accessExpiresAt: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Access period updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManagedEnrollmentResponse' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/EnrollmentNotFound' }
+        '409': { $ref: '#/components/responses/EnrollmentConflict' }
+        '422': { $ref: '#/components/responses/ValidationOrEligibilityError' }
 components:
   securitySchemes:
     bearerAuth:
@@ -378,6 +409,10 @@ components:
         - status
         - source
         - enrolledAt
+        - accessStartsAt
+        - accessExpiresAt
+        - accessActive
+        - daysRemaining
         - startedAt
         - completedAt
         - cancelledAt
@@ -391,6 +426,10 @@ components:
         status: { $ref: '#/components/schemas/EnrollmentStatus' }
         source: { $ref: '#/components/schemas/EnrollmentSource' }
         enrolledAt: { type: string, format: date-time }
+        accessStartsAt: { type: string, format: date-time }
+        accessExpiresAt: { type: string, format: date-time }
+        accessActive: { type: boolean }
+        daysRemaining: { type: integer, minimum: 0 }
         startedAt: { type: [string, 'null'], format: date-time }
         completedAt: { type: [string, 'null'], format: date-time }
         cancelledAt: { type: [string, 'null'], format: date-time }

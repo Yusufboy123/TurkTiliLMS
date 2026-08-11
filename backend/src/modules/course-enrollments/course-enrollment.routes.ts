@@ -82,6 +82,11 @@ export function createEnrollmentManagementRouter(
     dependencies.permission('enrollments.update_status'),
     asyncHandler(dependencies.controller.updateStatus),
   );
+  router.patch(
+    '/:enrollmentId/access',
+    dependencies.permission('enrollments.update_status'),
+    asyncHandler(dependencies.controller.updateAccess),
+  );
   return router;
 }
 

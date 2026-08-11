@@ -22,6 +22,8 @@ const course: MonitoringCourseRecord = {
   enrollmentId: '019b9e22-e356-713e-be3a-ab43b5b43f8d',
   course: { id: '019b9e22-e356-713e-be3a-ab43b5b43f8e', title: 'A1 kursi', slug: 'a1-kursi' },
   enrollmentStatus: CourseEnrollmentStatus.ACTIVE,
+  accessStartsAt: new Date('2026-08-01T00:00:00Z'),
+  accessExpiresAt: new Date('2026-11-01T00:00:00Z'),
   percentage: 40,
   completedLessons: 2,
   totalEligibleLessons: 5,

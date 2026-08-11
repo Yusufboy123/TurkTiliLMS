@@ -30,6 +30,28 @@ export function useAdminUserStatus(userId: string) {
   return useMutation({ mutationFn: (status: Exclude<UserStatus, 'DELETED'>) => adminUsersApi.updateStatus(userId, status), onSuccess: (user) => { client.setQueryData(adminUsersQueryKeys.detail(userId), user); void client.invalidateQueries({ queryKey: adminUsersQueryKeys.root }); } });
 }
 
+export function useAdminUserDelete() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => adminUsersApi.delete(userId),
+    onSuccess: (_data, userId) => {
+      void client.invalidateQueries({ queryKey: adminUsersQueryKeys.detail(userId) });
+      void client.invalidateQueries({ queryKey: adminUsersQueryKeys.root });
+    },
+  });
+}
+
+export function useAdminUserRestore() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => adminUsersApi.restore(userId),
+    onSuccess: (user, userId) => {
+      client.setQueryData(adminUsersQueryKeys.detail(userId), user);
+      void client.invalidateQueries({ queryKey: adminUsersQueryKeys.root });
+    },
+  });
+}
+
 export function useAssignAdminCourseTeacher() {
   const client = useQueryClient();
   return useMutation({ mutationFn: (input: { courseId: string; teacherId: string | null }) => adminUsersApi.assignTeacher(input.courseId, input.teacherId), onSuccess: () => { void client.invalidateQueries({ queryKey: adminUsersQueryKeys.courses() }); void client.invalidateQueries({ queryKey: adminUsersQueryKeys.root }); } });
@@ -43,6 +65,15 @@ export function useAdminEnrollStudent() {
 export function useAdminEnrollmentStatus() {
   const client = useQueryClient();
   return useMutation({ mutationFn: (input: { enrollmentId: string; studentId: string; status: string }) => adminUsersApi.updateEnrollmentStatus(input.enrollmentId, input.status), onSuccess: (_data, input) => { void client.invalidateQueries({ queryKey: adminUsersQueryKeys.student(input.studentId) }); } });
+}
+
+export function useAdminEnrollmentAccess() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { enrollmentId: string; studentId: string; durationMonths?: number; accessExpiresAt?: string }) =>
+      adminUsersApi.updateEnrollmentAccess(input.enrollmentId, { ...(input.durationMonths ? { durationMonths: input.durationMonths } : {}), ...(input.accessExpiresAt ? { accessExpiresAt: input.accessExpiresAt } : {}) }),
+    onSuccess: (_data, input) => { void client.invalidateQueries({ queryKey: adminUsersQueryKeys.student(input.studentId) }); },
+  });
 }
 
 export function useAdminCertificateEligibility(courseId: string, enrollmentId: string) {

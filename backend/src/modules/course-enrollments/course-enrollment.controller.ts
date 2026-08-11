@@ -16,6 +16,7 @@ import {
   listCourseEnrollmentsQuerySchema,
   listOwnEnrollmentsQuerySchema,
   updateEnrollmentStatusSchema,
+  updateEnrollmentAccessSchema,
 } from './course-enrollment.schemas.js';
 import type { CourseEnrollmentUseCases } from './course-enrollment.service.js';
 import type { EnrollmentActor, EnrollmentAuditContext } from './course-enrollment.types.js';
@@ -169,6 +170,23 @@ export class CourseEnrollmentController {
     response.status(200).json({
       success: true,
       message: 'Enrollment holati yangilandi.',
+      data: presentManagedEnrollment(result),
+    });
+  };
+
+  updateAccess = async (request: Request, response: Response): Promise<void> => {
+    const principal = principalFrom(request);
+    const { enrollmentId } = enrollmentIdParamsSchema.parse(request.params);
+    const input = updateEnrollmentAccessSchema.parse(request.body);
+    const result = await this.enrollments.updateAccess(
+      enrollmentId,
+      input,
+      actorFrom(principal),
+      auditContext(request, principal),
+    );
+    response.status(200).json({
+      success: true,
+      message: 'Kursga kirish muddati yangilandi.',
       data: presentManagedEnrollment(result),
     });
   };

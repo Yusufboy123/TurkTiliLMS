@@ -51,6 +51,16 @@ export const updateEnrollmentStatusSchema = z
   })
   .strict();
 
+export const updateEnrollmentAccessSchema = z
+  .object({
+    durationMonths: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(6), z.literal(12)]).optional(),
+    accessExpiresAt: z.coerce.date().optional(),
+  })
+  .strict()
+  .refine((value) => (value.durationMonths === undefined) !== (value.accessExpiresAt === undefined), {
+    message: 'Muddat yoki tugash sanasidan faqat bittasini kiriting.',
+  });
+
 export const listOwnEnrollmentsQuerySchema = z
   .object({
     ...paginationFields,

@@ -7,7 +7,7 @@ import { adminUsersPaths } from '../admin-users.routes';
 import { useAdminRoles, useAdminUserStatus, useAdminUsers } from '../hooks/use-admin-users';
 
 const roles: RoleCode[] = ['STUDENT', 'TEACHER', 'ADMIN'];
-const statuses: UserStatus[] = ['ACTIVE', 'SUSPENDED', 'DEACTIVATED'];
+const statuses: UserStatus[] = ['ACTIVE', 'SUSPENDED', 'DEACTIVATED', 'DELETED'];
 
 const roleLabel: Record<RoleCode, string> = { ADMIN: 'Admin', TEACHER: 'O‘qituvchi', STUDENT: 'Talaba' };
 const statusLabel: Record<UserStatus, string> = { ACTIVE: 'Faol', SUSPENDED: 'To‘xtatilgan', DEACTIVATED: 'Faolsiz', DELETED: 'O‘chirilgan' };
@@ -86,14 +86,16 @@ function UserCard({ user, currentUserId }: { user: { id: string; email: string; 
   return <article className="rounded-lg border border-border-decorative bg-surface p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words font-semibold">{displayName(user)}</h2><p className="mt-1 break-all text-body-sm text-text-secondary">{user.email}</p></div><Badge>{roleLabel[user.roles[0] ?? 'STUDENT']}</Badge></div><p className="mt-3 text-body-sm text-text-secondary">Ro‘yxatdan o‘tgan: {formatDate(user.createdAt)}</p><div className="mt-4 grid gap-3"><RoleControl user={user} currentUserId={currentUserId} /><StatusControl user={user} currentUserId={currentUserId} /></div><Link className="mt-4 inline-flex min-h-target items-center text-button text-action-secondary-text" to={adminUsersPaths.detail(user.id)}>Batafsil</Link></article>;
 }
 
-function RoleControl({ user, currentUserId }: { user: { id: string; roles: RoleCode[] }; currentUserId: string }) {
+function RoleControl({ user, currentUserId }: { user: { id: string; roles: RoleCode[]; status?: UserStatus }; currentUserId: string }) {
   const mutation = useAdminRoles(user.id);
   const current = user.roles[0] ?? 'STUDENT';
+  if (user.status === 'DELETED') return <Badge intent="warning">{roleLabel[current]}</Badge>;
   return <label className="grid gap-1 text-caption text-text-secondary">Rol<Select aria-label={`${user.id} roli`} disabled={user.id === currentUserId || mutation.isPending} onChange={(event) => { const next = event.target.value as RoleCode; if (next !== current && window.confirm('Bu foydalanuvchi rolini o‘zgartirishni tasdiqlaysizmi?')) mutation.mutate([next]); }} value={current}>{roles.map((item) => <option key={item} value={item}>{roleLabel[item]}</option>)}</Select></label>;
 }
 
 function StatusControl({ user, currentUserId }: { user: { id: string; status: UserStatus }; currentUserId: string }) {
   const mutation = useAdminUserStatus(user.id);
   const current = user.status === 'DELETED' ? 'DEACTIVATED' : user.status;
+  if (user.status === 'DELETED') return <Badge intent="warning">{statusLabel.DELETED}</Badge>;
   return <label className="grid gap-1 text-caption text-text-secondary">Holat<Select aria-label={`${user.id} holati`} disabled={user.id === currentUserId || mutation.isPending} onChange={(event) => { const next = event.target.value as Exclude<UserStatus, 'DELETED'>; if (next !== current && window.confirm('Bu foydalanuvchi holatini o‘zgartirishni tasdiqlaysizmi?')) mutation.mutate(next); }} value={current}>{statuses.map((item) => <option key={item} value={item}>{statusLabel[item]}</option>)}</Select></label>;
 }

@@ -50,6 +50,8 @@ export function createProgressEnrollment(
     studentId: STUDENT_ID,
     status: CourseEnrollmentStatus.ACTIVE,
     enrolledAt: new Date('2026-07-20T08:00:00.000Z'),
+    accessStartsAt: new Date('2026-07-20T08:00:00.000Z'),
+    accessExpiresAt: new Date('2026-12-20T08:00:00.000Z'),
     startedAt: null,
     completedAt: null,
     cancelledAt: null,

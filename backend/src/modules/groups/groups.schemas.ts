@@ -11,6 +11,7 @@ export const listGroupsQuerySchema = z
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
     search: z.string().trim().min(1).max(100).optional(),
     level: z.nativeEnum(CourseLevel).optional(),
+    deleted: z.enum(['exclude', 'include', 'only']).default('exclude'),
   })
   .strict();
 export const searchStudentsQuerySchema = z
@@ -27,6 +28,11 @@ export const createGroupSchema = z
   })
   .strict();
 export const addGroupStudentSchema = z.object({ studentId: id }).strict();
+export const deleteGroupSchema = z
+  .object({
+    confirmation: z.literal(true, { error: 'Guruhni o‘chirish uchun tasdiq talab qilinadi.' }),
+  })
+  .strict();
 
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
 export type SearchStudentsQuery = z.infer<typeof searchStudentsQuerySchema>;

@@ -18,6 +18,7 @@ const groupSelect = {
   id: true,
   name: true,
   level: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
   teacher: { select: personSelect },
@@ -53,6 +54,8 @@ export interface GroupRepository {
   searchStudents(search: string, pageSize: number): Promise<GroupStudentSummary[]>;
   addStudent(groupId: string, studentId: string): Promise<void>;
   removeStudent(groupId: string, studentId: string): Promise<boolean>;
+  softDelete(groupId: string): Promise<GroupRecord | null>;
+  restore(groupId: string): Promise<GroupRecord | null>;
 }
 
 function eligibleRole(code: RoleCode, now = new Date()) {
@@ -67,6 +70,11 @@ export class PrismaGroupRepository implements GroupRepository {
       ...(teacherId ? { teacherId } : {}),
       ...(query.level ? { level: query.level } : {}),
       ...(query.search ? { name: { contains: query.search, mode: 'insensitive' } } : {}),
+      ...(query.deleted === 'exclude'
+        ? { deletedAt: null }
+        : query.deleted === 'only'
+          ? { deletedAt: { not: null } }
+          : {}),
     };
     const [items, total] = await this.client.$transaction([
       this.client.group.findMany({
@@ -145,5 +153,29 @@ export class PrismaGroupRepository implements GroupRepository {
   async removeStudent(groupId: string, studentId: string) {
     const result = await this.client.groupStudent.deleteMany({ where: { groupId, studentId } });
     return result.count > 0;
+  }
+
+  async softDelete(groupId: string) {
+    const existing = await this.client.group.findUnique({ where: { id: groupId }, select: groupSelect });
+    if (!existing) return null;
+    if (existing.deletedAt) return mapGroup(existing);
+    const deleted = await this.client.group.update({
+      where: { id: groupId },
+      data: { deletedAt: new Date() },
+      select: groupSelect,
+    });
+    return mapGroup(deleted);
+  }
+
+  async restore(groupId: string) {
+    const existing = await this.client.group.findUnique({ where: { id: groupId }, select: groupSelect });
+    if (!existing) return null;
+    if (!existing.deletedAt) return mapGroup(existing);
+    const restored = await this.client.group.update({
+      where: { id: groupId },
+      data: { deletedAt: null },
+      select: groupSelect,
+    });
+    return mapGroup(restored);
   }
 }

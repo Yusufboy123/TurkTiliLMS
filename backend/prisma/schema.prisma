@@ -47,6 +47,66 @@ enum CourseLevel {
   @@map("course_level")
 }
 
+enum StudentOnboardingLevel {
+  UNKNOWN
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+
+  @@map("student_onboarding_level")
+}
+
+enum StudentLearningGoal {
+  WORK
+  STUDY
+  EXAM
+  TRAVEL
+  DAILY_COMMUNICATION
+  PERSONAL_DEVELOPMENT
+  OTHER
+
+  @@map("student_learning_goal")
+}
+
+enum StudentAgeRange {
+  AGE_13_17
+  AGE_18_24
+  AGE_25_34
+  AGE_35_44
+  AGE_45_PLUS
+
+  @@map("student_age_range")
+}
+
+enum StudentGender {
+  MALE
+  FEMALE
+  PREFER_NOT_TO_SAY
+
+  @@map("student_gender")
+}
+
+enum StudentWeeklyStudyBand {
+  HOURS_1_2
+  HOURS_3_5
+  HOURS_5_PLUS
+
+  @@map("student_weekly_study_band")
+}
+
+enum StudentSkillFocus {
+  SPEAKING
+  LISTENING
+  READING
+  WRITING
+  ALL
+
+  @@map("student_skill_focus")
+}
+
 enum CourseStatus {
   DRAFT
   IN_REVIEW
@@ -317,11 +377,28 @@ model User {
   groupsCreated              Group[]                            @relation("GroupCreator")
   groupsTaught               Group[]                            @relation("GroupTeacher")
   groupMemberships           GroupStudent[]
+  studentProfile             StudentProfile?
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
   @@index([deletedAt], map: "users_deleted_at_idx")
   @@map("users")
+}
+
+model StudentProfile {
+  userId                 String                  @id @map("user_id") @db.Uuid
+  currentLevel           StudentOnboardingLevel
+  learningGoal           StudentLearningGoal
+  ageRange               StudentAgeRange?
+  gender                 StudentGender?
+  weeklyStudyBand        StudentWeeklyStudyBand?
+  preferredSkillFocus    StudentSkillFocus?
+  onboardingCompletedAt  DateTime?               @map("onboarding_completed_at") @db.Timestamptz(3)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("student_profiles")
 }
 
 model Group {
@@ -330,6 +407,7 @@ model Group {
   level       CourseLevel
   teacherId   String        @map("teacher_id") @db.Uuid
   createdById String        @map("created_by_id") @db.Uuid
+  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(3)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   teacher     User          @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -338,6 +416,7 @@ model Group {
 
   @@index([teacherId, updatedAt], map: "groups_teacher_id_updated_at_idx")
   @@index([createdById], map: "groups_created_by_id_idx")
+  @@index([deletedAt], map: "groups_deleted_at_idx")
   @@map("groups")
 }
 
@@ -545,6 +624,8 @@ model CourseEnrollment {
   status                 CourseEnrollmentStatus             @default(ACTIVE)
   source                 CourseEnrollmentSource
   enrolledAt             DateTime                           @default(now()) @map("enrolled_at") @db.Timestamptz(3)
+  accessStartsAt         DateTime                           @default(now()) @map("access_starts_at") @db.Timestamptz(3)
+  accessExpiresAt        DateTime                           @default(dbgenerated("CURRENT_TIMESTAMP + interval '3 months'")) @map("access_expires_at") @db.Timestamptz(3)
   startedAt              DateTime?                          @map("started_at") @db.Timestamptz(3)
   completedAt            DateTime?                          @map("completed_at") @db.Timestamptz(3)
   cancelledAt            DateTime?                          @map("cancelled_at") @db.Timestamptz(3)
@@ -567,6 +648,8 @@ model CourseEnrollment {
   @@index([courseId, studentId, enrolledAt], map: "course_enrollments_course_id_student_id_enrolled_at_idx")
   @@index([createdById], map: "course_enrollments_created_by_id_idx")
   @@index([completedAt], map: "course_enrollments_completed_at_idx")
+  @@index([studentId, status, accessExpiresAt], map: "course_enrollments_student_status_access_expires_at_idx")
+  @@index([courseId, status, accessExpiresAt], map: "course_enrollments_course_status_access_expires_at_idx")
   @@index([createdAt], map: "course_enrollments_created_at_idx")
   @@map("course_enrollments")
 }

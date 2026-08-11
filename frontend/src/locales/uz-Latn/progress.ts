@@ -98,6 +98,7 @@ export const progressMessages = {
     ENROLLMENT_SUSPENDED: 'Kursga kirish vaqtincha to‘xtatilgan.',
     ENROLLMENT_CANCELLED: 'Kursga yozilish bekor qilingan.',
     ENROLLMENT_COMPLETED: 'Kurs yakunlangan. Kontentni qayta ko‘rish mumkin, jarayon o‘zgarmaydi.',
+    ACCESS_EXPIRED: 'Kursga kirish muddati tugagan. Muddat uzaytirilgach davom etishingiz mumkin.',
     COURSE_UNAVAILABLE: 'Kurs hozir mavjud emas.',
     LESSON_UNAVAILABLE: 'Dars hozir mavjud emas.',
     CONTENT_BLOCK_UNAVAILABLE: 'Material hozir mavjud emas.',

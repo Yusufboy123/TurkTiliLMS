@@ -5,6 +5,7 @@ import {
   RoleCode,
 } from '@prisma/client';
 import { AppError } from '../../utils/app-error.js';
+import { addCalendarMonths } from './course-enrollment.types.js';
 import {
   EnrollmentAlreadyExistsError,
   EnrollmentReferenceConflictError,
@@ -20,6 +21,7 @@ import type {
   EnrollmentCourseAccess,
   EnrollmentListQuery,
   PaginatedEnrollments,
+  UpdateEnrollmentAccessInput,
 } from './course-enrollment.types.js';
 
 const allowedTransitions: Record<CourseEnrollmentStatus, CourseEnrollmentStatus[]> = {
@@ -173,6 +175,12 @@ export interface CourseEnrollmentUseCases {
     actor: EnrollmentActor,
     context: EnrollmentAuditContext,
   ): Promise<CourseEnrollmentRecord>;
+  updateAccess(
+    enrollmentId: string,
+    input: UpdateEnrollmentAccessInput,
+    actor: EnrollmentActor,
+    context: EnrollmentAuditContext,
+  ): Promise<CourseEnrollmentRecord>;
 }
 
 export class CourseEnrollmentService implements CourseEnrollmentUseCases {
@@ -303,6 +311,50 @@ export class CourseEnrollmentService implements CourseEnrollmentUseCases {
     }
   }
 
+  async updateAccess(
+    enrollmentId: string,
+    input: UpdateEnrollmentAccessInput,
+    actor: EnrollmentActor,
+    context: EnrollmentAuditContext,
+  ): Promise<CourseEnrollmentRecord> {
+    assertManagementPolicy(actor, 'enrollments.update_status');
+    if ((input.durationMonths === undefined) === (input.accessExpiresAt === undefined)) {
+      throw new AppError(
+        'Muddat yoki tugash sanasidan faqat bittasini kiriting.',
+        422,
+        'INVALID_ACCESS_PERIOD',
+      );
+    }
+    try {
+      return await this.repository.withSerializableTransaction(async (transaction) => {
+        await transaction.lockEnrollment(enrollmentId);
+        const enrollment = await transaction.findById(enrollmentId);
+        if (!enrollment) throw enrollmentNotFound();
+        await transaction.lockCourse(enrollment.courseId);
+        const course = await transaction.findCourse(enrollment.courseId);
+        if (!course) throw new AppError('Kurs topilmadi.', 404, 'COURSE_NOT_FOUND');
+        assertCourseScope(actor, course);
+        const now = new Date();
+        const nextExpiry =
+          input.accessExpiresAt ??
+          addCalendarMonths(
+            enrollment.accessExpiresAt > now ? enrollment.accessExpiresAt : now,
+            input.durationMonths ?? 3,
+          );
+        if (nextExpiry <= now) {
+          throw new AppError('Kursga kirish tugash sanasi kelajakda bo‘lishi kerak.', 422, 'INVALID_ACCESS_PERIOD');
+        }
+        return transaction.updateAccessWithAudit(
+          enrollment,
+          nextExpiry,
+          trustedAuditContext(actor, context),
+        );
+      });
+    } catch (error: unknown) {
+      return mapRepositoryConflict(error);
+    }
+  }
+
   private async createEnrollment(
     courseId: string,
     studentId: string,
@@ -350,12 +402,15 @@ export class CourseEnrollmentService implements CourseEnrollmentUseCases {
           throw new AppError('Talaba bu kursni yakunlagan.', 409, 'ENROLLMENT_COMPLETED');
         }
 
+        const accessStartsAt = new Date();
         return transaction.createWithAudit(
           {
             courseId,
             studentId,
             source,
             createdById: source === CourseEnrollmentSource.ADMIN ? actor.userId : null,
+            accessStartsAt,
+            accessExpiresAt: addCalendarMonths(accessStartsAt, 3),
           },
           trustedAuditContext(actor, context),
         );

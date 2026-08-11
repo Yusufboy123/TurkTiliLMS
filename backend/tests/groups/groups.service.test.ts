@@ -33,6 +33,7 @@ function group(teacher = teacherId, students: GroupStudentSummary[] = []): Group
     teacher: { ...student, id: teacher, email: 'teacher@example.com' },
     studentCount: students.length,
     students,
+    deletedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -80,6 +81,18 @@ class FakeGroupRepository implements GroupRepository {
   async removeStudent(_groupId: string, id: string) {
     return this.members.delete(id);
   }
+  async softDelete(id: string) {
+    const item = this.groups.find((candidate) => candidate.id === id);
+    if (!item) return null;
+    item.deletedAt = new Date();
+    return item;
+  }
+  async restore(id: string) {
+    const item = this.groups.find((candidate) => candidate.id === id);
+    if (!item) return null;
+    item.deletedAt = null;
+    return item;
+  }
 }
 
 describe('GroupService', () => {
@@ -108,5 +121,39 @@ describe('GroupService', () => {
     await expect(
       service.getById(repository.groups[0]!.id, { ...actor, userId: otherTeacherId }),
     ).rejects.toMatchObject({ code: 'GROUP_SCOPE_DENIED', statusCode: 403 });
+  });
+  it('soft-deletes and restores a teacher-owned group', async () => {
+    const repository = new FakeGroupRepository();
+    const service = new GroupService(repository);
+    const groupId = repository.groups[0]!.id;
+    await service.delete(groupId, { ...actor, permissions: ['groups.delete'] });
+    expect(repository.groups[0]!.deletedAt).toBeInstanceOf(Date);
+    const restored = await service.restore(groupId, {
+      ...actor,
+      permissions: ['groups.restore'],
+    });
+    expect(restored.deletedAt).toBeNull();
+  });
+  it('denies a teacher from deleting another teacher group', async () => {
+    const repository = new FakeGroupRepository();
+    const service = new GroupService(repository);
+    await expect(
+      service.delete(repository.groups[0]!.id, {
+        ...actor,
+        userId: otherTeacherId,
+        permissions: ['groups.delete'],
+      }),
+    ).rejects.toMatchObject({ code: 'GROUP_SCOPE_DENIED', statusCode: 403 });
+  });
+  it('allows an administrator to restore a group', async () => {
+    const repository = new FakeGroupRepository();
+    const service = new GroupService(repository);
+    repository.groups[0]!.deletedAt = new Date();
+    const restored = await service.restore(repository.groups[0]!.id, {
+      userId: otherTeacherId,
+      roles: [RoleCode.ADMIN],
+      permissions: ['groups.restore'],
+    });
+    expect(restored.deletedAt).toBeNull();
   });
 });

@@ -35,6 +35,8 @@ export interface CourseEnrollmentRecord {
   status: CourseEnrollmentStatus;
   source: CourseEnrollmentSource;
   enrolledAt: Date;
+  accessStartsAt: Date;
+  accessExpiresAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
@@ -93,6 +95,8 @@ export interface CreateEnrollmentData {
   studentId: string;
   source: CourseEnrollmentSource;
   createdById: string | null;
+  accessStartsAt: Date;
+  accessExpiresAt: Date;
 }
 
 export interface SelfEnrollmentResponse {
@@ -102,6 +106,10 @@ export interface SelfEnrollmentResponse {
   status: CourseEnrollmentStatus;
   source: CourseEnrollmentSource;
   enrolledAt: Date;
+  accessStartsAt: Date;
+  accessExpiresAt: Date;
+  accessActive: boolean;
+  daysRemaining: number;
   startedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
@@ -120,6 +128,35 @@ export interface ManagedEnrollmentResponse extends SelfEnrollmentResponse {
   createdById: string | null;
   course: SelfEnrollmentResponse['course'] & {
     teacherId: string | null;
+  };
+}
+
+export interface UpdateEnrollmentAccessInput {
+  durationMonths?: 1 | 2 | 3 | 6 | 12 | undefined;
+  accessExpiresAt?: Date | undefined;
+}
+
+export function addCalendarMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  const day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(
+    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+}
+
+export function enrollmentAccessProjection(
+  startsAt: Date,
+  expiresAt: Date,
+  now = new Date(),
+): { accessActive: boolean; daysRemaining: number } {
+  const accessActive = now >= startsAt && now < expiresAt;
+  return {
+    accessActive,
+    daysRemaining: Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 86_400_000)),
   };
 }
 

@@ -27,6 +27,8 @@ const enrollmentSelect = {
   status: true,
   source: true,
   enrolledAt: true,
+  accessStartsAt: true,
+  accessExpiresAt: true,
   startedAt: true,
   completedAt: true,
   cancelledAt: true,
@@ -75,6 +77,8 @@ function auditSummary(enrollment: EnrollmentPayload): Prisma.InputJsonObject {
     status: enrollment.status,
     source: enrollment.source,
     enrolledAt: enrollment.enrolledAt.toISOString(),
+    accessStartsAt: enrollment.accessStartsAt.toISOString(),
+    accessExpiresAt: enrollment.accessExpiresAt.toISOString(),
     startedAt: enrollment.startedAt?.toISOString() ?? null,
     completedAt: enrollment.completedAt?.toISOString() ?? null,
     cancelledAt: enrollment.cancelledAt?.toISOString() ?? null,
@@ -174,6 +178,11 @@ export interface CourseEnrollmentTransactionRepository {
   ): Promise<CourseEnrollmentRecord | null>;
   createWithAudit(
     data: CreateEnrollmentData,
+    context: EnrollmentAuditContext,
+  ): Promise<CourseEnrollmentRecord>;
+  updateAccessWithAudit(
+    existing: CourseEnrollmentRecord,
+    accessExpiresAt: Date,
     context: EnrollmentAuditContext,
   ): Promise<CourseEnrollmentRecord>;
   updateStatusWithAudit(
@@ -345,6 +354,31 @@ class PrismaCourseEnrollmentTransactionRepository implements CourseEnrollmentTra
       data: {
         ...auditFields(context),
         action: `course_enrollments.${status.toLowerCase()}`,
+        subjectType: 'course_enrollment',
+        subjectId: existing.id,
+        beforeSummary: auditSummary(existing as EnrollmentPayload),
+        afterSummary: auditSummary(updated as EnrollmentPayload),
+      },
+    });
+    return updated;
+  }
+
+  async updateAccessWithAudit(
+    existing: CourseEnrollmentRecord,
+    accessExpiresAt: Date,
+    context: EnrollmentAuditContext,
+  ): Promise<CourseEnrollmentRecord> {
+    const update = await this.transaction.courseEnrollment.updateMany({
+      where: { id: existing.id, accessExpiresAt: existing.accessExpiresAt },
+      data: { accessExpiresAt },
+    });
+    if (update.count !== 1) throw new EnrollmentStateConflictError();
+    const updated = await findEnrollment(this.transaction, existing.id);
+    if (!updated) throw new EnrollmentStateConflictError();
+    await this.transaction.auditLog.create({
+      data: {
+        ...auditFields(context),
+        action: 'course_enrollments.access_updated',
         subjectType: 'course_enrollment',
         subjectId: existing.id,
         beforeSummary: auditSummary(existing as EnrollmentPayload),

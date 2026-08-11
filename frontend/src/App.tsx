@@ -20,6 +20,11 @@ import { StudentLayout } from './layouts/StudentLayout';
 import { PublicLandingPage, TurkAlphabetDemoPage } from './features/public-demo';
 import { StudentCoursePage, StudentCoursesPage, studentCoursesPaths } from './features/student-courses';
 import {
+  StudentOnboardingPage,
+  StudentProfileGate,
+  studentProfilePaths,
+} from './features/student-profile';
+import {
   TeacherGroupDetailPage,
   TeacherGroupsPage,
   teacherGroupPaths,
@@ -141,14 +146,19 @@ function App() {
               <RequireAuthorization permissions={['progress.self_read']} roles={['STUDENT']} />
             }
           >
-            <Route path={progressPaths.dashboard} element={<StudentLayout />}>
-              <Route index element={<StudentDashboardPage />} />
-              <Route path={progressRouteSegments.overview} element={<ProgressOverviewPage />} />
-              <Route path={progressRouteSegments.completed} element={<CompletedCoursesPage />} />
-              <Route path={progressRouteSegments.course} element={<CourseProgressPage />} />
-              <Route path={progressRouteSegments.resume} element={<ResumeLearningPage />} />
+            <Route element={<StudentProfileGate />}>
+              <Route path={studentProfilePaths.onboarding} element={<StudentLayout />}>
+                <Route index element={<StudentOnboardingPage />} />
+              </Route>
+              <Route path={progressPaths.dashboard} element={<StudentLayout />}>
+                <Route index element={<StudentDashboardPage />} />
+                <Route path={progressRouteSegments.overview} element={<ProgressOverviewPage />} />
+                <Route path={progressRouteSegments.completed} element={<CompletedCoursesPage />} />
+                <Route path={progressRouteSegments.course} element={<CourseProgressPage />} />
+                <Route path={progressRouteSegments.resume} element={<ResumeLearningPage />} />
+              </Route>
+              <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
             </Route>
-            <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
           </Route>
           <Route
             element={
@@ -158,9 +168,11 @@ function App() {
               />
             }
           >
-            <Route path={studentCoursesPaths.list} element={<StudentLayout />}>
-              <Route index element={<StudentCoursesPage />} />
-              <Route path={studentCoursesPaths.coursePattern.replace('/app/courses/', '')} element={<StudentCoursePage />} />
+            <Route element={<StudentProfileGate />}>
+              <Route path={studentCoursesPaths.list} element={<StudentLayout />}>
+                <Route index element={<StudentCoursesPage />} />
+                <Route path={studentCoursesPaths.coursePattern.replace('/app/courses/', '')} element={<StudentCoursePage />} />
+              </Route>
             </Route>
           </Route>
           <Route

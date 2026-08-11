@@ -1,3 +1,6 @@
+import {
+  enrollmentAccessProjection,
+} from './course-enrollment.types.js';
 import type {
   CourseEnrollmentRecord,
   ManagedEnrollmentResponse,
@@ -7,6 +10,7 @@ import type {
 } from './course-enrollment.types.js';
 
 export function presentSelfEnrollment(enrollment: CourseEnrollmentRecord): SelfEnrollmentResponse {
+  const access = enrollmentAccessProjection(enrollment.accessStartsAt, enrollment.accessExpiresAt);
   return {
     id: enrollment.id,
     courseId: enrollment.courseId,
@@ -14,6 +18,9 @@ export function presentSelfEnrollment(enrollment: CourseEnrollmentRecord): SelfE
     status: enrollment.status,
     source: enrollment.source,
     enrolledAt: enrollment.enrolledAt,
+    accessStartsAt: enrollment.accessStartsAt,
+    accessExpiresAt: enrollment.accessExpiresAt,
+    ...access,
     startedAt: enrollment.startedAt,
     completedAt: enrollment.completedAt,
     cancelledAt: enrollment.cancelledAt,

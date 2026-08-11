@@ -15,4 +15,7 @@ export const teacherStudentsApi = {
     );
     return response.data.data;
   },
+  async updateAccess(enrollmentId: string, input: { durationMonths?: number; accessExpiresAt?: string }): Promise<void> {
+    await apiClient.patch(`/enrollments/${enrollmentId}/access`, input);
+  },
 };

@@ -34,7 +34,7 @@ export default function StudentCoursePage() {
   const data = progress.data;
   const flattened = data.sections.flatMap((section) => section.lessons);
   const nextLesson = data.resumeTarget?.lesson ?? flattened.find((lesson) => lesson.status !== 'COMPLETED');
-  const statusLabel = enrollment.status === 'SUSPENDED' ? 'Kurs vaqtincha to‘xtatilgan.' : enrollment.status === 'CANCELLED' ? 'Enrollment bekor qilingan.' : null;
+  const statusLabel = enrollment.status === 'SUSPENDED' ? 'Kurs vaqtincha to‘xtatilgan.' : enrollment.status === 'CANCELLED' ? 'Enrollment bekor qilingan.' : data.capabilities.unavailableReason === 'ACCESS_EXPIRED' ? 'Kursga kirish muddati tugagan.' : null;
 
   return (
     <div className="grid gap-8">
@@ -72,7 +72,7 @@ export default function StudentCoursePage() {
                 <Card className="flex h-full flex-col" key={lesson.id} padding="lg">
                   <div className="flex items-start justify-between gap-3"><h3 className="type-heading-4 break-words">{lesson.title}</h3><Badge intent={lesson.status === 'COMPLETED' ? 'success' : 'neutral'}>{lesson.status === 'COMPLETED' ? 'Tugallangan' : `${lesson.percentage}%`}</Badge></div>
                   <p className="mt-3 text-body-sm text-text-secondary">{lesson.completedEligibleBlocks}/{lesson.totalEligibleBlocks} material</p>
-                  <div className="mt-auto pt-5"><Link className="inline-flex min-h-target items-center text-button" to={progressPaths.lesson(enrollment.id, lesson.id)}>Darsni ochish</Link></div>
+                  <div className="mt-auto pt-5">{data.capabilities.canAccessCourseContent ? <Link className="inline-flex min-h-target items-center text-button" to={progressPaths.lesson(enrollment.id, lesson.id)}>Darsni ochish</Link> : <span className="text-body-sm text-text-muted">Kirish yopiq</span>}</div>
                 </Card>
               ))}
             </div>

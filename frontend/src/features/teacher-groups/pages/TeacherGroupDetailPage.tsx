@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useAuth } from '../../auth';
 import { teacherGroupPaths } from '../teacher-groups.routes';
 import {
   useAddGroupStudent,
+  useDeleteTeacherGroup,
   useRemoveGroupStudent,
+  useRestoreTeacherGroup,
   useSearchGroupStudents,
   useTeacherGroup,
 } from '../hooks/use-teacher-groups';
@@ -21,12 +24,17 @@ function label(student: {
   );
 }
 export default function TeacherGroupDetailPage() {
+  const auth = useAuth();
   const { groupId = '' } = useParams();
   const group = useTeacherGroup(groupId);
   const [search, setSearch] = useState('');
-  const results = useSearchGroupStudents(groupId, search);
+  const results = useSearchGroupStudents(groupId, group.data?.deletedAt ? '' : search);
   const add = useAddGroupStudent(groupId);
   const remove = useRemoveGroupStudent(groupId);
+  const deleteGroup = useDeleteTeacherGroup(groupId);
+  const restoreGroup = useRestoreTeacherGroup();
+  const canDelete = auth.status === 'authenticated' && auth.permissions.includes('groups.delete');
+  const canRestore = auth.status === 'authenticated' && auth.permissions.includes('groups.restore');
   if (group.isPending) return <p role="status">Yuklanmoqda…</p>;
   if (group.isError || !group.data)
     return (
@@ -46,6 +54,32 @@ export default function TeacherGroupDetailPage() {
         <p className="mt-2 text-body-md text-text-secondary">
           Daraja: {group.data.level} · O‘qituvchi: {label(group.data.teacher)}
         </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {group.data.deletedAt && canRestore ? (
+            <>
+              <span className="text-body-sm text-warning-text">Arxivlangan</span>
+              <button
+                className="rounded-md border border-action-primary px-3 py-2 text-button text-action-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50"
+                disabled={restoreGroup.isPending}
+                onClick={() => restoreGroup.mutate(groupId)}
+                type="button"
+              >
+                Tiklash
+              </button>
+            </>
+          ) : !group.data.deletedAt && canDelete ? (
+            <button
+              className="rounded-md border border-danger-text px-3 py-2 text-button text-danger-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50"
+              disabled={deleteGroup.isPending}
+              onClick={() => {
+                if (window.confirm('Bu guruh arxivlansinmi?')) deleteGroup.mutate(groupId);
+              }}
+              type="button"
+            >
+              Guruhni o‘chirish
+            </button>
+          ) : null}
+        </div>
       </header>
       <section aria-labelledby="student-search-heading" className="mt-8">
         <h2 className="type-heading-2" id="student-search-heading">
@@ -59,6 +93,7 @@ export default function TeacherGroupDetailPage() {
           id="student-search"
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Ism yoki email orqali qidiring"
+          disabled={Boolean(group.data.deletedAt)}
           value={search}
         />
         {results.data?.length ? (
@@ -71,7 +106,7 @@ export default function TeacherGroupDetailPage() {
                 </span>
                 <button
                   className="rounded-md border border-action-primary px-3 py-1 text-button text-action-primary-text disabled:opacity-50"
-                  disabled={members.has(student.id) || add.isPending}
+                  disabled={Boolean(group.data.deletedAt) || members.has(student.id) || add.isPending}
                   onClick={() => add.mutate(student.id)}
                   type="button"
                 >
@@ -96,7 +131,7 @@ export default function TeacherGroupDetailPage() {
                 </span>
                 <button
                   className="rounded-md border border-danger-text px-3 py-1 text-button text-danger-text disabled:opacity-50"
-                  disabled={remove.isPending}
+                  disabled={Boolean(group.data.deletedAt) || remove.isPending}
                   onClick={() => remove.mutate(student.id)}
                   type="button"
                 >

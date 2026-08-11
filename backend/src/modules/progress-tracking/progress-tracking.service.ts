@@ -100,6 +100,9 @@ function assertActiveEnrollment(enrollment: ProgressEnrollmentRecord): void {
 }
 
 function assertCourseAvailable(enrollment: ProgressEnrollmentRecord): void {
+  if (new Date() >= enrollment.accessExpiresAt) {
+    throw new AppError('Kursga kirish muddati tugagan.', 409, 'COURSE_ACCESS_EXPIRED');
+  }
   if (!isCourseAvailable(enrollment)) {
     throw new AppError('Kurs hozir o‘qish uchun mavjud emas.', 409, 'COURSE_UNAVAILABLE');
   }

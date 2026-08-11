@@ -15,6 +15,7 @@ export interface TeacherGroup {
   teacher: GroupStudent;
   studentCount: number;
   students?: GroupStudent[];
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +28,7 @@ export interface GroupQuery {
   pageSize: number;
   search?: string;
   level?: GroupLevel;
+  deleted?: 'exclude' | 'include' | 'only';
 }
 export interface AuthenticatedTeacher {
   id: string;

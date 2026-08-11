@@ -12,6 +12,16 @@ import type {
 
 const admin = (actor: GroupActor) => actor.roles.includes(RoleCode.ADMIN);
 const denied = () => new AppError('Bu guruh sizga biriktirilmagan.', 403, 'GROUP_SCOPE_DENIED');
+const assertPermission = (actor: GroupActor, permission: string) => {
+  if (!actor.permissions.includes(permission)) {
+    throw new AppError('Bu amal uchun ruxsat yetarli emas.', 403, 'ACCESS_DENIED');
+  }
+};
+const assertActive = (group: GroupRecord) => {
+  if (group.deletedAt) {
+    throw new AppError('Arxivlangan guruhni avval tiklash kerak.', 409, 'GROUP_IS_DELETED');
+  }
+};
 
 export class GroupService {
   constructor(private readonly repository: GroupRepository) {}
@@ -50,7 +60,8 @@ export class GroupService {
     return this.repository.searchStudents(search, pageSize);
   }
   async addStudent(groupId: string, studentId: string, actor: GroupActor): Promise<GroupRecord> {
-    await this.getById(groupId, actor);
+    const group = await this.getById(groupId, actor);
+    assertActive(group);
     if (!(await this.repository.findEligibleStudent(studentId)))
       throw new AppError('Faol talaba topilmadi.', 404, 'GROUP_STUDENT_NOT_FOUND');
     try {
@@ -67,8 +78,27 @@ export class GroupService {
     return this.getById(groupId, actor);
   }
   async removeStudent(groupId: string, studentId: string, actor: GroupActor): Promise<void> {
-    await this.getById(groupId, actor);
+    const group = await this.getById(groupId, actor);
+    assertActive(group);
     if (!(await this.repository.removeStudent(groupId, studentId)))
       throw new AppError('Talaba bu guruh a’zosi emas.', 404, 'GROUP_STUDENT_NOT_MEMBER');
+  }
+
+  async delete(groupId: string, actor: GroupActor): Promise<void> {
+    assertPermission(actor, 'groups.delete');
+    const group = await this.getById(groupId, actor);
+    if (group.deletedAt) return;
+    if (!(await this.repository.softDelete(groupId))) {
+      throw new AppError('Guruh topilmadi.', 404, 'GROUP_NOT_FOUND');
+    }
+  }
+
+  async restore(groupId: string, actor: GroupActor): Promise<GroupRecord> {
+    assertPermission(actor, 'groups.restore');
+    const group = await this.getById(groupId, actor);
+    if (!group.deletedAt) return group;
+    const restored = await this.repository.restore(groupId);
+    if (!restored) throw new AppError('Guruh topilmadi.', 404, 'GROUP_NOT_FOUND');
+    return restored;
   }
 }

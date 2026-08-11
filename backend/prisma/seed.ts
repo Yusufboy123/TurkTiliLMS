@@ -243,6 +243,18 @@ const permissionDefinitions = [
     description: 'Add or remove students from permitted groups.',
   },
   {
+    code: 'groups.delete',
+    resource: 'groups',
+    action: 'delete',
+    description: 'Archive permitted groups without deleting their history.',
+  },
+  {
+    code: 'groups.restore',
+    resource: 'groups',
+    action: 'restore',
+    description: 'Restore archived groups in the permitted scope.',
+  },
+  {
     code: 'sections.read',
     resource: 'sections',
     action: 'read',
@@ -548,6 +560,8 @@ const teacherPermissionCodes = [
   'groups.read',
   'groups.create',
   'groups.update_members',
+  'groups.delete',
+  'groups.restore',
   'courses.read',
   'courses.create',
   'courses.update',

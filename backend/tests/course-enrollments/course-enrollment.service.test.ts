@@ -99,6 +99,35 @@ describe('CourseEnrollmentService', () => {
     });
   });
 
+  it('assigns the default three-month access period and allows scoped extension', async () => {
+    const repository = new FakeCourseEnrollmentRepository();
+    const service = new CourseEnrollmentService(repository);
+    const created = await service.selfEnroll(COURSE_ID, studentActor, { actorUserId: STUDENT_ID });
+    expect(repository.lastCreateData?.accessExpiresAt.getTime()).toBeGreaterThan(
+      repository.lastCreateData?.accessStartsAt.getTime() ?? 0,
+    );
+
+    const extended = await service.updateAccess(
+      created.id,
+      { durationMonths: 3 },
+      teacherActor,
+      enrollmentAuditContext,
+    );
+    expect(extended.accessExpiresAt.getTime()).toBeGreaterThan(created.accessExpiresAt.getTime());
+  });
+
+  it('denies access-period changes to students and unauthorized teachers', async () => {
+    const service = new CourseEnrollmentService(
+      new FakeCourseEnrollmentRepository([createEnrollmentRecord()]),
+    );
+    await expect(
+      service.updateAccess(ENROLLMENT_ID, { durationMonths: 1 }, studentActor, enrollmentAuditContext),
+    ).rejects.toSatisfy((error: unknown) => expectAppError(error, 'ACCESS_DENIED', 403));
+    await expect(
+      service.updateAccess(ENROLLMENT_ID, { durationMonths: 1 }, { ...teacherActor, userId: OTHER_TEACHER_ID }, enrollmentAuditContext),
+    ).rejects.toSatisfy((error: unknown) => expectAppError(error, 'COURSE_SCOPE_DENIED', 403));
+  });
+
   it('rejects enrollment in an unpublished or deleted course', async () => {
     const repository = new FakeCourseEnrollmentRepository();
     repository.course = createEnrollmentCourse({

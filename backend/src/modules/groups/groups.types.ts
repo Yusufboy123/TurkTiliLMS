@@ -11,6 +11,7 @@ export interface GroupListQuery {
   pageSize: number;
   search?: string | undefined;
   level?: CourseLevel | undefined;
+  deleted?: 'exclude' | 'include' | 'only';
 }
 
 export interface CreateGroupInput {
@@ -34,6 +35,7 @@ export interface GroupRecord {
   teacher: GroupStudentSummary;
   studentCount: number;
   students?: GroupStudentSummary[];
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -83,6 +83,8 @@ export function createEnrollmentRecord(
     status: CourseEnrollmentStatus.ACTIVE,
     source: CourseEnrollmentSource.SELF,
     enrolledAt: new Date('2026-01-02T00:00:00.000Z'),
+    accessStartsAt: new Date('2026-01-02T00:00:00.000Z'),
+    accessExpiresAt: new Date('2026-12-02T00:00:00.000Z'),
     startedAt: null,
     completedAt: null,
     cancelledAt: null,
@@ -211,6 +213,8 @@ export class FakeCourseEnrollmentRepository
       studentId: data.studentId,
       source: data.source,
       createdById: data.createdById,
+      accessStartsAt: data.accessStartsAt,
+      accessExpiresAt: data.accessExpiresAt,
     });
     this.records.push(record);
     return record;
@@ -235,6 +239,22 @@ export class FakeCourseEnrollmentRepository
       cancelledAt: status === CourseEnrollmentStatus.CANCELLED ? now : null,
       completedAt: status === CourseEnrollmentStatus.COMPLETED ? now : null,
     });
+    this.records[index] = updated;
+    return updated;
+  }
+
+  async updateAccessWithAudit(
+    existingRecord: CourseEnrollmentRecord,
+    accessExpiresAt: Date,
+    context: EnrollmentAuditContext,
+  ): Promise<CourseEnrollmentRecord> {
+    this.lastAuditContext = context;
+    const index = this.records.findIndex((record) => record.id === existingRecord.id);
+    const existing = this.records[index];
+    if (!existing || existing.accessExpiresAt.getTime() !== existingRecord.accessExpiresAt.getTime()) {
+      throw new Error('Fake enrollment state conflict.');
+    }
+    const updated = createEnrollmentRecord({ ...existing, accessExpiresAt });
     this.records[index] = updated;
     return updated;
   }

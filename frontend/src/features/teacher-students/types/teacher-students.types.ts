@@ -27,6 +27,8 @@ export interface StudentCourseMonitoring {
   enrollmentId: string;
   course: { id: string; title: string; slug: string };
   enrollmentStatus: EnrollmentStatus;
+  accessStartsAt: string;
+  accessExpiresAt: string;
   percentage: number;
   completedLessons: number;
   totalEligibleLessons: number;

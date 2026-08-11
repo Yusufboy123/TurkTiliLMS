@@ -16,6 +16,17 @@ import {
 import { useCompletedCourses, useProgressSummary } from '../hooks/use-progress-queries';
 import { progressPaths } from '../progress.routes';
 import { studentCoursesPaths } from '../../student-courses/student-courses.routes';
+import { useStudentProfile } from '../../student-profile/hooks/use-student-profile';
+
+const goalLabels: Record<string, string> = {
+  WORK: 'Ish',
+  STUDY: 'O‘qish',
+  EXAM: 'Imtihon',
+  TRAVEL: 'Sayohat',
+  DAILY_COMMUNICATION: 'Kundalik muloqot',
+  PERSONAL_DEVELOPMENT: 'Shaxsiy rivojlanish',
+  OTHER: 'Boshqa',
+};
 
 export const STUDENT_DASHBOARD_ACTIVE_LIMIT = 6;
 export const STUDENT_DASHBOARD_COMPLETED_QUERY = {
@@ -29,6 +40,7 @@ export default function StudentDashboardPage() {
   const auth = useAuth();
   const summary = useProgressSummary(STUDENT_DASHBOARD_ACTIVE_LIMIT);
   const completed = useCompletedCourses(STUDENT_DASHBOARD_COMPLETED_QUERY);
+  const profile = useStudentProfile();
   const studentName = auth.status === 'authenticated' ? auth.user.firstName?.trim() || null : null;
 
   return (
@@ -48,6 +60,15 @@ export default function StudentDashboardPage() {
       ) : null}
       {summary.data ? (
         <>
+          {profile.data ? (
+            <Card className="mb-6 border-info-border bg-info-bg" elevation="none" padding="md">
+              <p className="text-body-sm text-info-text">
+                Daraja: <strong>{profile.data.currentLevel === 'UNKNOWN' ? 'Boshlovchi' : profile.data.currentLevel}</strong>
+                {' · '}
+                Maqsad: <strong>{goalLabels[profile.data.learningGoal] ?? profile.data.learningGoal}</strong>
+              </p>
+            </Card>
+          ) : null}
           <ProgressRefreshStatus
             error={summary.error}
             isError={summary.isError}

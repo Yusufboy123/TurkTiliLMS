@@ -29,6 +29,10 @@ export interface StudentEnrollment {
   studentId: string;
   status: EnrollmentStatus;
   enrolledAt: string;
+  accessStartsAt: string;
+  accessExpiresAt: string;
+  accessActive: boolean;
+  daysRemaining: number;
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;

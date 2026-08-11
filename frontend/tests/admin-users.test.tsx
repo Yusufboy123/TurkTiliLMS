@@ -11,7 +11,7 @@ import { AuthContext } from '../src/features/auth/auth-context';
 import { RequireAuthorization } from '../src/features/auth/RequireAuthorization';
 import { apiClient } from '../src/lib/api-client';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() }));
 vi.mock('../src/lib/api-client', () => ({ apiClient: mocks }));
 
 const admin: AuthContextValue = {
@@ -39,9 +39,18 @@ describe('Admin MVP user management', () => {
     await adminUsersApi.replaceRoles('student-1', ['TEACHER']);
     await adminUsersApi.updateStatus('student-1', 'SUSPENDED');
 
-    expect(mocks.get).toHaveBeenCalledWith('/users', { params: expect.objectContaining({ role: 'STUDENT', deleted: 'exclude' }) });
+    expect(mocks.get).toHaveBeenCalledWith('/users', { params: expect.objectContaining({ role: 'STUDENT', deleted: 'include' }) });
     expect(mocks.put).toHaveBeenCalledWith('/users/student-1/roles', { roles: ['TEACHER'] });
     expect(mocks.patch).toHaveBeenCalledWith('/users/student-1/status', { status: 'SUSPENDED' });
+  });
+
+  it('uses the existing soft-delete and restore user endpoints', async () => {
+    mocks.delete.mockResolvedValueOnce({ data: { success: true } });
+    mocks.post.mockResolvedValueOnce({ data: { data: { id: 'student-1', status: 'DEACTIVATED' } } });
+    await adminUsersApi.delete('student-1');
+    await adminUsersApi.restore('student-1');
+    expect(mocks.delete).toHaveBeenCalledWith('/users/student-1', { data: { confirmation: true } });
+    expect(mocks.post).toHaveBeenCalledWith('/users/student-1/restore', {});
   });
 
   it('renders a responsive users page with search, role/status filters and detail links', () => {

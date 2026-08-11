@@ -47,3 +47,23 @@ export function useRemoveGroupStudent(groupId: string) {
     onSuccess: () => client.invalidateQueries({ queryKey: keys.detail(groupId) }),
   });
 }
+export function useDeleteTeacherGroup(groupId?: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => teacherGroupsApi.delete(groupId),
+    onSuccess: (_data, deletedGroupId) => {
+      void client.invalidateQueries({ queryKey: keys.root });
+      void client.invalidateQueries({ queryKey: keys.detail(groupId ?? deletedGroupId) });
+    },
+  });
+}
+export function useRestoreTeacherGroup() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => teacherGroupsApi.restore(groupId),
+    onSuccess: (_group, groupId) => {
+      void client.invalidateQueries({ queryKey: keys.root });
+      void client.invalidateQueries({ queryKey: keys.detail(groupId) });
+    },
+  });
+}

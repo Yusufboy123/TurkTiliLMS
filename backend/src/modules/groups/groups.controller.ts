@@ -4,6 +4,7 @@ import type { AuthenticatedPrincipal } from '../authorization/authorization.type
 import {
   addGroupStudentSchema,
   createGroupSchema,
+  deleteGroupSchema,
   groupIdParamsSchema,
   groupStudentParamsSchema,
   listGroupsQuerySchema,
@@ -71,5 +72,16 @@ export class GroupController {
     const { groupId, studentId } = groupStudentParamsSchema.parse(req.params);
     await this.service.removeStudent(groupId, studentId, actor(req));
     res.status(204).send();
+  };
+  delete = async (req: Request, res: Response): Promise<void> => {
+    const { groupId } = groupIdParamsSchema.parse(req.params);
+    deleteGroupSchema.parse(req.body);
+    await this.service.delete(groupId, actor(req));
+    res.json({ success: true, message: 'Guruh arxivlandi.' });
+  };
+  restore = async (req: Request, res: Response): Promise<void> => {
+    const { groupId } = groupIdParamsSchema.parse(req.params);
+    const data = await this.service.restore(groupId, actor(req));
+    res.json({ success: true, message: 'Guruh tiklandi.', data });
   };
 }

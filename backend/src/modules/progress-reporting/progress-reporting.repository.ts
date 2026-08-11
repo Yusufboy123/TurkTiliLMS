@@ -16,6 +16,8 @@ const reportingEnrollmentSelect = {
   studentId: true,
   status: true,
   enrolledAt: true,
+  accessStartsAt: true,
+  accessExpiresAt: true,
   completedAt: true,
   student: {
     select: {
@@ -240,6 +242,8 @@ export class PrismaProgressReportingRepository implements ProgressReportingRepos
         studentId: true,
         status: true,
         enrolledAt: true,
+        accessStartsAt: true,
+        accessExpiresAt: true,
         startedAt: true,
         completedAt: true,
         cancelledAt: true,
@@ -342,6 +346,8 @@ export class PrismaProgressReportingRepository implements ProgressReportingRepos
         studentId: enrollment.studentId,
         status: enrollment.status,
         enrolledAt: enrollment.enrolledAt,
+        accessStartsAt: enrollment.accessStartsAt,
+        accessExpiresAt: enrollment.accessExpiresAt,
         startedAt: enrollment.startedAt,
         completedAt: enrollment.completedAt,
         cancelledAt: enrollment.cancelledAt,

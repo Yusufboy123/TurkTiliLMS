@@ -25,6 +25,8 @@ const enrollmentSelect = {
   id: true,
   studentId: true,
   status: true,
+  accessStartsAt: true,
+  accessExpiresAt: true,
   completedAt: true,
   course: { select: { id: true, title: true, slug: true } },
   progressRoot: {
@@ -60,6 +62,8 @@ function mapEnrollment(enrollment: EnrollmentPayload): MonitoringCourseRecord {
     enrollmentId: enrollment.id,
     course: enrollment.course,
     enrollmentStatus: enrollment.status,
+    accessStartsAt: enrollment.accessStartsAt,
+    accessExpiresAt: enrollment.accessExpiresAt,
     percentage:
       enrollment.status === CourseEnrollmentStatus.COMPLETED
         ? 100
