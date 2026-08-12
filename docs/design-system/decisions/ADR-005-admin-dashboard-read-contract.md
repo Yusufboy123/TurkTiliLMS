@@ -10,8 +10,8 @@
 
 The platform already exposes separate user statistics, course statistics, and
 paginated progress reporting. Certificate reads are resource-scoped and no
-platform certificate aggregate exists. Audit records are persisted, but there
-is no approved audit-read API or safe dashboard projection. The frontend has an
+platform certificate aggregate exists. At the original 9.4A decision point,
+audit records were persisted but there was no approved audit-read API or safe dashboard projection. The frontend has an
 implemented `/admin/progress` route but no `/admin` dashboard route.
 
 Building the dashboard by calling multiple existing endpoints would create a
@@ -57,13 +57,13 @@ progress roots. Certificate counts come only from `Certificate.status`; absence
 of a certificate, completion events, and eligibility evidence are not
 certificate lifecycle counts.
 
-### Defer recent activity
+### Keep the dashboard aggregate separate from activity history
 
-The v1 summary contains no recent-activity list. `audit.read` alone is not a
-safe disclosure contract. Event allowlisting, actor minimization, metadata
-redaction, retention, pagination, and export step-up must be approved in a
-future Audit Read module before `/admin/audit` or a dashboard projection is
-implemented.
+The v1 summary contains no recent-activity list. Platform Enhancement 4B adds a
+separate `GET /api/v1/admin/activity` endpoint with `ADMIN` + `audit.read`, a
+bounded important-action allowlist, minimized actor projection, pagination, and
+redaction. Raw metadata and before/after snapshots remain excluded. `/admin/audit`
+continues to be reserved for a future export workflow with step-up protection.
 
 Successful access records `admin_dashboard.summary_read` with actor, time,
 correlation ID, and existing minimized request context only. Counts, response
@@ -109,8 +109,9 @@ stale time; no shared or persistent cache is allowed.
 - Module 9.4B adds a small feature module instead of composing existing HTTP
   endpoints.
 - Administrators missing one summary permission cannot see a partial dashboard.
-- Recent activity and most quick-navigation destinations remain unavailable
-  until their own contracts and pages are implemented.
+- Audit export and most quick-navigation destinations remain unavailable until
+  their own contracts and pages are implemented; the bounded 4B activity page
+  is the approved exception.
 - A repeatable-read snapshot costs one short transaction and must remain
   aggregate-only.
 - The database-backed rate limiter adds a small bounded audit-write and count

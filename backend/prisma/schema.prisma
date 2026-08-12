@@ -357,6 +357,9 @@ model User {
   roleAssignmentsMade        UserRole[]                         @relation("UserRoleAssigner")
   permissionGrantsMade       RolePermission[]                   @relation("RolePermissionGranter")
   auditLogs                  AuditLog[]                         @relation("AuditLogActor")
+  notifications              Notification[]                     @relation("NotificationRecipient")
+  studentBookmarks           StudentBookmark[]
+  studentLessonNotes         StudentLessonNote[]
   coursesCreated             Course[]                           @relation("CourseCreator")
   coursesTaught              Course[]                           @relation("CourseTeacher")
   courseSectionsCreated      CourseSection[]                    @relation("CourseSectionCreator")
@@ -1113,6 +1116,8 @@ model Lesson {
   progress                 LessonProgress[]
   progressEvents           ProgressEvent[]
   vocabulary               LessonVocabulary[]
+  bookmarks                StudentBookmark[]
+  studentNotes             StudentLessonNote[]
   quizQuestions            LessonQuizQuestion[]
   quizAttempts             LessonQuizAttempt[]
 
@@ -1126,6 +1131,26 @@ model Lesson {
   @@map("lessons")
 }
 
+/// In-app notifications are private, recipient-owned records. dedupeKey makes
+/// scheduled/due generation idempotent without introducing a scheduler.
+model Notification {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  type       String    @db.VarChar(100)
+  title      String    @db.VarChar(200)
+  message    String    @db.VarChar(1000)
+  targetUrl  String?   @map("target_url") @db.VarChar(500)
+  readAt     DateTime? @map("read_at") @db.Timestamptz(3)
+  dedupeKey  String?   @map("dedupe_key") @db.VarChar(200)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user       User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, dedupeKey], map: "notifications_user_id_dedupe_key_key")
+  @@index([userId, readAt, createdAt], map: "notifications_user_id_read_at_created_at_idx")
+  @@index([userId, createdAt], map: "notifications_user_id_created_at_idx")
+  @@map("notifications")
+}
+
 model LessonVocabulary {
   id              String   @id @default(uuid(7)) @db.Uuid
   lessonId        String   @map("lesson_id") @db.Uuid
@@ -1137,9 +1162,41 @@ model LessonVocabulary {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
   lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bookmarks       StudentBookmark[]
 
   @@index([lessonId, deletedAt, position], map: "lesson_vocabulary_lesson_id_deleted_at_position_idx")
   @@map("lesson_vocabulary")
+}
+
+model StudentBookmark {
+  id           String           @id @default(uuid(7)) @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  lessonId     String?          @map("lesson_id") @db.Uuid
+  vocabularyId String?          @map("vocabulary_id") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  lesson       Lesson?          @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  vocabulary   LessonVocabulary? @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, lessonId], map: "student_bookmarks_user_id_lesson_id_idx")
+  @@index([userId, vocabularyId], map: "student_bookmarks_user_id_vocabulary_id_idx")
+  @@index([userId, createdAt], map: "student_bookmarks_user_id_created_at_idx")
+  @@map("student_bookmarks")
+}
+
+model StudentLessonNote {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  lessonId  String   @map("lesson_id") @db.Uuid
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, lessonId], map: "student_lesson_notes_user_id_lesson_id_key")
+  @@index([userId, updatedAt], map: "student_lesson_notes_user_id_updated_at_idx")
+  @@map("student_lesson_notes")
 }
 
 model LessonQuizQuestion {

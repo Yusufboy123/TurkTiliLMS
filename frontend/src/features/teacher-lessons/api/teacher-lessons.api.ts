@@ -57,6 +57,12 @@ export const teacherLessonsApi = {
     );
     return response.data.data;
   },
+  async duplicate(courseId: string, lessonId: string): Promise<TeacherLesson> {
+    const response = await apiClient.post<SuccessEnvelope<TeacherLesson>>(
+      `/courses/${courseId}/lessons/${lessonId}/duplicate`,
+    );
+    return response.data.data;
+  },
   async update(courseId: string, lessonId: string, input: UpdateTeacherLessonInput): Promise<TeacherLesson> {
     const response = await apiClient.patch<SuccessEnvelope<TeacherLesson>>(
       `/courses/${courseId}/lessons/${lessonId}`,

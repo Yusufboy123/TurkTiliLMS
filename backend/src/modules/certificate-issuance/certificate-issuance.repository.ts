@@ -613,6 +613,16 @@ class PrismaCertificateIssuanceTransaction implements CertificateIssuanceTransac
         },
       },
     });
+    await this.transaction.notification.create({
+      data: {
+        userId: data.candidate.studentId,
+        type: 'CERTIFICATE_ISSUED',
+        title: 'Sertifikat berildi',
+        message: `${data.candidate.courseTitle} kursi uchun sertifikatingiz tayyor.`,
+        targetUrl: null,
+        dedupeKey: `certificate-issued:${certificate.id}`,
+      },
+    });
     await this.transaction.idempotencyRecord.create({
       data: {
         actorUserId: data.actorUserId,
@@ -704,6 +714,22 @@ class PrismaCertificateIssuanceTransaction implements CertificateIssuanceTransac
         },
       },
     });
+    const enrollment = await this.transaction.courseEnrollment.findUnique({
+      where: { id: data.certificate.enrollmentId },
+      select: { studentId: true, course: { select: { title: true } } },
+    });
+    if (enrollment) {
+      await this.transaction.notification.create({
+        data: {
+          userId: enrollment.studentId,
+          type: 'CERTIFICATE_REVOKED',
+          title: 'Sertifikat bekor qilindi',
+          message: `${enrollment.course.title} kursi sertifikati bekor qilindi.`,
+          targetUrl: null,
+          dedupeKey: `certificate-revoked:${data.certificate.id}:${nextVersion}`,
+        },
+      });
+    }
     await this.transaction.idempotencyRecord.create({
       data: {
         actorUserId: data.actorUserId,

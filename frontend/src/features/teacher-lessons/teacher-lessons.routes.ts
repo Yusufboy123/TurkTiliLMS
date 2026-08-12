@@ -5,4 +5,6 @@ export const teacherLessonPaths = {
   newPattern: '/teacher/courses/:courseId/lessons/new',
   detail: (courseId: string, lessonId: string) => `/teacher/courses/${courseId}/lessons/${lessonId}`,
   detailPattern: '/teacher/courses/:courseId/lessons/:lessonId',
+  preview: (courseId: string, lessonId: string) => `/teacher/courses/${courseId}/lessons/${lessonId}/preview`,
+  previewPattern: '/teacher/courses/:courseId/lessons/:lessonId/preview',
 } as const;

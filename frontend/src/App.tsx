@@ -11,6 +11,7 @@ import {
   adminDashboardRequiredPermissions,
   adminDashboardRequiredRoles,
 } from './features/admin-dashboard';
+import { AdminActivityPage, adminActivityPaths } from './features/admin-activity';
 import { ProgressSkeleton } from './features/progress/components';
 import { progressRouteSegments, progressPaths } from './features/progress/progress.routes';
 import { progressReportingPaths } from './features/progress-reporting/progress-reporting.routes';
@@ -43,9 +44,11 @@ import {
 import {
   TeacherLessonDetailPage,
   TeacherLessonEditorPage,
+  TeacherLessonPreviewPage,
   TeacherLessonsPage,
   teacherLessonPaths,
 } from './features/teacher-lessons';
+import { StudentBookmarksPage, studentProductivityPaths } from './features/student-productivity';
 
 const StudentDashboardPage = lazy(() => import('./features/progress/pages/StudentDashboardPage'));
 const ProgressOverviewPage = lazy(() => import('./features/progress/pages/ProgressOverviewPage'));
@@ -138,6 +141,7 @@ function App() {
             <Route element={<ReportingLayout />}>
               <Route path={teacherLessonPaths.listPattern} element={<TeacherLessonsPage />} />
               <Route path={teacherLessonPaths.newPattern} element={<TeacherLessonEditorPage />} />
+              <Route path={teacherLessonPaths.previewPattern} element={<TeacherLessonPreviewPage />} />
               <Route path={teacherLessonPaths.detailPattern} element={<TeacherLessonDetailPage />} />
             </Route>
           </Route>
@@ -156,6 +160,9 @@ function App() {
                 <Route path={progressRouteSegments.completed} element={<CompletedCoursesPage />} />
                 <Route path={progressRouteSegments.course} element={<CourseProgressPage />} />
                 <Route path={progressRouteSegments.resume} element={<ResumeLearningPage />} />
+              </Route>
+              <Route path={studentProductivityPaths.bookmarks} element={<StudentLayout />}>
+                <Route index element={<StudentBookmarksPage />} />
               </Route>
               <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
             </Route>
@@ -216,6 +223,11 @@ function App() {
                 path={progressReportingPaths.adminEnrollmentPattern}
                 element={<ProgressReportingDetailPage admin />}
               />
+            </Route>
+          </Route>
+          <Route element={<RequireAuthorization permissions={['audit.read']} roles={['ADMIN']} />}>
+            <Route element={<ReportingLayout />}>
+              <Route path={adminActivityPaths.list} element={<AdminActivityPage />} />
             </Route>
           </Route>
           <Route

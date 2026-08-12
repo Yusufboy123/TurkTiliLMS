@@ -346,6 +346,27 @@ export class LessonManagementService {
     }
   }
 
+  async duplicateLesson(
+    courseId: string,
+    lessonId: string,
+    actor: ContentActor,
+    context: ContentAuditContext,
+  ): Promise<LessonRecord> {
+    await this.managedCourse(courseId, actor);
+    const lesson = await this.lessonDetail(courseId, lessonId, actor);
+    if (lesson.deletedAt || lesson.section.deletedAt) {
+      throw new AppError('O‘chirilgan darsni nusxalab bo‘lmaydi.', 409, 'LESSON_IS_DELETED');
+    }
+    const title = `${lesson.title} — nusxa`.slice(0, 200);
+    const slug = generateCourseSlug(`${lesson.slug}-nusxa`);
+    return this.repository.duplicateLesson(
+      courseId,
+      lessonId,
+      { title, slug, createdById: actor.userId },
+      context,
+    );
+  }
+
   async updateLessonStatus(
     courseId: string,
     lessonId: string,

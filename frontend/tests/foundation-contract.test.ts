@@ -61,7 +61,8 @@ describe('design token contract', () => {
     expect(config).toContain("darkMode: ['selector', '[data-theme=\"dark\"]']");
     expect(config).toContain("'action-primary-bg'");
     expect(config).toContain("scrim: fixedAlpha('--color-scrim-rgb', '--opacity-scrim')");
-    expect(config).not.toContain('brand: {');
+    expect(config).toContain('brand: {');
+    expect(config).toContain("text: channel('--color-brand-text')");
     expect(config).not.toContain('redButton');
   });
 

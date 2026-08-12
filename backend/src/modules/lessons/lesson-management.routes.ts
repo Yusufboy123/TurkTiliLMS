@@ -66,6 +66,11 @@ export function createLessonRouter(deps: ManagementRouteDependencies): Router {
     asyncHandler(deps.controller.lessonDetail),
   );
   router.post('/', deps.permission('lessons.create'), asyncHandler(deps.controller.createLesson));
+  router.post(
+    '/:lessonId/duplicate',
+    deps.permission('lessons.create'),
+    asyncHandler(deps.controller.duplicateLesson),
+  );
   router.patch(
     '/:lessonId',
     deps.permission('lessons.update'),

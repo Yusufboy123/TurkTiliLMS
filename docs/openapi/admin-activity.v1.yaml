@@ -1,0 +1,93 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Admin Activity API
+  version: 1.0.0
+  description: Safe, paginated projection of allowlisted administrative activity.
+servers:
+  - url: http://localhost:5000/api/v1
+tags:
+  - name: Admin Activity
+paths:
+  /admin/activity:
+    get:
+      tags: [Admin Activity]
+      operationId: listAdminActivity
+      summary: List important administrative activity
+      x-required-roles: [ADMIN]
+      x-required-permissions: [audit.read]
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: actorUserId, in: query, schema: { type: string, format: uuid } }
+        - { name: action, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: entityType, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Newest-first activity page. Raw metadata and snapshots are never returned.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, data]
+                properties:
+                  success: { type: boolean, const: true }
+                  message: { type: string }
+                  data:
+                    $ref: '#/components/schemas/AdminActivityPage'
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    AdminActivityPage:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminActivityRecord' }
+        pagination:
+          type: object
+          required: [page, pageSize, totalItems, totalPages]
+          properties:
+            page: { type: integer }
+            pageSize: { type: integer }
+            totalItems: { type: integer }
+            totalPages: { type: integer }
+    AdminActivityRecord:
+      type: object
+      required: [id, actor, action, entityType, entityId, summary, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        actor:
+          nullable: true
+          type: object
+          required: [id, name, email]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string, format: email }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string, format: uuid, nullable: true }
+        summary: { type: string }
+        createdAt: { type: string, format: date-time }
+  responses:
+    AuthenticationRequired:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { type: object }
+    AccessDenied:
+      description: ADMIN role and audit.read permission required
+      content:
+        application/json:
+          schema: { type: object }

@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: TurkTiliLMS In-App Notifications API
+  version: 1.0.0
+paths:
+  /api/v1/me/notifications:
+    get:
+      summary: List notifications for the authenticated user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Notification page }
+        '401': { description: Authentication required }
+  /api/v1/me/notifications/{notificationId}/read:
+    patch:
+      summary: Mark an owned notification as read
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: notificationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Marked read }
+        '404': { description: Notification not found }
+  /api/v1/me/notifications/read-all:
+    post:
+      summary: Mark all owned notifications as read
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Marked read }
+  /api/v1/admin/announcements:
+    post:
+      summary: Create an in-app announcement
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [audience, title, message]
+              properties:
+                audience: { type: string, enum: [STUDENT, TEACHER, ALL] }
+                title: { type: string, maxLength: 200 }
+                message: { type: string, maxLength: 1000 }
+                targetUrl: { type: string, pattern: '^/(?!/)' }
+      responses:
+        '201': { description: Announcement delivered }
+        '403': { description: Admin role required }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }

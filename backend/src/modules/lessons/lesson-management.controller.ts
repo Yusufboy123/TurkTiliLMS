@@ -184,6 +184,20 @@ export class LessonManagementController {
       ),
     });
   };
+  duplicateLesson = async (req: Request, res: Response) => {
+    const auth = principal(req);
+    const { courseId, lessonId } = lessonParamsSchema.parse(req.params);
+    const data = await this.service.duplicateLesson(
+      courseId,
+      lessonId,
+      actor(auth),
+      audit(req, auth),
+    );
+    res
+      .location(`/api/v1/courses/${courseId}/lessons/${data.id}`)
+      .status(201)
+      .json({ success: true, message: 'Dars nusxalandi.', data });
+  };
   updateLessonStatus = async (req: Request, res: Response) => {
     const auth = principal(req);
     const { courseId, lessonId } = lessonParamsSchema.parse(req.params);

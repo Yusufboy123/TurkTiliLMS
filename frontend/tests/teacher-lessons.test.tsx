@@ -8,6 +8,7 @@ import { RequireAuthorization } from '../src/features/auth/RequireAuthorization'
 import { teacherLessonsApi } from '../src/features/teacher-lessons/api/teacher-lessons.api';
 import { teacherLessonsQueryKeys } from '../src/features/teacher-lessons/hooks/teacher-lessons-query-keys';
 import TeacherLessonDetailPage from '../src/features/teacher-lessons/pages/TeacherLessonDetailPage';
+import TeacherLessonPreviewPage from '../src/features/teacher-lessons/pages/TeacherLessonPreviewPage';
 import TeacherLessonsPage from '../src/features/teacher-lessons/pages/TeacherLessonsPage';
 import { teacherLessonPaths } from '../src/features/teacher-lessons/teacher-lessons.routes';
 import type {
@@ -15,6 +16,8 @@ import type {
   TeacherLesson,
   TeacherLessonPage,
   TeacherSection,
+  TeacherQuizQuestion,
+  TeacherVocabulary,
 } from '../src/features/teacher-lessons/types/teacher-lessons.types';
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
@@ -101,7 +104,8 @@ describe('teacher lesson management', () => {
     mocks.post
       .mockResolvedValueOnce({ data: { data: section } })
       .mockResolvedValueOnce({ data: { data: lesson } })
-      .mockResolvedValueOnce({ data: { data: blocks.items[0] } });
+      .mockResolvedValueOnce({ data: { data: blocks.items[0] } })
+      .mockResolvedValueOnce({ data: { data: lesson } });
     mocks.patch
       .mockResolvedValueOnce({ data: { data: lesson } })
       .mockResolvedValueOnce({ data: { data: lesson } })
@@ -113,6 +117,7 @@ describe('teacher lesson management', () => {
     await teacherLessonsApi.listBlocks('course-1', 'lesson-1');
     await teacherLessonsApi.createSection('course-1', { title: 'Yangi bo‘lim' });
     await teacherLessonsApi.create('course-1', { sectionId: section.id, title: lesson.title, lessonType: 'TEXT', isPreview: false });
+    await teacherLessonsApi.duplicate('course-1', lesson.id);
     await teacherLessonsApi.update('course-1', lesson.id, { title: 'Yangilangan dars' });
     await teacherLessonsApi.reorder('course-1', lesson.id, { position: 2, sectionId: section.id });
     await teacherLessonsApi.createBlock('course-1', lesson.id, { blockType: 'TEXT', textContent: 'Matn', isRequired: true, isVisible: true });
@@ -122,6 +127,7 @@ describe('teacher lesson management', () => {
     expect(mocks.post).toHaveBeenCalledWith('/courses/course-1/lessons', expect.objectContaining({ sectionId: section.id }));
     expect(mocks.patch).toHaveBeenCalledWith('/courses/course-1/lessons/lesson-1/position', { position: 2, sectionId: section.id });
     expect(mocks.post).toHaveBeenCalledWith('/courses/course-1/lessons/lesson-1/blocks', expect.objectContaining({ blockType: 'TEXT' }));
+    expect(mocks.post).toHaveBeenCalledWith('/courses/course-1/lessons/lesson-1/duplicate');
   });
 
   it('renders ordered lessons and existing content blocks responsively', () => {
@@ -181,5 +187,28 @@ describe('teacher lesson management', () => {
     );
     expect(markup).not.toContain('secret');
     expect(markup).toContain('Ruxsat mavjud emas');
+  });
+
+  it('renders a non-mutating student-style preview with vocabulary and quiz prompts', () => {
+    const vocabulary: TeacherVocabulary = { id: 'word-1', lessonId: lesson.id, turkishWord: 'Merhaba', uzbekMeaning: 'Salom', exampleSentence: null, position: 1, createdAt: '', updatedAt: '' };
+    const question: TeacherQuizQuestion = { id: 'question-1', lessonId: lesson.id, type: 'MULTIPLE_CHOICE', prompt: 'Salom nimani anglatadi?', explanation: 'hidden', points: 1, position: 1, options: [{ id: 'option-1', text: 'Salom', isCorrect: true, position: 1 }], createdAt: '', updatedAt: '' };
+    const client = new QueryClient();
+    client.setQueryData(teacherLessonsQueryKeys.detail('course-1', lesson.id), lesson);
+    client.setQueryData(teacherLessonsQueryKeys.blocks('course-1', lesson.id), blocks);
+    client.setQueryData(teacherLessonsQueryKeys.vocabulary('course-1', lesson.id), [vocabulary]);
+    client.setQueryData(teacherLessonsQueryKeys.quizQuestions('course-1', lesson.id), [question]);
+    const markup = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[teacherLessonPaths.preview('course-1', lesson.id)]}>
+          <Routes><Route path={teacherLessonPaths.previewPattern} element={<TeacherLessonPreviewPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(markup).toContain('Preview rejimi');
+    expect(markup).toContain('Merhaba!');
+    expect(markup).toContain('Yangi so‘zlar');
+    expect(markup).toContain('Salom nimani anglatadi?');
+    expect(markup).not.toContain('hidden');
+    expect(markup).not.toContain('isCorrect');
   });
 });

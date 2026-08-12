@@ -6,6 +6,8 @@ export const teacherLessonsMessages = {
   open: 'Darsni ochish',
   newTitle: 'Yangi dars',
   editTitle: 'Darsni tahrirlash',
+  duplicate: 'Darsni nusxalash',
+  previewAsStudent: 'Talaba sifatida ko‘rish',
   save: 'Saqlash',
   saving: 'Saqlanmoqda…',
   cancel: 'Bekor qilish',

@@ -1,5 +1,6 @@
 import {
   CourseEnrollmentStatus,
+  CourseEnrollmentSource,
   Prisma,
   RoleCode,
   UserStatus,
@@ -319,6 +320,29 @@ class PrismaCourseEnrollmentTransactionRepository implements CourseEnrollmentTra
         afterSummary: auditSummary(enrollment),
       },
     });
+    if (enrollment.source === CourseEnrollmentSource.ADMIN) {
+      await this.transaction.notification.create({
+        data: {
+          userId: enrollment.studentId,
+          type: 'ENROLLMENT_CREATED',
+          title: 'Kursga yozilish',
+          message: `${enrollment.course.title} kursiga yozildingiz.`,
+          targetUrl: `/app/courses/${enrollment.courseId}`,
+        },
+      });
+    }
+    if (enrollment.course.teacherId) {
+      await this.transaction.notification.create({
+        data: {
+          userId: enrollment.course.teacherId,
+          type: 'STUDENT_ENROLLED',
+          title: 'Yangi talaba',
+          message: `${enrollment.course.title} kursiga yangi talaba yozildi.`,
+          targetUrl: `/teacher/courses/${enrollment.courseId}`,
+          dedupeKey: `student-enrolled:${enrollment.id}`,
+        },
+      });
+    }
     return mapEnrollment(enrollment);
   }
 
@@ -383,6 +407,15 @@ class PrismaCourseEnrollmentTransactionRepository implements CourseEnrollmentTra
         subjectId: existing.id,
         beforeSummary: auditSummary(existing as EnrollmentPayload),
         afterSummary: auditSummary(updated as EnrollmentPayload),
+      },
+    });
+    await this.transaction.notification.create({
+      data: {
+        userId: updated.studentId,
+        type: 'COURSE_ACCESS_EXTENDED',
+        title: 'Kursga kirish muddati',
+        message: `${updated.course.title} kursiga kirish muddati yangilandi.`,
+        targetUrl: `/app/courses/${updated.courseId}`,
       },
     });
     return updated;

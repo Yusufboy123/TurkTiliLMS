@@ -133,6 +133,12 @@ export interface UpdateLessonData {
   isPreview?: boolean | undefined;
 }
 
+export interface DuplicateLessonData {
+  title: string;
+  slug: string;
+  createdById: string;
+}
+
 export interface LessonStatistics {
   total: number;
   draft: number;

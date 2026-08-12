@@ -5,6 +5,7 @@ import type {
   GroupListQuery,
   GroupRecord,
   GroupStudentSummary,
+  GroupAuditContext,
 } from './groups.types.js';
 
 const personSelect = {
@@ -48,14 +49,15 @@ export interface GroupRepository {
   findDetail(groupId: string): Promise<GroupRecord | null>;
   create(
     input: CreateGroupInput & { teacherId: string; createdById: string },
+    context?: GroupAuditContext,
   ): Promise<GroupRecord>;
   findEligibleTeacher(userId: string): Promise<boolean>;
   findEligibleStudent(userId: string): Promise<GroupStudentSummary | null>;
   searchStudents(search: string, pageSize: number): Promise<GroupStudentSummary[]>;
-  addStudent(groupId: string, studentId: string): Promise<void>;
-  removeStudent(groupId: string, studentId: string): Promise<boolean>;
-  softDelete(groupId: string): Promise<GroupRecord | null>;
-  restore(groupId: string): Promise<GroupRecord | null>;
+  addStudent(groupId: string, studentId: string, context?: GroupAuditContext): Promise<void>;
+  removeStudent(groupId: string, studentId: string, context?: GroupAuditContext): Promise<boolean>;
+  softDelete(groupId: string, context?: GroupAuditContext): Promise<GroupRecord | null>;
+  restore(groupId: string, context?: GroupAuditContext): Promise<GroupRecord | null>;
 }
 
 function eligibleRole(code: RoleCode, now = new Date()) {
@@ -102,9 +104,20 @@ export class PrismaGroupRepository implements GroupRepository {
     });
     return group ? mapDetail(group) : null;
   }
-  async create(input: CreateGroupInput & { teacherId: string; createdById: string }) {
-    const group = await this.client.group.create({ data: input, select: groupSelect });
-    return mapGroup(group);
+  async create(input: CreateGroupInput & { teacherId: string; createdById: string }, context?: GroupAuditContext) {
+    return this.client.$transaction(async (transaction) => {
+      const group = await transaction.group.create({ data: input, select: groupSelect });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: context?.actorUserId ?? input.createdById,
+          action: 'groups.created',
+          subjectType: 'group',
+          subjectId: group.id,
+          afterSummary: { name: group.name, level: group.level, teacherId: input.teacherId },
+        },
+      });
+      return mapGroup(group);
+    });
   }
   async findEligibleTeacher(userId: string) {
     const user = await this.client.user.findFirst({
@@ -147,35 +160,88 @@ export class PrismaGroupRepository implements GroupRepository {
       take: pageSize,
     });
   }
-  async addStudent(groupId: string, studentId: string) {
-    await this.client.groupStudent.create({ data: { groupId, studentId } });
+  async addStudent(groupId: string, studentId: string, context?: GroupAuditContext) {
+    await this.client.$transaction(async (transaction) => {
+      await transaction.groupStudent.create({ data: { groupId, studentId } });
+      if (context) {
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: context.actorUserId,
+            action: 'groups.student_added',
+            subjectType: 'group',
+            subjectId: groupId,
+            metadata: { studentId },
+          },
+        });
+      }
+    });
   }
-  async removeStudent(groupId: string, studentId: string) {
-    const result = await this.client.groupStudent.deleteMany({ where: { groupId, studentId } });
+  async removeStudent(groupId: string, studentId: string, context?: GroupAuditContext) {
+    const result = await this.client.$transaction(async (transaction) => {
+      const removed = await transaction.groupStudent.deleteMany({ where: { groupId, studentId } });
+      if (removed.count > 0 && context) {
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: context.actorUserId,
+            action: 'groups.student_removed',
+            subjectType: 'group',
+            subjectId: groupId,
+            metadata: { studentId },
+          },
+        });
+      }
+      return removed;
+    });
     return result.count > 0;
   }
 
-  async softDelete(groupId: string) {
-    const existing = await this.client.group.findUnique({ where: { id: groupId }, select: groupSelect });
-    if (!existing) return null;
-    if (existing.deletedAt) return mapGroup(existing);
-    const deleted = await this.client.group.update({
-      where: { id: groupId },
-      data: { deletedAt: new Date() },
-      select: groupSelect,
+  async softDelete(groupId: string, context?: GroupAuditContext) {
+    return this.client.$transaction(async (transaction) => {
+      const existing = await transaction.group.findUnique({ where: { id: groupId }, select: groupSelect });
+      if (!existing) return null;
+      if (existing.deletedAt) return mapGroup(existing);
+      const deleted = await transaction.group.update({
+        where: { id: groupId },
+        data: { deletedAt: new Date() },
+        select: groupSelect,
+      });
+      if (context) {
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: context.actorUserId,
+            action: 'groups.deleted',
+            subjectType: 'group',
+            subjectId: groupId,
+            afterSummary: { name: deleted.name, level: deleted.level, deletedAt: deleted.deletedAt?.toISOString() ?? null },
+          },
+        });
+      }
+      return mapGroup(deleted);
     });
-    return mapGroup(deleted);
   }
 
-  async restore(groupId: string) {
-    const existing = await this.client.group.findUnique({ where: { id: groupId }, select: groupSelect });
-    if (!existing) return null;
-    if (!existing.deletedAt) return mapGroup(existing);
-    const restored = await this.client.group.update({
-      where: { id: groupId },
-      data: { deletedAt: null },
-      select: groupSelect,
+  async restore(groupId: string, context?: GroupAuditContext) {
+    return this.client.$transaction(async (transaction) => {
+      const existing = await transaction.group.findUnique({ where: { id: groupId }, select: groupSelect });
+      if (!existing) return null;
+      if (!existing.deletedAt) return mapGroup(existing);
+      const restored = await transaction.group.update({
+        where: { id: groupId },
+        data: { deletedAt: null },
+        select: groupSelect,
+      });
+      if (context) {
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: context.actorUserId,
+            action: 'groups.restored',
+            subjectType: 'group',
+            subjectId: groupId,
+            afterSummary: { name: restored.name, level: restored.level },
+          },
+        });
+      }
+      return mapGroup(restored);
     });
-    return mapGroup(restored);
   }
 }

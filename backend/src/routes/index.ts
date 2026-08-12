@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { adminDashboardRouter } from '../modules/admin-dashboard/admin-dashboard.routes.js';
+import { adminActivityRouter } from '../modules/admin-activity/admin-activity.routes.js';
 import { authRouter } from '../modules/auth/auth.routes.js';
 import { certificateEligibilityRouter } from '../modules/certificate-eligibility/certificate-eligibility.routes.js';
 import { certificateIssuanceRouter } from '../modules/certificate-issuance/certificate-issuance.routes.js';
@@ -28,11 +29,16 @@ import { progressReportingRouter } from '../modules/progress-reporting/progress-
 import { progressTrackingRouter } from '../modules/progress-tracking/progress-tracking.routes.js';
 import { stepUpAuthenticationRouter } from '../modules/step-up-authentication/step-up-authentication.routes.js';
 import { userManagementRouter } from '../modules/users/user-management.routes.js';
+import { notificationRouter } from '../modules/notifications/notification.routes.js';
+import { studentProductivityRouter } from '../modules/student-productivity/student-productivity.routes.js';
 
 export const apiV1Router = Router();
 
 apiV1Router.use('/health', healthRouter);
 apiV1Router.use(adminDashboardRouter);
+apiV1Router.use(adminActivityRouter);
+apiV1Router.use(notificationRouter);
+apiV1Router.use(studentProductivityRouter);
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/auth/step-up', stepUpAuthenticationRouter);
 apiV1Router.use('/users', userManagementRouter);

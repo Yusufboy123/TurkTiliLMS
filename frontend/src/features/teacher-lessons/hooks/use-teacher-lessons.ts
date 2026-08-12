@@ -78,6 +78,18 @@ export function useUpdateTeacherLesson(courseId: string, lessonId: string) {
   });
 }
 
+export function useDuplicateTeacherLesson(courseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (lessonId: string) => teacherLessonsApi.duplicate(courseId, lessonId),
+    onSuccess: (lesson) => {
+      client.setQueryData(teacherLessonsQueryKeys.detail(courseId, lesson.id), lesson);
+      void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.list(courseId, {}) });
+      void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.root });
+    },
+  });
+}
+
 export function useReorderTeacherLesson(courseId: string, lessonId: string) {
   const client = useQueryClient();
   return useMutation({

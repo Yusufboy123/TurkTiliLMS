@@ -171,6 +171,12 @@ const permissionDefinitions = [
     description: 'View permitted identity and access audit records.',
   },
   {
+    code: 'announcements.create',
+    resource: 'announcements',
+    action: 'create',
+    description: 'Send in-app announcements to permitted audiences.',
+  },
+  {
     code: 'courses.read',
     resource: 'courses',
     action: 'read',

@@ -8,6 +8,7 @@ import type {
   CourseSectionRecord,
   CreateLessonData,
   CreateSectionData,
+  DuplicateLessonData,
   LessonListQuery,
   LessonRecord,
   LessonStatistics,
@@ -160,6 +161,19 @@ export class FakeLessonRepository implements LessonManagementRepository {
       slug: data.slug,
       lessonType: data.lessonType,
       position: data.position ?? 1,
+    });
+    return Promise.resolve(this.currentLesson);
+  }
+  duplicateLesson(
+    _courseId: string,
+    _lessonId: string,
+    data: DuplicateLessonData,
+  ): Promise<LessonRecord> {
+    this.currentLesson = lesson({
+      id: `${LESSON_ID}-copy`,
+      title: data.title,
+      slug: data.slug,
+      status: LessonStatus.DRAFT,
     });
     return Promise.resolve(this.currentLesson);
   }

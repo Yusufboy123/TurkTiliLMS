@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Button, Card, SkipLink } from '../../../components';
 import { useOnlineStatus } from '../../../hooks/use-online-status';
@@ -21,6 +21,7 @@ import { progressPaths } from '../progress.routes';
 import { unavailableReasonLabel } from '../utils/progress-format';
 import { StudentQuizPanel, StudentVocabularyPanel, useStudentLessonContent } from '../../student-player';
 import type { StudentLessonBlock } from '../../student-player';
+import { useLessonBookmark, useLessonNote } from '../../student-productivity';
 
 function blockMediaUrl(block: StudentLessonBlock): string | null {
   return block.media?.previewUrl ?? block.media?.downloadUrl ?? block.sourceUrl ?? block.fileUrl;
@@ -71,6 +72,9 @@ export default function LessonProgressPage() {
     lesson?.slug ?? '',
     Boolean(progress.data?.capabilities.canAccessCourseContent && lesson),
   );
+  const lessonBookmark = useLessonBookmark(lessonId);
+  const lessonNote = useLessonNote(lessonId, Boolean(progress.data?.capabilities.canAccessCourseContent));
+  const [noteText, setNoteText] = useState('');
   const recordVisit = visitMutation.mutateAsync;
 
   useEffect(() => {
@@ -95,6 +99,10 @@ export default function LessonProgressPage() {
       )
       .catch(() => undefined);
   }, [enrollmentId, isOnline, lesson, progress.data, recordVisit]);
+
+  useEffect(() => {
+    if (lessonNote.query.data) setNoteText(lessonNote.query.data.content);
+  }, [lessonNote.query.data]);
 
   if (progress.isPending) {
     return (
@@ -168,7 +176,7 @@ export default function LessonProgressPage() {
         tabIndex={-1}
       >
         <div className="max-w-reading">
-          <ProgressPageHeader title={lesson.title} />
+          <div className="flex flex-wrap items-start justify-between gap-3"><ProgressPageHeader title={lesson.title} /><Button disabled={!progress.data.capabilities.canAccessCourseContent || lessonBookmark.isPending} intent="secondary" onClick={lessonBookmark.toggle}>{lessonBookmark.isBookmarked ? 'Saqlangan' : 'Saqlash'}</Button></div>
         </div>
         <ProgressRefreshStatus
           error={progress.error}
@@ -214,6 +222,8 @@ export default function LessonProgressPage() {
             </div>
           </section>
         ) : null}
+
+        {progress.data.capabilities.canAccessCourseContent ? <Card className="mt-10 max-w-reading" elevation="none" padding="lg"><h2 className="type-heading-2">Mening qaydlarim</h2><textarea aria-label="Mening qaydlarim" className="mt-4 min-h-36 w-full rounded-md border border-border-control bg-surface p-3 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" maxLength={10000} onChange={(event) => setNoteText(event.target.value)} placeholder="Bu dars uchun shaxsiy qaydingiz..." value={noteText} /> <div className="mt-3 flex flex-wrap items-center gap-3"><Button disabled={lessonNote.save.isPending} loading={lessonNote.save.isPending} onClick={() => lessonNote.save.mutate(noteText)}>Saqlash</Button>{lessonNote.query.data ? <Button disabled={lessonNote.clear.isPending} intent="secondary" onClick={() => { lessonNote.clear.mutate(); setNoteText(''); }}>Tozalash</Button> : null}{lessonNote.save.isSuccess ? <span className="text-body-sm text-success-text" role="status">Qayd saqlandi.</span> : null}{lessonNote.save.isError ? <span className="text-body-sm text-danger-text" role="alert">Qayd saqlanmadi. Matningiz saqlanib qoldi.</span> : null}</div></Card> : null}
 
         <StudentVocabularyPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent)} enrollmentId={enrollmentId} lessonId={lessonId} />
         <StudentQuizPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent)} enrollmentId={enrollmentId} lessonId={lessonId} />

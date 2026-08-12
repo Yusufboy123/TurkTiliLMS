@@ -6,6 +6,10 @@ export interface GroupActor {
   permissions: string[];
 }
 
+export interface GroupAuditContext {
+  actorUserId: string;
+}
+
 export interface GroupListQuery {
   page: number;
   pageSize: number;

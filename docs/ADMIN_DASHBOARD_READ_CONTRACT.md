@@ -275,19 +275,20 @@ infer hidden capabilities from omitted data.
 
 ## 8. Recent activity decision
 
-Recent administrative activity is **deferred** and is not present in the v1
-summary DTO.
+Recent administrative activity remains outside the fixed v1 summary DTO, but a
+separate safe read projection is now available at `GET /api/v1/admin/activity`.
 
-Although `audit_logs` and `audit.read` exist, the repository has no approved
-read endpoint, event allowlist, safe actor projection, metadata-redaction
-contract, dashboard retention window, or pagination policy. Returning raw
-`beforeSummary`, `afterSummary`, or `metadata` would create unnecessary privacy
-and secret-disclosure risk.
+The existing `audit_logs` and `audit.read` capability are now exposed through a
+bounded endpoint with a safe actor projection, pagination, and metadata
+redaction. Returning raw `beforeSummary`, `afterSummary`, or `metadata` remains
+prohibited because it would create unnecessary privacy and secret-disclosure
+risk.
 
-A future audit-read contract must separately define a bounded allowlist,
-localized event category, minimized actor display, timestamp, retention, export
-step-up, and stable redaction rules. Until then, `/admin/audit` remains deferred
-and `audit.read` is not required by this endpoint.
+The activity endpoint uses a bounded important-action allowlist, minimized actor
+projection, newest-first pagination, optional filters, and stable redaction. It
+never returns raw `metadata`, `beforeSummary`, or `afterSummary`. It requires
+`ADMIN` and `audit.read`; the summary endpoint still does not require
+`audit.read`.
 
 Every successful summary read writes `admin_dashboard.summary_read` with the
 actor, occurrence time, request correlation ID, and the existing minimized
@@ -385,7 +386,8 @@ Route status describes current runtime reality at the Module 9.4A baseline.
 | `/admin/courses`      | Proposed       | `ADMIN`, course read/management permissions                     | Future Course Management UI                             |
 | `/admin/enrollments`  | Proposed       | `ADMIN`, enrollment management permissions                      | Future Enrollment Management UI and collection contract |
 | `/admin/certificates` | Proposed       | `ADMIN`, future certificate collection-read permission/contract | Future Certificate Management UI                        |
-| `/admin/audit`        | Deferred       | `ADMIN`, `audit.read`; step-up for large personal-data export   | Future safe Audit Read module                           |
+| `/admin/activity`     | Implemented    | `ADMIN`, `audit.read`                                          | Platform Enhancement 4B Admin Activity Log              |
+| `/admin/audit`        | Deferred       | `ADMIN`, `audit.read`; step-up for large personal-data export   | Future safe Audit export module                         |
 
 The Module 9.4C dashboard may render a quick-navigation card only when both are
 true:
@@ -437,7 +439,8 @@ this contract; Module 9.4C requires an implemented and verified 9.4B API.
 - The OpenAPI operation and this document use identical fields, nullability,
   authorization, rate limit, errors, and implementation markers.
 - Certificate counts derive only from `Certificate` lifecycle rows.
-- Recent activity is absent until a safe audit-read contract is approved.
+- Dashboard summary activity remains absent; the separate `/admin/activity`
+  endpoint is the approved safe audit-read projection.
 - No route is described as implemented unless it exists in the frontend route
   table.
 - No Prisma change, migration, permission seed, package, or runtime code is

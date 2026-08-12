@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, FormField, Input, Select, Textarea } from '../../../components';
 import { useAuth } from '../../auth';
 import { teacherLessonsMessages as messages } from '../teacher-lessons.messages';
 import { teacherLessonPaths } from '../teacher-lessons.routes';
 import {
   useCreateTeacherBlock,
+  useDuplicateTeacherLesson,
   useTeacherLesson,
   useTeacherLessonBlocks,
   useUpdateTeacherBlock,
@@ -179,6 +180,7 @@ function NewBlockForm({ courseId, lessonId, canCreate, canUpload }: { courseId: 
 
 export default function TeacherLessonDetailPage() {
   const { courseId = '', lessonId = '' } = useParams<{ courseId: string; lessonId: string }>();
+  const navigate = useNavigate();
   const auth = useAuth();
   const lesson = useTeacherLesson(courseId, lessonId);
   const blocks = useTeacherLessonBlocks(courseId, lessonId);
@@ -187,6 +189,8 @@ export default function TeacherLessonDetailPage() {
   const canUpdate = auth.status === 'authenticated' && auth.permissions.includes('lessons.update');
   const canCreateBlock = auth.status === 'authenticated' && auth.permissions.includes('lesson_blocks.create');
   const canUpload = auth.status === 'authenticated' && auth.permissions.includes('media.upload');
+  const canDuplicate = auth.status === 'authenticated' && auth.permissions.includes('lessons.create');
+  const duplicate = useDuplicateTeacherLesson(courseId);
 
   if (editing) return <TeacherLessonEditorPage />;
   if (lesson.isPending) return <p role="status">{messages.loading}</p>;
@@ -205,9 +209,13 @@ export default function TeacherLessonDetailPage() {
             {lesson.data.isPreview ? <span className="text-body-sm text-text-secondary">{messages.preview}</span> : null}
           </div>
         </div>
-        {canUpdate && lesson.data.status !== 'PUBLISHED' && lesson.data.status !== 'ARCHIVED' ? (
-          <Button intent="secondary" onClick={() => setEditing(true)}>{messages.editTitle}</Button>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Link className="inline-flex min-h-target items-center justify-center rounded-md border border-border-decorative px-4 py-2 text-button text-text-primary transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" to={teacherLessonPaths.preview(courseId, lessonId)}>{messages.previewAsStudent}</Link>
+          {canDuplicate ? <Button disabled={duplicate.isPending} intent="secondary" loading={duplicate.isPending} onClick={() => duplicate.mutate(lessonId, { onSuccess: (copied) => navigate(teacherLessonPaths.detail(courseId, copied.id)) })}>{messages.duplicate}</Button> : null}
+          {canUpdate && lesson.data.status !== 'PUBLISHED' && lesson.data.status !== 'ARCHIVED' ? (
+            <Button intent="secondary" onClick={() => setEditing(true)}>{messages.editTitle}</Button>
+          ) : null}
+        </div>
       </header>
 
       <div aria-label="Dars bo‘limlari" className="flex gap-1 overflow-x-auto border-b border-border-decorative pb-px" role="tablist">

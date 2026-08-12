@@ -9,6 +9,7 @@ import type {
   CourseSectionRecord,
   CreateLessonData,
   CreateSectionData,
+  DuplicateLessonData,
   LessonListQuery,
   LessonRecord,
   LessonStatistics,
@@ -258,6 +259,12 @@ export interface LessonManagementRepository {
   createLesson(
     courseId: string,
     data: CreateLessonData,
+    context: ContentAuditContext,
+  ): Promise<LessonRecord>;
+  duplicateLesson(
+    courseId: string,
+    lessonId: string,
+    data: DuplicateLessonData,
     context: ContentAuditContext,
   ): Promise<LessonRecord>;
   updateLesson(
@@ -630,6 +637,134 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
             },
           });
           return mapLesson(lesson);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      if (isUniqueError(error)) throw new LessonSlugConflictError();
+      throw error;
+    }
+  }
+
+  async duplicateLesson(
+    courseId: string,
+    lessonId: string,
+    data: DuplicateLessonData,
+    context: ContentAuditContext,
+  ): Promise<LessonRecord> {
+    try {
+      return await this.client.$transaction(
+        async (tx) => {
+          const source = await tx.lesson.findFirst({
+            where: { id: lessonId, courseId, deletedAt: null },
+            include: {
+              section: true,
+              contentBlocks: { where: { deletedAt: null }, orderBy: [{ position: 'asc' }, { id: 'asc' }] },
+              vocabulary: { where: { deletedAt: null }, orderBy: [{ position: 'asc' }, { id: 'asc' }] },
+              quizQuestions: {
+                where: { deletedAt: null },
+                orderBy: [{ position: 'asc' }, { id: 'asc' }],
+                include: { options: { orderBy: [{ position: 'asc' }, { id: 'asc' }] } },
+              },
+            },
+          });
+          if (!source || source.section.deletedAt) throw new Error('LESSON_SOURCE_NOT_FOUND');
+
+          const maxPosition = await tx.lesson.aggregate({
+            where: { sectionId: source.sectionId, deletedAt: null },
+            _max: { position: true },
+          });
+          const position = (maxPosition._max.position ?? 0) + 1;
+          let slug = data.slug.slice(0, 180);
+          let suffix = 2;
+          while (await tx.lesson.findFirst({ where: { courseId, slug }, select: { id: true } })) {
+            const suffixText = `-${suffix}`;
+            slug = `${data.slug.slice(0, 180 - suffixText.length)}${suffixText}`;
+            suffix += 1;
+          }
+
+          const duplicate = await tx.lesson.create({
+            data: {
+              courseId,
+              sectionId: source.sectionId,
+              title: data.title,
+              slug,
+              summary: source.summary,
+              content: source.content,
+              lessonType: source.lessonType,
+              position,
+              durationMinutes: source.durationMinutes,
+              isPreview: source.isPreview,
+              status: LessonStatus.DRAFT,
+              createdById: data.createdById,
+              teacherId: source.teacherId,
+              contentBlocks: {
+                create: source.contentBlocks.map((block) => ({
+                  mediaFileId: block.mediaFileId,
+                  blockType: block.blockType,
+                  title: block.title,
+                  description: block.description,
+                  position: block.position,
+                  isRequired: block.isRequired,
+                  isVisible: block.isVisible,
+                  textContent: block.textContent,
+                  sourceUrl: block.sourceUrl,
+                  externalProvider: block.externalProvider,
+                  fileName: block.fileName,
+                  originalFileName: block.originalFileName,
+                  fileUrl: block.fileUrl,
+                  mimeType: block.mimeType,
+                  fileSizeBytes: block.fileSizeBytes,
+                  durationSeconds: block.durationSeconds,
+                  thumbnailUrl: block.thumbnailUrl,
+                  ...(block.metadata !== null ? { metadata: block.metadata } : {}),
+                  createdById: data.createdById,
+                })),
+              },
+              vocabulary: {
+                create: source.vocabulary.map((word) => ({
+                  turkishWord: word.turkishWord,
+                  uzbekMeaning: word.uzbekMeaning,
+                  exampleSentence: word.exampleSentence,
+                  position: word.position,
+                })),
+              },
+              quizQuestions: {
+                create: source.quizQuestions.map((question) => ({
+                  type: question.type,
+                  prompt: question.prompt,
+                  explanation: question.explanation,
+                  points: question.points,
+                  position: question.position,
+                  options: {
+                    create: question.options.map((option) => ({
+                      text: option.text,
+                      isCorrect: option.isCorrect,
+                      position: option.position,
+                    })),
+                  },
+                })),
+              },
+            },
+            select: lessonSelect,
+          });
+          await tx.auditLog.create({
+            data: {
+              ...auditFields(context),
+              action: 'LESSON_DUPLICATED',
+              subjectType: 'lesson',
+              subjectId: duplicate.id,
+              afterSummary: {
+                sourceLessonId: source.id,
+                sourceTitle: source.title,
+                copiedBlocks: source.contentBlocks.length,
+                copiedVocabulary: source.vocabulary.length,
+                copiedQuestions: source.quizQuestions.length,
+              },
+              metadata: { courseId, sourceLessonId: source.id },
+            },
+          });
+          return mapLesson(duplicate);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );

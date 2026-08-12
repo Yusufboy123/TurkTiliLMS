@@ -12,6 +12,8 @@ import { teacherGroupPaths } from '../features/teacher-groups';
 import { teacherStudentPaths } from '../features/teacher-students';
 import { teacherCoursePaths } from '../features/teacher-courses';
 import { adminUsersPaths } from '../features/admin-users';
+import { adminActivityPaths } from '../features/admin-activity';
+import { NotificationBell } from '../features/notifications';
 
 const reportingNavLinkClass = ({ isActive }: { isActive: boolean }) =>
   classNames(
@@ -104,12 +106,18 @@ export function ReportingLayout() {
                   {adminDashboardMessages.navigation}
                 </NavLink>
               ) : null}
+              {auth.status === 'authenticated' && auth.permissions.includes('audit.read') ? (
+                <NavLink className={reportingNavLinkClass} to={adminActivityPaths.list}>
+                  Faoliyat tarixi
+                </NavLink>
+              ) : null}
               <NavLink
                 className={reportingNavLinkClass}
                 to={progressReportingPaths.admin}
               >
                 {progressReportingMessages.title.admin}
               </NavLink>
+              <NotificationBell />
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-end gap-1">
@@ -138,6 +146,7 @@ export function ReportingLayout() {
               >
                 Talabalar
               </NavLink>
+              <NotificationBell />
             </div>
           )}
         </nav>

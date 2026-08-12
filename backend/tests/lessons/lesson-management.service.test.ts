@@ -141,6 +141,30 @@ describe('LessonManagementService', () => {
     expect(result.slug).toBe('turkcha-salom');
     expect(repo.lastCreateLesson?.position).toBeUndefined();
   });
+  it('duplicates an owned lesson as a draft with a new title and id', async () => {
+    const { service } = setup();
+    const result = await service.duplicateLesson(
+      TEST_COURSE_ID,
+      LESSON_ID,
+      teacherCourseActor,
+      contentAudit,
+    );
+    expect(result.id).not.toBe(LESSON_ID);
+    expect(result.title).toContain('nusxa');
+    expect(result.status).toBe(LessonStatus.DRAFT);
+  });
+  it('denies duplication for a teacher outside the course scope', async () => {
+    const { service } = setup();
+    await expect(
+      service.duplicateLesson(TEST_COURSE_ID, LESSON_ID, {
+        ...teacherCourseActor,
+        userId: OTHER_TEACHER_ID,
+      }, contentAudit),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectCode(error, 'COURSE_SCOPE_DENIED');
+      return true;
+    });
+  });
   it('rejects a section from another course', async () => {
     const { repo, service } = setup();
     repo.currentSection = null;

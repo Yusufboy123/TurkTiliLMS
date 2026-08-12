@@ -48,7 +48,7 @@ export class GroupService {
     if (!teacherId || (!admin(actor) && teacherId !== actor.userId)) throw denied();
     if (!(await this.repository.findEligibleTeacher(teacherId)))
       throw new AppError('Faol o‘qituvchi tanlanmagan.', 422, 'GROUP_TEACHER_INVALID');
-    return this.repository.create({ ...input, teacherId, createdById: actor.userId });
+    return this.repository.create({ ...input, teacherId, createdById: actor.userId }, { actorUserId: actor.userId });
   }
   async searchStudents(
     groupId: string,
@@ -65,7 +65,7 @@ export class GroupService {
     if (!(await this.repository.findEligibleStudent(studentId)))
       throw new AppError('Faol talaba topilmadi.', 404, 'GROUP_STUDENT_NOT_FOUND');
     try {
-      await this.repository.addStudent(groupId, studentId);
+      await this.repository.addStudent(groupId, studentId, { actorUserId: actor.userId });
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
         throw new AppError(
@@ -80,7 +80,7 @@ export class GroupService {
   async removeStudent(groupId: string, studentId: string, actor: GroupActor): Promise<void> {
     const group = await this.getById(groupId, actor);
     assertActive(group);
-    if (!(await this.repository.removeStudent(groupId, studentId)))
+    if (!(await this.repository.removeStudent(groupId, studentId, { actorUserId: actor.userId })))
       throw new AppError('Talaba bu guruh a’zosi emas.', 404, 'GROUP_STUDENT_NOT_MEMBER');
   }
 
@@ -88,7 +88,7 @@ export class GroupService {
     assertPermission(actor, 'groups.delete');
     const group = await this.getById(groupId, actor);
     if (group.deletedAt) return;
-    if (!(await this.repository.softDelete(groupId))) {
+    if (!(await this.repository.softDelete(groupId, { actorUserId: actor.userId }))) {
       throw new AppError('Guruh topilmadi.', 404, 'GROUP_NOT_FOUND');
     }
   }
@@ -97,7 +97,7 @@ export class GroupService {
     assertPermission(actor, 'groups.restore');
     const group = await this.getById(groupId, actor);
     if (!group.deletedAt) return group;
-    const restored = await this.repository.restore(groupId);
+    const restored = await this.repository.restore(groupId, { actorUserId: actor.userId });
     if (!restored) throw new AppError('Guruh topilmadi.', 404, 'GROUP_NOT_FOUND');
     return restored;
   }

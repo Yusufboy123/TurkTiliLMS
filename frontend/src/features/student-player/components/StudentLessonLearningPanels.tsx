@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { Button, Card, FormField, Input } from '../../../components';
+import { useVocabularyBookmark } from '../../student-productivity';
 import { useStudentLessonQuiz, useStudentLessonVocabulary } from '../hooks/use-student-player';
-import type { StudentQuizAnswerInput, StudentQuizQuestion } from '../types/student-player.types';
+import type { StudentQuizAnswerInput, StudentQuizQuestion, StudentVocabulary } from '../types/student-player.types';
+
+function VocabularyCard({ item }: { item: StudentVocabulary }) { const bookmark = useVocabularyBookmark(item.id); return <Card elevation="none" padding="lg"><div className="flex items-start justify-between gap-3"><div><p className="text-label-md">{item.position}. {item.turkishWord}</p><p className="mt-2 text-body-md">{item.uzbekMeaning}</p></div><Button disabled={bookmark.isPending} intent="secondary" onClick={bookmark.toggle}>{bookmark.isBookmarked ? 'Saqlangan' : 'Saqlash'}</Button></div>{item.exampleSentence ? <p className="mt-2 text-body-sm text-text-secondary">{item.exampleSentence}</p> : null}</Card>; }
 
 export function StudentVocabularyPanel({ enrollmentId, lessonId, enabled }: { enrollmentId: string; lessonId: string; enabled: boolean }) {
   const vocabulary = useStudentLessonVocabulary(enrollmentId, lessonId, enabled);
   if (vocabulary.isPending) return <section className="mt-10" aria-labelledby="new-words-heading"><h2 className="type-heading-2" id="new-words-heading">Yangi so‘zlar</h2><p className="mt-4" role="status">Yuklanmoqda...</p></section>;
   if (vocabulary.isError) return <p className="mt-6 text-body-sm text-warning-text" role="status">Yangi so‘zlar hozircha yuklanmadi.</p>;
-  return <section aria-labelledby="new-words-heading" className="mt-10"><h2 className="type-heading-2" id="new-words-heading">Yangi so‘zlar</h2>{vocabulary.data?.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{vocabulary.data.map((item) => <Card elevation="none" key={item.id} padding="lg"><p className="text-label-md">{item.position}. {item.turkishWord}</p><p className="mt-2 text-body-md">{item.uzbekMeaning}</p>{item.exampleSentence ? <p className="mt-2 text-body-sm text-text-secondary">{item.exampleSentence}</p> : null}</Card>)}</div> : <p className="mt-4 text-body-sm text-text-secondary">Bu darsda yangi so‘zlar yo‘q.</p>}</section>;
+  return <section aria-labelledby="new-words-heading" className="mt-10"><h2 className="type-heading-2" id="new-words-heading">Yangi so‘zlar</h2>{vocabulary.data?.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{vocabulary.data.map((item) => <VocabularyCard item={item} key={item.id} />)}</div> : <p className="mt-4 text-body-sm text-text-secondary">Bu darsda yangi so‘zlar yo‘q.</p>}</section>;
 }
 
 function QuestionAnswer({ question, value, onChange }: { question: StudentQuizQuestion; value: string; onChange: (value: string) => void }) {
