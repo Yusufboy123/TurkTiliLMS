@@ -3,6 +3,10 @@ import type { SuccessEnvelope } from '../../auth/types/auth.types';
 import type { StudentLessonBlock, StudentLessonContent, StudentQuiz, StudentQuizAnswerInput, StudentQuizAttempt, StudentVocabulary } from '../types/student-player.types';
 
 export const studentPlayerApi = {
+  async getMediaUrl(mediaId: string): Promise<{ url: string; expiresAt: string }> {
+    const response = await apiClient.get<SuccessEnvelope<{ url: string; expiresAt: string }>>(`/media/${mediaId}/student-url`);
+    return response.data.data;
+  },
   async getLesson(courseSlug: string, lessonSlug: string): Promise<StudentLessonContent> {
     const response = await apiClient.get<SuccessEnvelope<StudentLessonContent>>(
       `/catalog/courses/${courseSlug}/lessons/${lessonSlug}`,

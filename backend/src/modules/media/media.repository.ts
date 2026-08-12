@@ -138,16 +138,19 @@ export class MediaInUseError extends Error {
 }
 
 export class MediaTransactionConflictError extends Error {}
+export class MediaStorageQuotaExceededError extends Error {}
 
 export interface MediaRepository {
   findById(id: string): Promise<MediaFileRecord | null>;
-  create(data: CreateMediaFileData, context: MediaAuditContext): Promise<MediaFileRecord>;
+  getActiveStorageUsage(uploaderId: string): Promise<bigint>;
+  create(data: CreateMediaFileData, context: MediaAuditContext, quotaBytes?: bigint): Promise<MediaFileRecord>;
   softDelete(id: string, context: MediaAuditContext): Promise<MediaFileRecord | null>;
   restore(id: string, context: MediaAuditContext): Promise<MediaFileRecord | null>;
   listUsages(
     id: string,
     limit?: number,
   ): Promise<{ items: LessonContentBlockMediaUsage[]; total: number }>;
+  findStudentMediaAccess(mediaId: string, userId: string, now: Date): Promise<MediaFileRecord | null>;
 }
 
 export class PrismaMediaRepository implements MediaRepository {
@@ -161,8 +164,52 @@ export class PrismaMediaRepository implements MediaRepository {
     return file ? mapMediaFile(file) : null;
   }
 
-  async create(data: CreateMediaFileData, context: MediaAuditContext): Promise<MediaFileRecord> {
-    return this.client.$transaction(async (transaction) => {
+  async findStudentMediaAccess(mediaId: string, userId: string, now: Date): Promise<MediaFileRecord | null> {
+    const file = await this.client.mediaFile.findFirst({
+      where: {
+        id: mediaId,
+        deletedAt: null,
+        lessonContentBlocks: {
+          some: {
+            deletedAt: null,
+            isVisible: true,
+            lesson: {
+              status: 'PUBLISHED',
+              deletedAt: null,
+              section: { isPublished: true, deletedAt: null },
+              course: {
+                status: 'PUBLISHED',
+                deletedAt: null,
+                enrollments: { some: { studentId: userId, status: { in: ['ACTIVE', 'COMPLETED'] }, accessStartsAt: { lte: now }, accessExpiresAt: { gt: now } } },
+              },
+            },
+          },
+        },
+      },
+      select: mediaFileSelect,
+    });
+    return file ? mapMediaFile(file) : null;
+  }
+
+  async getActiveStorageUsage(uploaderId: string): Promise<bigint> {
+    const result = await this.client.mediaFile.aggregate({
+      where: { uploadedById: uploaderId, deletedAt: null },
+      _sum: { sizeBytes: true },
+    });
+    return result._sum.sizeBytes ?? 0n;
+  }
+
+  async create(data: CreateMediaFileData, context: MediaAuditContext, quotaBytes?: bigint): Promise<MediaFileRecord> {
+    return runSerializableTransaction(this.client, async (transaction) => {
+      if (quotaBytes !== undefined) {
+        const usage = await transaction.mediaFile.aggregate({
+          where: { uploadedById: data.uploadedById, deletedAt: null },
+          _sum: { sizeBytes: true },
+        });
+        if ((usage._sum.sizeBytes ?? 0n) + data.sizeBytes > quotaBytes) {
+          throw new MediaStorageQuotaExceededError();
+        }
+      }
       const file = await transaction.mediaFile.create({
         data,
         select: mediaFileSelect,

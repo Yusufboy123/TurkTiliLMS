@@ -9,20 +9,46 @@ const frontendOriginSchema = z.url().refine((value) => new URL(value).origin ===
   message: 'FRONTEND_URL must be an origin without a path, query, or fragment.',
 });
 const refreshCookiePath = '/api/v1/auth' as const;
+const minimumProductionJwtSecretLength = 43;
+
+const jwtSecretPlaceholderFragments = [
+  'replace-with',
+  'change-me',
+  'changeme',
+  'your-secret',
+  'default-secret',
+  'example-secret',
+] as const;
+
+function containsJwtSecretPlaceholder(secret: string): boolean {
+  const normalized = secret.toLowerCase();
+  return jwtSecretPlaceholderFragments.some((fragment) => normalized.includes(fragment));
+}
+
+function isRepeatedJwtSecret(secret: string): boolean {
+  for (let chunkLength = 1; chunkLength <= 8; chunkLength += 1) {
+    if (secret.length % chunkLength !== 0) continue;
+    const chunk = secret.slice(0, chunkLength);
+    if (chunk.repeat(secret.length / chunkLength) === secret) return true;
+  }
+  return false;
+}
+
+function isLowEntropyJwtSecret(secret: string): boolean {
+  return isRepeatedJwtSecret(secret) || new Set(secret).size < 8;
+}
 
 const environmentSchema = z
   .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    NODE_ENV: z.enum(['development', 'test', 'production']),
     PORT: z.coerce.number().int().positive().max(65_535).default(5000),
     DATABASE_URL: z.string().startsWith('postgresql://'),
     FRONTEND_URL: frontendOriginSchema.default('http://localhost:5173'),
     JWT_ACCESS_SECRET: z
       .string()
       .min(32)
-      .refine(
-        (secret) => !secret.toLowerCase().includes('replace-with'),
-        'JWT access secret must be replaced with a strong random value.',
-      ),
+      .refine((secret) => !containsJwtSecretPlaceholder(secret), 'JWT access secret must not use a placeholder value.')
+      .refine((secret) => !isLowEntropyJwtSecret(secret), 'JWT access secret must not use a repeated or low-entropy value.'),
     JWT_ACCESS_EXPIRES_IN: durationSchema.default('15m'),
     REFRESH_TOKEN_EXPIRES_IN: durationSchema.default('30d'),
     JWT_ISSUER: z.string().trim().min(3).max(100),
@@ -44,6 +70,12 @@ const environmentSchema = z
       .positive()
       .max(2_147_483_647)
       .default(262_144_000),
+    MEDIA_USER_STORAGE_QUOTA_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER)
+      .default(5_368_709_120),
     CERTIFICATE_ARTIFACT_STORAGE_ROOT: z
       .string()
       .trim()
@@ -76,6 +108,25 @@ const environmentSchema = z
         code: 'custom',
         path: ['FRONTEND_URL'],
         message: 'FRONTEND_URL must use HTTPS in production.',
+      });
+    }
+
+    if (value.NODE_ENV === 'production' && value.JWT_ACCESS_SECRET.length < minimumProductionJwtSecretLength) {
+      context.addIssue({
+        code: 'too_small',
+        minimum: minimumProductionJwtSecretLength,
+        inclusive: true,
+        origin: 'string',
+        path: ['JWT_ACCESS_SECRET'],
+        message: 'JWT access secret must be at least 43 characters in production.',
+      });
+    }
+
+    if (value.NODE_ENV === 'production' && new Set(value.JWT_ACCESS_SECRET).size < 16) {
+      context.addIssue({
+        code: 'custom',
+        path: ['JWT_ACCESS_SECRET'],
+        message: 'JWT access secret must contain sufficient character diversity in production.',
       });
     }
   });

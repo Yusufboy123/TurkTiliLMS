@@ -1,4 +1,4 @@
-import { LessonContentBlockType, MediaCategory, type MediaStorageProvider } from '@prisma/client';
+import { LessonContentBlockType, MediaCategory } from '@prisma/client';
 import { AppError } from '../../utils/app-error.js';
 
 export interface CompatibleMediaFile {
@@ -6,7 +6,6 @@ export interface CompatibleMediaFile {
   category: MediaCategory;
   mimeType: string;
   extension: string;
-  storageProvider: MediaStorageProvider;
   deletedAt: Date | null;
 }
 

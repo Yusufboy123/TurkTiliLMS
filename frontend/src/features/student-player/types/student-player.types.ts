@@ -7,8 +7,6 @@ export interface StudentMediaReference {
   extension: string;
   category: 'IMAGE' | 'DOCUMENT' | 'AUDIO' | 'VIDEO';
   sizeBytes: string;
-  checksum: string | null;
-  storageProvider: 'LOCAL';
   downloadUrl: string | null;
   previewUrl: string | null;
   deletedAt: string | null;

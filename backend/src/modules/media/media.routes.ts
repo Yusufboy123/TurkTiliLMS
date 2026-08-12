@@ -8,12 +8,14 @@ import {
 } from '../authorization/authorization.middleware.js';
 import type { MediaController } from './media.controller.js';
 import { mediaController, mediaUploadMiddleware } from './media.container.js';
+import { mediaUploadRateLimiter } from './media.rate-limiters.js';
 
 interface MediaRouterDependencies {
   controller: MediaController;
   uploadMiddleware: RequestHandler;
   authenticationMiddleware: RequestHandler;
   managementRoleMiddleware: RequestHandler;
+  uploadRateLimiter: RequestHandler;
   permissionMiddleware: (...permissions: string[]) => RequestHandler;
 }
 
@@ -25,6 +27,7 @@ export function createMediaRouter(dependencies: MediaRouterDependencies): Router
   router.post(
     '/upload',
     dependencies.permissionMiddleware('media.upload'),
+    dependencies.uploadRateLimiter,
     dependencies.uploadMiddleware,
     asyncHandler(dependencies.controller.upload),
   );
@@ -62,5 +65,6 @@ export const mediaRouter = createMediaRouter({
   uploadMiddleware: mediaUploadMiddleware,
   authenticationMiddleware: requireAuthentication,
   managementRoleMiddleware: requireRole(RoleCode.ADMIN, RoleCode.TEACHER),
+  uploadRateLimiter: mediaUploadRateLimiter,
   permissionMiddleware: requirePermission,
 });

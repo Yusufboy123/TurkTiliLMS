@@ -29,6 +29,47 @@ function databaseMediaFile(deletedAt: Date | null = null) {
 }
 
 describe('PrismaMediaRepository', () => {
+  it('counts only active media for an uploader quota', async () => {
+    const aggregate = vi.fn().mockResolvedValue({ _sum: { sizeBytes: 67n } });
+    const repository = new PrismaMediaRepository({ mediaFile: { aggregate } } as unknown as PrismaClient);
+
+    await expect(repository.getActiveStorageUsage(MEDIA_OWNER_ID)).resolves.toBe(67n);
+    expect(aggregate).toHaveBeenCalledWith({
+      where: { uploadedById: MEDIA_OWNER_ID, deletedAt: null },
+      _sum: { sizeBytes: true },
+    });
+  });
+
+  it('requires an active, time-valid enrollment for student media access', async () => {
+    const findFirst = vi.fn().mockResolvedValue(databaseMediaFile());
+    const repository = new PrismaMediaRepository({ mediaFile: { findFirst } } as unknown as PrismaClient);
+    const now = new Date('2026-08-12T00:00:00.000Z');
+
+    await expect(repository.findStudentMediaAccess(MEDIA_ID, MEDIA_OWNER_ID, now)).resolves.toMatchObject({ id: MEDIA_ID });
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: MEDIA_ID,
+        deletedAt: null,
+        lessonContentBlocks: expect.objectContaining({
+          some: expect.objectContaining({
+            lesson: expect.objectContaining({
+              course: expect.objectContaining({
+                enrollments: {
+                  some: {
+                    studentId: MEDIA_OWNER_ID,
+                    status: { in: ['ACTIVE', 'COMPLETED'] },
+                    accessStartsAt: { lte: now },
+                    accessExpiresAt: { gt: now },
+                  },
+                },
+              }),
+            }),
+          }),
+        }),
+      }),
+    }));
+  });
+
   it('creates metadata and its audit record in one transaction', async () => {
     const transaction = {
       mediaFile: {

@@ -1,4 +1,4 @@
-import { MediaCategory } from '@prisma/client';
+import { MediaCategory, MediaStorageProvider } from '@prisma/client';
 import { presentMediaReference } from '../../src/modules/media/media-reference.presenter.js';
 import { MEDIA_ID, publicMediaReference } from '../helpers/media-fakes.js';
 
@@ -11,8 +11,8 @@ function payload(overrides: Record<string, unknown> = {}) {
     extension: reference.extension,
     category: reference.category,
     sizeBytes: 67n,
-    checksum: reference.checksum,
-    storageProvider: reference.storageProvider,
+    checksum: 'a'.repeat(64),
+    storageProvider: MediaStorageProvider.LOCAL,
     deletedAt: reference.deletedAt,
     ...overrides,
   };
@@ -30,6 +30,8 @@ describe('media reference presenter', () => {
     });
     expect(result).not.toHaveProperty('storedFileName');
     expect(result).not.toHaveProperty('storagePath');
+    expect(result).not.toHaveProperty('checksum');
+    expect(result).not.toHaveProperty('storageProvider');
   });
 
   it('does not offer preview for non-PDF documents', () => {

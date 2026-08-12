@@ -3,9 +3,12 @@ import type { DestinationStream } from 'pino';
 import { environment } from '../config/environment.js';
 
 const publicVerificationPathPattern = /(\/api\/v1\/public\/certificates\/verify\/)[^/?#]+/giu;
+const studentMediaTokenPattern = /(\/api\/v1\/media\/student\/[^/?#]+\?token=)[^&#]+/giu;
 
 export function redactSensitiveRequestUrl(url: string): string {
-  return url.replace(publicVerificationPathPattern, '$1[REDACTED]');
+  return url
+    .replace(publicVerificationPathPattern, '$1[REDACTED]')
+    .replace(studentMediaTokenPattern, '$1[REDACTED]');
 }
 
 const requestLoggerOptions: Options = {

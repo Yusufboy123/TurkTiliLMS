@@ -2,7 +2,7 @@ import { MediaCategory, MediaStorageProvider, RoleCode } from '@prisma/client';
 import { Readable } from 'node:stream';
 import type { MediaFileInspector } from '../../src/modules/media/media.inspector.js';
 import type { MediaRepository } from '../../src/modules/media/media.repository.js';
-import { MediaInUseError } from '../../src/modules/media/media.repository.js';
+import { MediaInUseError, MediaStorageQuotaExceededError } from '../../src/modules/media/media.repository.js';
 import type { PublicMediaReference } from '../../src/modules/media/media-reference.presenter.js';
 import type { MediaStorage } from '../../src/modules/media/media.storage.js';
 import type {
@@ -51,8 +51,6 @@ export function publicMediaReference(
     extension: 'png',
     category: MediaCategory.IMAGE,
     sizeBytes: '67',
-    checksum: 'a'.repeat(64),
-    storageProvider: MediaStorageProvider.LOCAL,
     downloadUrl: `/api/v1/media/${MEDIA_ID}/download`,
     previewUrl: `/api/v1/media/${MEDIA_ID}/download`,
     deletedAt: null,
@@ -75,9 +73,12 @@ export const mediaAuditContext: MediaAuditContext = {
 
 export class FakeMediaRepository implements MediaRepository {
   current: MediaFileRecord | null;
+  studentAccess = true;
+  studentUserId = MEDIA_OWNER_ID;
   failCreate = false;
   lastCreateData: CreateMediaFileData | null = null;
   usages: LessonContentBlockMediaUsage[] = [];
+  storageUsage = 0n;
 
   constructor(current: MediaFileRecord | null = mediaFile()) {
     this.current = current;
@@ -87,10 +88,22 @@ export class FakeMediaRepository implements MediaRepository {
     return Promise.resolve(this.current?.id === id ? this.current : null);
   }
 
-  create(data: CreateMediaFileData, _context: MediaAuditContext): Promise<MediaFileRecord> {
+  findStudentMediaAccess(id: string, userId: string, _now: Date): Promise<MediaFileRecord | null> {
+    return Promise.resolve(this.studentAccess && userId === this.studentUserId && this.current?.id === id && this.current && !this.current.deletedAt ? this.current : null);
+  }
+
+  getActiveStorageUsage(_uploaderId: string): Promise<bigint> {
+    return Promise.resolve(this.storageUsage);
+  }
+
+  create(data: CreateMediaFileData, _context: MediaAuditContext, quotaBytes?: bigint): Promise<MediaFileRecord> {
     if (this.failCreate) {
       return Promise.reject(new Error('Database unavailable'));
     }
+    if (quotaBytes !== undefined && this.storageUsage + data.sizeBytes > quotaBytes) {
+      return Promise.reject(new MediaStorageQuotaExceededError());
+    }
+    this.storageUsage += data.sizeBytes;
     this.lastCreateData = data;
     this.current = mediaFile({
       originalFileName: data.originalFileName,
@@ -138,11 +151,13 @@ export class FakeMediaStorage implements MediaStorage {
   removedPaths: string[] = [];
   discardedPaths: string[] = [];
   unavailable = false;
+  storeCalls = 0;
 
   store(
     _stagedUpload: StagedMediaUpload,
     inspectedUpload: InspectedMediaUpload,
   ): Promise<StoredMediaObject> {
+    this.storeCalls += 1;
     return Promise.resolve({
       storedFileName: `stored.${inspectedUpload.extension}`,
       storagePath: `images/stored.${inspectedUpload.extension}`,
@@ -161,6 +176,10 @@ export class FakeMediaStorage implements MediaStorage {
       stream: Readable.from(Buffer.from('media-data')),
       contentLength: 10,
     });
+  }
+
+  openRange(_storagePath: string, start: number, end: number): Promise<{ stream: Readable; contentLength: number; totalLength: number }> {
+    return Promise.resolve({ stream: Readable.from(Buffer.from('media-data').subarray(start, end + 1)), contentLength: end - start + 1, totalLength: 10 });
   }
 
   remove(storagePath: string): Promise<void> {

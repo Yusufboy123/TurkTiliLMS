@@ -59,4 +59,18 @@ describe('LocalMediaStorage', () => {
       MediaStoragePathError,
     );
   });
+
+  it('opens bounded byte ranges without loading the whole file', async () => {
+    const storage = new LocalMediaStorage(rootDirectory);
+    await storage.initialize();
+    const storedPath = 'video/sample.mp4';
+    await writeFile(join(rootDirectory, storedPath), Buffer.from('media'));
+
+    const opened = await storage.openRange(storedPath, 1, 3);
+    const chunks: Buffer[] = [];
+    for await (const chunk of opened.stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+
+    expect(opened).toMatchObject({ contentLength: 3, totalLength: 5 });
+    expect(Buffer.concat(chunks).toString()).toBe('edi');
+  });
 });

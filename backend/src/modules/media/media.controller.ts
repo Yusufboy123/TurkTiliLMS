@@ -4,7 +4,7 @@ import type { Logger } from 'pino';
 import { AppError } from '../../utils/app-error.js';
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
 import { deleteMediaSchema, mediaIdParamsSchema } from './media.schemas.js';
-import type { MediaManagementUseCases } from './media.service.js';
+import { MediaRangeNotSatisfiableError, type MediaManagementUseCases } from './media.service.js';
 import type { MediaActor, MediaAuditContext, StagedMediaUpload } from './media.types.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -113,6 +113,44 @@ export class MediaController {
       response.destroy(error);
     });
     download.stream.pipe(response);
+  };
+
+  studentUrl = async (request: Request, response: Response): Promise<void> => {
+    const principal = principalFrom(request);
+    const { id } = mediaIdParamsSchema.parse(request.params);
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    response.status(200).json({ success: true, message: 'Media manzili olindi.', data: await this.media.createStudentDeliveryUrl(id, principal.userId) });
+  };
+
+  studentDelivery = async (request: Request, response: Response): Promise<void> => {
+    const { id } = mediaIdParamsSchema.parse(request.params);
+    const token = typeof request.query.token === 'string' ? request.query.token : '';
+    const claims = this.media.verifyStudentDeliveryToken(token);
+    if (!claims) throw new AppError('Media manzili yaroqsiz yoki muddati tugagan.', 401, 'MEDIA_DELIVERY_TOKEN_INVALID');
+    const rangeHeader = request.header('range');
+    let range: { start: number; end: number } | undefined;
+    if (rangeHeader) {
+      const match = /^bytes=(\d*)-(\d*)$/u.exec(rangeHeader);
+      if (!match || (match[1] === '' && match[2] === '')) throw new MediaRangeNotSatisfiableError(0);
+      const start = match[1] === '' ? -1 : Number(match[1]);
+      const end = match[2] === '' ? Number.MAX_SAFE_INTEGER : Number(match[2]);
+      range = { start, end };
+    }
+    try {
+      const media = await this.media.streamStudentMedia(id, claims, range);
+      response.setHeader('Content-Type', media.mimeType);
+      response.setHeader('Content-Length', media.contentLength.toString());
+      response.setHeader('Accept-Ranges', 'bytes');
+      response.setHeader('Cache-Control', 'private, no-store');
+      response.setHeader('Referrer-Policy', 'no-referrer');
+      if (media.partial) { response.status(206); response.setHeader('Content-Range', `bytes ${media.rangeStart}-${media.rangeEnd}/${media.totalLength}`); }
+      if (request.method === 'HEAD') { response.end(); return; }
+      media.stream.pipe(response);
+    } catch (error: unknown) {
+      if (error instanceof MediaRangeNotSatisfiableError) { response.status(416).setHeader('Content-Range', `bytes */${error.totalLength}`).end(); return; }
+      throw error;
+    }
   };
 
   delete = async (request: Request, response: Response): Promise<void> => {

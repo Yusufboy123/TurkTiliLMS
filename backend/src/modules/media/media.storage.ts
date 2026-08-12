@@ -39,6 +39,7 @@ export interface MediaStorage {
     inspectedUpload: InspectedMediaUpload,
   ): Promise<StoredMediaObject>;
   open(storagePath: string): Promise<{ stream: Readable; contentLength: number }>;
+  openRange(storagePath: string, start: number, end: number): Promise<{ stream: Readable; contentLength: number; totalLength: number }>;
   remove(storagePath: string): Promise<void>;
   discardStaged(path: string): Promise<void>;
 }
@@ -107,6 +108,20 @@ export class LocalMediaStorage implements MediaStorage {
       ) {
         throw new MediaStorageObjectNotFoundError();
       }
+      throw error;
+    }
+  }
+
+  async openRange(storagePath: string, start: number, end: number): Promise<{ stream: Readable; contentLength: number; totalLength: number }> {
+    const absolutePath = this.resolveStoragePath(storagePath);
+    try {
+      const fileStats = await stat(absolutePath);
+      if (!fileStats.isFile()) throw new MediaStorageObjectNotFoundError();
+      if (start >= fileStats.size) throw new MediaStorageObjectNotFoundError();
+      const boundedEnd = Math.min(end, fileStats.size - 1);
+      return { stream: createReadStream(absolutePath, { start, end: boundedEnd }), contentLength: boundedEnd - start + 1, totalLength: fileStats.size };
+    } catch (error: unknown) {
+      if (error instanceof MediaStorageObjectNotFoundError || (error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new MediaStorageObjectNotFoundError();
       throw error;
     }
   }

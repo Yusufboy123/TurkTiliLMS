@@ -23,12 +23,12 @@ import { StudentQuizPanel, StudentVocabularyPanel, useStudentLessonContent } fro
 import type { StudentLessonBlock } from '../../student-player';
 import { useLessonBookmark, useLessonNote } from '../../student-productivity';
 
-function blockMediaUrl(block: StudentLessonBlock): string | null {
-  return block.media?.previewUrl ?? block.media?.downloadUrl ?? block.sourceUrl ?? block.fileUrl;
+function blockMediaUrl(block: StudentLessonBlock, mediaUrls: Record<string, string>): string | null {
+  return (block.mediaFileId ? mediaUrls[block.mediaFileId] : undefined) ?? block.sourceUrl ?? block.fileUrl;
 }
 
-function LessonContentBlockView({ block }: { block: StudentLessonBlock }) {
-  const mediaUrl = blockMediaUrl(block);
+function LessonContentBlockView({ block, mediaUrls }: { block: StudentLessonBlock; mediaUrls: Record<string, string> }) {
+  const mediaUrl = blockMediaUrl(block, mediaUrls);
   return (
     <div className="mt-4">
       {block.blockType === 'TEXT' ? (
@@ -39,6 +39,9 @@ function LessonContentBlockView({ block }: { block: StudentLessonBlock }) {
       ) : null}
       {block.blockType === 'AUDIO' && mediaUrl ? (
         <div className="mt-2 rounded-lg bg-subtle p-4"><audio aria-label={block.title ?? 'Audio dars materiali'} className="w-full" controls preload="metadata" src={mediaUrl} /></div>
+      ) : null}
+      {block.blockType === 'IMAGE' && mediaUrl ? (
+        <img alt={block.title ?? 'Dars rasmi'} className="mt-2 max-h-[32rem] w-full rounded-lg object-contain" src={mediaUrl} />
       ) : null}
       {!mediaUrl && block.blockType !== 'TEXT' ? <p className="text-body-sm text-text-secondary">Media materiali hozircha mavjud emas.</p> : null}
     </div>
@@ -216,7 +219,7 @@ export default function LessonProgressPage() {
                   <p className="text-caption text-text-muted">{block.position}. {block.blockType}</p>
                   <h3 className="type-heading-4 mt-1">{block.title ?? 'Material'}</h3>
                   {block.description ? <p className="mt-2 text-body-sm text-text-secondary">{block.description}</p> : null}
-                  <LessonContentBlockView block={block} />
+                  <LessonContentBlockView block={block} mediaUrls={content.mediaUrls} />
                 </Card>
               ))}
             </div>

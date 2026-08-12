@@ -2,6 +2,7 @@ import { LessonContentBlockType, RoleCode } from '@prisma/client';
 import { MediaService } from '../../src/modules/media/media.service.js';
 import {
   MEDIA_ID,
+  MEDIA_OWNER_ID,
   OTHER_MEDIA_USER_ID,
   FakeMediaInspector,
   FakeMediaRepository,
@@ -48,6 +49,27 @@ describe('MediaService', () => {
       storagePath: 'images/stored.png',
       sizeBytes: 67n,
     });
+  });
+
+  it('rejects an upload that would exceed the uploader quota before storing it', async () => {
+    const repository = new FakeMediaRepository();
+    repository.storageUsage = 50n;
+    const storage = new FakeMediaStorage();
+    const service = new MediaService(
+      repository,
+      storage,
+      new FakeMediaInspector(),
+      undefined,
+      100n,
+    );
+
+    const rejection = service.upload(stagedUpload, mediaActor(), mediaAuditContext);
+    await expect(rejection).rejects.toMatchObject({
+      code: 'MEDIA_STORAGE_QUOTA_EXCEEDED',
+      statusCode: 413,
+    });
+    expect(storage.storeCalls).toBe(0);
+    expect(storage.discardedPaths).toEqual([stagedUpload.path]);
   });
 
   it('rejects unsupported extensions and removes the staged upload', async () => {
@@ -219,5 +241,47 @@ describe('MediaService', () => {
     await expect(service.getById(MEDIA_ID, mediaActor({ permissions: [] }))).rejects.toMatchObject({
       code: 'ACCESS_DENIED',
     });
+  });
+
+  it('issues a short-lived delivery URL only for currently accessible student media', async () => {
+    const { service, repository } = setup();
+    const delivery = await service.createStudentDeliveryUrl(MEDIA_ID, MEDIA_OWNER_ID);
+
+    expect(delivery.url).toMatch(/^\/api\/v1\/media\/student\/.+\?token=.+$/u);
+    expect(delivery.url).not.toMatch(/Bearer\s/iu);
+    expect(service.verifyStudentDeliveryToken(new URL(`https://example.test${delivery.url}`).searchParams.get('token') ?? '')).toMatchObject({
+      mediaId: MEDIA_ID,
+      userId: MEDIA_OWNER_ID,
+    });
+
+    repository.studentAccess = false;
+    await expect(service.createStudentDeliveryUrl(MEDIA_ID, MEDIA_OWNER_ID)).rejects.toMatchObject({
+      code: 'MEDIA_FILE_NOT_FOUND',
+    });
+
+    repository.studentAccess = true;
+    repository.current = mediaFile({ deletedAt: new Date() });
+    await expect(service.createStudentDeliveryUrl(MEDIA_ID, MEDIA_OWNER_ID)).rejects.toMatchObject({
+      code: 'MEDIA_FILE_NOT_FOUND',
+    });
+  });
+
+  it('rechecks enrollment access and supports bounded byte ranges', async () => {
+    const repository = new FakeMediaRepository(mediaFile({ sizeBytes: '10' }));
+    const service = new MediaService(repository, new FakeMediaStorage(), new FakeMediaInspector());
+    const delivery = await service.createStudentDeliveryUrl(MEDIA_ID, MEDIA_OWNER_ID);
+    const claims = service.verifyStudentDeliveryToken(new URL(`https://example.test${delivery.url}`).searchParams.get('token') ?? '');
+    expect(claims).not.toBeNull();
+
+    const ranged = await service.streamStudentMedia(MEDIA_ID, claims!, { start: 0, end: 4 });
+    expect(ranged).toMatchObject({ contentLength: 5, totalLength: 10, rangeStart: 0, rangeEnd: 4, partial: true });
+
+    await expect(service.streamStudentMedia(MEDIA_ID, claims!, { start: 10, end: 12 })).rejects.toMatchObject({
+      code: 'MEDIA_RANGE_NOT_SATISFIABLE',
+      statusCode: 416,
+    });
+
+    repository.studentAccess = false;
+    await expect(service.streamStudentMedia(MEDIA_ID, claims!)).rejects.toMatchObject({ code: 'MEDIA_FILE_NOT_FOUND' });
   });
 });

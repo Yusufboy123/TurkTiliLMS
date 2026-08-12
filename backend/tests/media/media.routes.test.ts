@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import request from 'supertest';
 import { vi } from 'vitest';
+import { rateLimit } from 'express-rate-limit';
 import { errorHandler } from '../../src/middlewares/error-handler.middleware.js';
 import {
   requireAuthentication,
@@ -16,6 +17,7 @@ import {
 import type { AuthenticatedPrincipal } from '../../src/modules/authorization/authorization.types.js';
 import { MediaController } from '../../src/modules/media/media.controller.js';
 import { createMediaRouter } from '../../src/modules/media/media.routes.js';
+import { createStudentMediaRouter } from '../../src/modules/media/student-media.routes.js';
 import type { MediaManagementUseCases } from '../../src/modules/media/media.service.js';
 import type {
   MediaActor,
@@ -30,6 +32,9 @@ const pngBytes = Buffer.from([
 ]);
 
 class StubMediaService implements MediaManagementUseCases {
+  createStudentDeliveryUrl = vi.fn(async (_id: string, _userId: string) => ({ url: '/api/v1/media/student/id?token=test', expiresAt: new Date(Date.now() + 300_000).toISOString() }));
+  streamStudentMedia = vi.fn(async (_id: string, _claims: never, range?: { start: number; end: number }) => { const bytes = Buffer.from('media-data'); const body = range ? bytes.subarray(range.start, range.end + 1) : bytes; return { stream: Readable.from(body), contentLength: body.length, totalLength: bytes.length, rangeStart: range?.start ?? 0, rangeEnd: range?.end ?? bytes.length - 1, partial: Boolean(range), mimeType: 'image/png', originalFileName: 'turk-tili.png' }; });
+  verifyStudentDeliveryToken = vi.fn(() => ({ mediaId: MEDIA_ID, userId: MEDIA_OWNER_ID, expiresAt: Math.floor(Date.now() / 1_000) + 300 }));
   upload = vi.fn(
     async (stagedUpload: StagedMediaUpload, _actor: MediaActor, _context: MediaAuditContext) => {
       await rm(stagedUpload.path, { force: true });
@@ -96,6 +101,7 @@ function createTestApp(
   roles: RoleCode[] | null,
   permissions: string[],
   maximumSizeBytes = 1_024,
+  uploadRateLimiter: RequestHandler = (_request, _response, next) => next(),
 ): express.Express {
   const app = express();
   app.use(express.json());
@@ -110,6 +116,22 @@ function createTestApp(
       authenticationMiddleware:
         roles === null ? requireAuthentication : authenticatedAs(roles, permissions),
       managementRoleMiddleware: requireRole(RoleCode.ADMIN, RoleCode.TEACHER),
+      uploadRateLimiter,
+      permissionMiddleware: requirePermission,
+    }),
+  );
+  app.use(errorHandler);
+  return app;
+}
+
+function createStudentTestApp(service: StubMediaService, roles: RoleCode[] | null, permissions: string[]): express.Express {
+  const app = express();
+  app.use(
+    '/api/v1/media',
+    createStudentMediaRouter({
+      controller: new MediaController(service),
+      authenticationMiddleware: roles === null ? requireAuthentication : authenticatedAs(roles, permissions),
+      studentRoleMiddleware: requireRole(RoleCode.STUDENT),
       permissionMiddleware: requirePermission,
     }),
   );
@@ -151,6 +173,35 @@ describe('Media routes', () => {
       expect.objectContaining({ userId: MEDIA_OWNER_ID }),
       expect.objectContaining({ actorUserId: MEDIA_OWNER_ID }),
     );
+  });
+
+  it('returns a safe 429 when the authenticated uploader exceeds the upload limit', async () => {
+    const service = new StubMediaService();
+    const limiter = rateLimit({
+      windowMs: 60_000,
+      limit: 1,
+      keyGenerator: (incomingRequest) => `user:${(incomingRequest as typeof incomingRequest & { auth?: { userId?: string } }).auth?.userId ?? 'unknown'}`,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+      message: {
+        success: false,
+        code: 'MEDIA_UPLOAD_RATE_LIMITED',
+        message: 'Media yuklash urinishlari vaqtincha cheklangan. Keyinroq qayta urinib ko‘ring.',
+      },
+    });
+    const app = createTestApp(service, stagingDirectory, [RoleCode.TEACHER], ['media.upload'], 1_024, limiter);
+
+    await request(app)
+      .post('/api/v1/media/upload')
+      .attach('file', pngBytes, { filename: 'first.png', contentType: 'image/png' })
+      .expect(201);
+    const response = await request(app)
+      .post('/api/v1/media/upload')
+      .attach('file', pngBytes, { filename: 'second.png', contentType: 'image/png' })
+      .expect(429);
+
+    expect(response.body).toMatchObject({ success: false, code: 'MEDIA_UPLOAD_RATE_LIMITED' });
+    expect(service.upload).toHaveBeenCalledTimes(1);
   });
 
   it('rejects unsupported file extensions before the service', async () => {
@@ -288,5 +339,32 @@ describe('Media routes', () => {
 
     expect(service.delete).toHaveBeenCalledOnce();
     expect(service.restore).toHaveBeenCalledOnce();
+  });
+
+  it('protects student URL issuance by authentication, role, and permission', async () => {
+    const unauthenticated = new StubMediaService();
+    await request(createStudentTestApp(unauthenticated, null, [])).get(`/api/v1/media/${MEDIA_ID}/student-url`).expect(401);
+
+    const teacher = new StubMediaService();
+    await request(createStudentTestApp(teacher, [RoleCode.TEACHER], ['progress.self_read'])).get(`/api/v1/media/${MEDIA_ID}/student-url`).expect(403);
+
+    const student = new StubMediaService();
+    const response = await request(createStudentTestApp(student, [RoleCode.STUDENT], ['progress.self_read'])).get(`/api/v1/media/${MEDIA_ID}/student-url`).expect(200);
+    expect(response.body.data.url).toContain('/api/v1/media/student/');
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(student.createStudentDeliveryUrl).toHaveBeenCalledWith(MEDIA_ID, MEDIA_OWNER_ID);
+  });
+
+  it('serves signed student media with private headers and byte ranges, including HEAD', async () => {
+    const service = new StubMediaService();
+    const app = createStudentTestApp(service, null, []);
+
+    const ranged = await request(app).get(`/api/v1/media/student/${MEDIA_ID}?token=signed`).set('Range', 'bytes=0-4').expect(206);
+    expect(ranged.headers['cache-control']).toBe('private, no-store');
+    expect(ranged.headers['accept-ranges']).toBe('bytes');
+    expect(ranged.headers['content-range']).toBe('bytes 0-4/10');
+
+    await request(app).head(`/api/v1/media/student/${MEDIA_ID}?token=signed`).expect(200);
+    expect(service.streamStudentMedia).toHaveBeenCalled();
   });
 });

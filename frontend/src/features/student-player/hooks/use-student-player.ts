@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { studentPlayerApi } from '../api/student-player.api';
 import { studentPlayerQueryKeys } from './student-player-query-keys';
 
@@ -13,7 +13,19 @@ export function useStudentLessonContent(courseSlug: string, lessonSlug: string, 
     queryFn: () => studentPlayerApi.getBlocks(courseSlug, lessonSlug),
     enabled: enabled && Boolean(courseSlug && lessonSlug),
   });
-  return { lesson, blocks };
+  const mediaBlocks = (blocks.data ?? []).filter((block) => block.mediaFileId);
+  const mediaQueries = useQueries({
+    queries: mediaBlocks.map((block) => ({
+      queryKey: ['student-media-url', block.mediaFileId],
+      queryFn: () => studentPlayerApi.getMediaUrl(block.mediaFileId as string),
+      enabled: enabled,
+      staleTime: 240_000,
+    })),
+  });
+  const mediaUrls = Object.fromEntries(
+    mediaBlocks.map((block, index) => [block.mediaFileId, mediaQueries[index]?.data?.url]).filter(([id, url]) => Boolean(id && url)),
+  ) as Record<string, string>;
+  return { lesson, blocks, mediaUrls };
 }
 
 export function useStudentLessonVocabulary(enrollmentId: string, lessonId: string, enabled: boolean) {

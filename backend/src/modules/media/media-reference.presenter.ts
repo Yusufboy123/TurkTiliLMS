@@ -7,8 +7,6 @@ export const mediaReferenceSelect = {
   extension: true,
   category: true,
   sizeBytes: true,
-  checksum: true,
-  storageProvider: true,
   deletedAt: true,
 } satisfies Prisma.MediaFileSelect;
 
@@ -23,8 +21,6 @@ export interface PublicMediaReference {
   extension: string;
   category: MediaReferencePayload['category'];
   sizeBytes: string;
-  checksum: string | null;
-  storageProvider: MediaReferencePayload['storageProvider'];
   downloadUrl: string | null;
   previewUrl: string | null;
   deletedAt: Date | null;
@@ -54,8 +50,6 @@ export function presentMediaReference(
     extension: media.extension,
     category: media.category,
     sizeBytes: media.sizeBytes.toString(),
-    checksum: media.checksum,
-    storageProvider: media.storageProvider,
     downloadUrl,
     previewUrl: downloadUrl && supportsPreview(media) ? downloadUrl : null,
     deletedAt: media.deletedAt,

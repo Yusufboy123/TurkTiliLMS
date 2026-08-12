@@ -23,4 +23,12 @@ describe('request logger sensitive URL redaction', () => {
     expect(redacted).toBe('/API/V1/PUBLIC/CERTIFICATES/VERIFY/[REDACTED]');
     expect(redacted).not.toContain(token);
   });
+
+  it('redacts signed student media delivery tokens', () => {
+    const token = 'signed-media-token';
+    const redacted = redactSensitiveRequestUrl(`/api/v1/media/student/media-1?token=${token}&download=1`);
+
+    expect(redacted).toBe('/api/v1/media/student/media-1?token=[REDACTED]&download=1');
+    expect(redacted).not.toContain(token);
+  });
 });

@@ -143,6 +143,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '413':
           $ref: '#/components/responses/FileTooLarge'
+        '429':
+          $ref: '#/components/responses/UploadRateLimited'
         '422':
           $ref: '#/components/responses/ValidationFailure'
   /media/{id}:
@@ -722,7 +724,13 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     FileTooLarge:
-      description: Upload exceeds MEDIA_MAX_UPLOAD_BYTES
+      description: Upload exceeds MEDIA_MAX_UPLOAD_BYTES or the uploader's active storage quota
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UploadRateLimited:
+      description: The authenticated uploader has exceeded the media upload rate limit
       content:
         application/json:
           schema:

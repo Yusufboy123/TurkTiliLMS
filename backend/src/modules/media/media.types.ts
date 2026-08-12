@@ -88,6 +88,13 @@ export interface MediaDownload {
   originalFileName: string;
 }
 
+export interface MediaStreamDownload extends MediaDownload {
+  totalLength: number;
+  rangeStart: number;
+  rangeEnd: number;
+  partial: boolean;
+}
+
 export interface LessonContentBlockMediaUsage {
   type: 'LESSON_CONTENT_BLOCK';
   block: {

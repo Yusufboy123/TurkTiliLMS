@@ -116,6 +116,8 @@ describe('student lesson player', () => {
     client.setQueryData(progressQueryKeys.enrollment(courseProgressFixture.enrollmentId), courseProgressFixture);
     client.setQueryData(studentPlayerQueryKeys.lesson(courseProgressFixture.course.slug, lessonContent.slug), lessonContent);
     client.setQueryData(studentPlayerQueryKeys.blocks(courseProgressFixture.course.slug, lessonContent.slug), contentBlocks);
+    client.setQueryData(['student-media-url', 'media-video'], { url: '/api/v1/media/student/media-video?token=video-token' });
+    client.setQueryData(['student-media-url', 'media-audio'], { url: '/api/v1/media/student/media-audio?token=audio-token' });
     const markup = renderToStaticMarkup(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[progressPaths.lesson(courseProgressFixture.enrollmentId, lessonContent.id)]}>
