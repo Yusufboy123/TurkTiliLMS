@@ -1,6 +1,7 @@
 import { PrismaCourseRepository } from '../courses/course.repository.js';
 import { PrismaStudentCourseContentAccess } from '../course-enrollments/course-content-access.js';
 import { PrismaLessonManagementRepository } from './lesson-management.repository.js';
+import { lessonMasteryAccess } from '../lesson-mastery/lesson-mastery.container.js';
 import {
   EnrollmentLessonAccessPolicy,
   LessonManagementService,
@@ -9,5 +10,5 @@ import {
 export const lessonManagementService = new LessonManagementService(
   new PrismaLessonManagementRepository(),
   new PrismaCourseRepository(),
-  new EnrollmentLessonAccessPolicy(new PrismaStudentCourseContentAccess()),
+  new EnrollmentLessonAccessPolicy(new PrismaStudentCourseContentAccess(), lessonMasteryAccess),
 );

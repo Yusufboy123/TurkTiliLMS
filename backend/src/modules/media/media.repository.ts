@@ -199,6 +199,7 @@ export class PrismaMediaRepository implements MediaRepository {
     return result._sum.sizeBytes ?? 0n;
   }
 
+
   async create(data: CreateMediaFileData, context: MediaAuditContext, quotaBytes?: bigint): Promise<MediaFileRecord> {
     return runSerializableTransaction(this.client, async (transaction) => {
       if (quotaBytes !== undefined) {

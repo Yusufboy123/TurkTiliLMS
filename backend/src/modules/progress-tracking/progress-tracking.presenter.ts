@@ -103,6 +103,18 @@ function lessonStatus(lesson: ProgressLessonRecord): ProjectedLessonProgressStat
   return allRequiredComplete ? 'READY_TO_COMPLETE' : 'IN_PROGRESS';
 }
 
+function lessonHasMasteryQuiz(lesson: ProgressLessonRecord): boolean {
+  return lesson.masteryEnabled === true && lesson.masteryHasQuiz === true;
+}
+
+function lessonIsUnlocked(lessons: ProgressLessonRecord[], index: number): boolean {
+  if (index <= 0) return true;
+  const previous = lessons[index - 1];
+  if (!previous) return true;
+  if (previous.progress?.state !== 'COMPLETED') return false;
+  return !lessonHasMasteryQuiz(previous) || (previous.latestQuizPercentage ?? -1) >= (previous.masteryPassingPercentage ?? 75);
+}
+
 function courseState(
   enrollment: ProgressEnrollmentRecord,
   root: ProgressRootRecord,
@@ -122,6 +134,7 @@ function courseState(
 function presentBlock(
   block: ProgressLessonRecord['blocks'][number],
   capabilities: ProgressCapabilitiesDto,
+  lessonAccessible = true,
 ): BlockProgressDto {
   const status = block.progress?.state ?? 'NOT_STARTED';
   return {
@@ -133,8 +146,8 @@ function presentBlock(
     status,
     completedAt: block.progress?.completedAt?.toISOString() ?? null,
     capabilities: {
-      canCompleteBlock: capabilities.canCompleteBlock && status !== 'COMPLETED',
-      canReopenBlock: capabilities.canReopenBlock && status === 'COMPLETED',
+      canCompleteBlock: lessonAccessible && capabilities.canCompleteBlock && status !== 'COMPLETED',
+      canReopenBlock: lessonAccessible && capabilities.canReopenBlock && status === 'COMPLETED',
       unavailableReason: capabilities.unavailableReason,
     },
   };
@@ -143,6 +156,7 @@ function presentBlock(
 export function presentLessonProgress(
   lesson: ProgressLessonRecord,
   capabilities: ProgressCapabilitiesDto,
+  previousLesson: ProgressLessonRecord | null = null,
 ): LessonProgressDto {
   const requiredBlocks = lesson.blocks.filter((block) => block.isRequired);
   const completedEligibleBlocks = requiredBlocks.filter(
@@ -155,6 +169,14 @@ export function presentLessonProgress(
         ? 100
         : 0
       : Math.floor((completedEligibleBlocks * 100) / requiredBlocks.length);
+  const masteryRequired = lessonHasMasteryQuiz(lesson);
+  const passingPercentage = lesson.masteryPassingPercentage ?? 75;
+  const latestPercentage = lesson.latestQuizPercentage ?? null;
+  const masteryPassed = !masteryRequired || (latestPercentage !== null && latestPercentage >= passingPercentage);
+  const previousCompleted = previousLesson === null || previousLesson.progress?.state === 'COMPLETED';
+  const previousMasteryPassed = previousLesson === null || !lessonHasMasteryQuiz(previousLesson) || ((previousLesson.latestQuizPercentage ?? -1) >= (previousLesson.masteryPassingPercentage ?? 75));
+  const locked = !previousCompleted || !previousMasteryPassed;
+  const lockReason = !previousCompleted ? 'PREVIOUS_LESSON' : locked ? 'PREVIOUS_MASTERY' : null;
 
   return {
     id: lesson.id,
@@ -169,10 +191,20 @@ export function presentLessonProgress(
     firstActivityAt: lesson.progress?.firstActivityAt.toISOString() ?? null,
     lastActivityAt: lesson.progress?.lastActivityAt.toISOString() ?? null,
     completedAt: lesson.progress?.completedAt?.toISOString() ?? null,
-    blocks: lesson.blocks.map((block) => presentBlock(block, capabilities)),
+    blocks: lesson.blocks.map((block) => presentBlock(block, capabilities, !locked)),
+    mastery: {
+      required: masteryRequired,
+      passingPercentage,
+      latestPercentage,
+      passed: masteryPassed,
+      locked,
+      lockReason,
+      previousLessonTitle: previousLesson?.title ?? null,
+    },
     capabilities: {
-      canCompleteLesson: capabilities.canCompleteLesson && status === 'READY_TO_COMPLETE',
-      canReopenLesson: capabilities.canReopenLesson && status === 'COMPLETED',
+      canAccessLesson: capabilities.canAccessCourseContent && !locked,
+      canCompleteLesson: capabilities.canCompleteLesson && !locked && masteryPassed && status === 'READY_TO_COMPLETE',
+      canReopenLesson: capabilities.canReopenLesson && !locked && status === 'COMPLETED',
       unavailableReason: capabilities.unavailableReason,
     },
   };
@@ -181,8 +213,14 @@ export function presentLessonProgress(
 function presentSection(
   section: ProgressEnrollmentRecord['course']['sections'][number],
   capabilities: ProgressCapabilitiesDto,
-): SectionProgressDto {
-  const lessons = section.lessons.map((lesson) => presentLessonProgress(lesson, capabilities));
+  previousLesson: ProgressLessonRecord | null,
+): { section: SectionProgressDto; lastLesson: ProgressLessonRecord | null } {
+  let previous = previousLesson;
+  const lessons = section.lessons.map((lesson) => {
+    const projected = presentLessonProgress(lesson, capabilities, previous);
+    previous = lesson;
+    return projected;
+  });
   const completedLessons = lessons.filter((lesson) => lesson.status === 'COMPLETED').length;
   const hasActivity = lessons.some((lesson) => lesson.status !== 'NOT_STARTED');
   const status: ProjectedCourseProgressState =
@@ -193,14 +231,17 @@ function presentSection(
         : 'NOT_STARTED';
 
   return {
-    id: section.id,
-    title: section.title,
-    position: section.position,
-    status,
-    completedLessons,
-    totalEligibleLessons: lessons.length,
-    percentage: lessons.length === 0 ? 0 : Math.floor((completedLessons * 100) / lessons.length),
-    lessons,
+    section: {
+      id: section.id,
+      title: section.title,
+      position: section.position,
+      status,
+      completedLessons,
+      totalEligibleLessons: lessons.length,
+      percentage: lessons.length === 0 ? 0 : Math.floor((completedLessons * 100) / lessons.length),
+      lessons,
+    },
+    lastLesson: previous,
   };
 }
 
@@ -217,18 +258,18 @@ export function presentResumeTarget(
   }
 
   const lessons = orderedLessons(enrollment);
-  const incomplete = lessons.filter((lesson) => lesson.progress?.state !== 'COMPLETED');
+  const incomplete = lessons.filter((lesson, index) => lesson.progress?.state !== 'COMPLETED' && lessonIsUnlocked(lessons, index));
   if (incomplete.length === 0) return null;
 
   let target = incomplete[0];
   if (root.lastVisitedLessonId) {
     const lastIndex = lessons.findIndex((lesson) => lesson.id === root.lastVisitedLessonId);
     const lastLesson = lastIndex >= 0 ? lessons[lastIndex] : undefined;
-    if (lastLesson && lastLesson.progress?.state !== 'COMPLETED') {
+    if (lastLesson && lastLesson.progress?.state !== 'COMPLETED' && lessonIsUnlocked(lessons, lastIndex)) {
       target = lastLesson;
     } else if (lastIndex >= 0) {
       target =
-        lessons.slice(lastIndex + 1).find((lesson) => lesson.progress?.state !== 'COMPLETED') ??
+        lessons.slice(lastIndex + 1).find((lesson, offset) => lesson.progress?.state !== 'COMPLETED' && lessonIsUnlocked(lessons, lastIndex + 1 + offset)) ??
         incomplete[0];
     }
   }
@@ -301,11 +342,17 @@ export function presentCourseProgress(
   calculatedAt: Date,
 ): CourseProgressDto {
   const capabilities = progressCapabilities(enrollment, actor);
+  let previousLesson: ProgressLessonRecord | null = null;
+  const sections = enrollment.course.sections.map((section) => {
+    const presented = presentSection(section, capabilities, previousLesson);
+    previousLesson = presented.lastLesson;
+    return presented.section;
+  });
   return {
     ...presentCourseSummary(enrollment, root, actor),
     completedEligibleBlocks: root.completedEligibleBlocks,
     totalEligibleBlocks: root.totalEligibleBlocks,
-    sections: enrollment.course.sections.map((section) => presentSection(section, capabilities)),
+    sections,
     calculatedAt: calculatedAt.toISOString(),
   };
 }

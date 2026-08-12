@@ -1,0 +1,98 @@
+openapi: 3.1.0
+info:
+  title: Turk Tili LMS Teacher–Student Q&A API
+  version: 1.0.0
+  description: Private, enrollment-scoped course questions. Messages are plain text and never shared across unrelated students or teachers.
+servers:
+  - url: http://localhost:5000/api/v1
+paths:
+  /me/questions:
+    get:
+      summary: List the authenticated student's questions
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Question page } }
+    post:
+      summary: Ask the responsible teacher a course question
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestion'
+      responses: { '201': { description: Thread created }, '403': { description: Enrollment or access denied } }
+  /me/questions/{threadId}/messages:
+    post:
+      summary: Send a follow-up while the course access and thread are open
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ThreadId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } }
+      responses: { '201': { description: Message created } }
+  /me/questions/{threadId}:
+    get:
+      summary: Read one of the authenticated student's question threads
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ThreadId' }]
+      responses: { '200': { description: Question thread }, '404': { description: Not found } }
+  /teacher/questions:
+    get:
+      summary: List questions for courses owned by the authenticated teacher
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Question page } }
+  /teacher/questions/{threadId}:
+    get:
+      summary: Read a question thread from an owned course
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ThreadId' }]
+      responses: { '200': { description: Question thread }, '404': { description: Not found } }
+  /teacher/questions/{threadId}/messages:
+    post:
+      summary: Reply to an assigned student's question
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ThreadId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } }
+      responses: { '201': { description: Answer created } }
+  /teacher/questions/{threadId}/status:
+    patch:
+      summary: Close or reopen an owned question thread
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ThreadId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ThreadStatus' } } }
+      responses: { '200': { description: Status updated }, '404': { description: Not found } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    ThreadId:
+      name: threadId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    CreateQuestion:
+      type: object
+      additionalProperties: false
+      required: [courseId, body]
+      properties:
+        courseId: { type: string, format: uuid }
+        lessonId: { type: string, format: uuid }
+        subject: { type: string, maxLength: 200 }
+        body: { type: string, minLength: 1, maxLength: 5000 }
+    Message:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 5000 }
+    ThreadStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [OPEN, CLOSED] }

@@ -308,6 +308,10 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
                     title: true,
                     slug: true,
                     position: true,
+                    masteryEnabled: true,
+                    masteryPassingPercentage: true,
+                    quizQuestions: { where: { deletedAt: null }, take: 1, select: { id: true } },
+                    quizAttempts: { where: { enrollmentId, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 1, select: { percentage: true } },
                     progress: {
                       where: { enrollmentId },
                       take: 1,
@@ -374,6 +378,10 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
             title: lesson.title,
             slug: lesson.slug,
             position: lesson.position,
+            masteryEnabled: lesson.masteryEnabled,
+            masteryPassingPercentage: lesson.masteryPassingPercentage,
+            masteryHasQuiz: lesson.quizQuestions.length > 0,
+            latestQuizPercentage: lesson.quizAttempts[0]?.percentage ?? null,
             progress: lesson.progress[0] ?? null,
             blocks: lesson.contentBlocks.map((block) => ({
               id: block.id,

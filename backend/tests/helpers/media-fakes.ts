@@ -96,6 +96,7 @@ export class FakeMediaRepository implements MediaRepository {
     return Promise.resolve(this.storageUsage);
   }
 
+
   create(data: CreateMediaFileData, _context: MediaAuditContext, quotaBytes?: bigint): Promise<MediaFileRecord> {
     if (this.failCreate) {
       return Promise.reject(new Error('Database unavailable'));

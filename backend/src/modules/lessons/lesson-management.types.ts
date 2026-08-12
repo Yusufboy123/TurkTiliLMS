@@ -32,6 +32,8 @@ export interface SectionLessonSummary {
   position: number;
   durationMinutes: number | null;
   isPreview: boolean;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
   status: LessonStatus;
 }
 
@@ -62,6 +64,8 @@ export interface LessonRecord {
   position: number;
   durationMinutes: number | null;
   isPreview: boolean;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
   status: LessonStatus;
   createdBy: CourseTeacherSummary;
   teacher: CourseTeacherSummary | null;
@@ -119,6 +123,8 @@ export interface CreateLessonData {
   position?: number | undefined;
   durationMinutes?: number | undefined;
   isPreview: boolean;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
   createdById: string;
   teacherId?: string | undefined;
 }
@@ -131,6 +137,8 @@ export interface UpdateLessonData {
   lessonType?: LessonType | undefined;
   durationMinutes?: number | null | undefined;
   isPreview?: boolean | undefined;
+  masteryEnabled?: boolean | undefined;
+  masteryPassingPercentage?: number | undefined;
 }
 
 export interface DuplicateLessonData {

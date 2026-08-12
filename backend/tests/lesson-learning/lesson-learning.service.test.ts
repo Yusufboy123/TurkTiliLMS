@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../src/utils/app-error.js';
 import type { LessonLearningRepository } from '../../src/modules/lesson-learning/lesson-learning.repository.js';
 import { LessonLearningService } from '../../src/modules/lesson-learning/lesson-learning.service.js';
+import type { LessonMasteryAccess } from '../../src/modules/lesson-mastery/lesson-mastery.types.js';
 
 const teacher = { userId: 'teacher-1', roles: [RoleCode.TEACHER], permissions: ['lessons.update', 'lessons.read', 'progress.course.read'] };
 const student = { userId: 'student-1', roles: [RoleCode.STUDENT], permissions: ['progress.self_read', 'progress.self_complete'] };
@@ -110,6 +111,19 @@ describe('authenticated lesson learning foundation', () => {
   it('rejects cross-enrollment quiz access', async () => {
     const crossEnrollment = setup({ findActiveStudentEnrollment: vi.fn().mockResolvedValue(null) });
     await expect(crossEnrollment.service.studentQuiz('other-enrollment', 'lesson-1', student)).rejects.toMatchObject({ code: 'ENROLLMENT_ACCESS_DENIED' });
+  });
+
+  it('denies locked lesson vocabulary and quiz access through the shared mastery policy', async () => {
+    const { repository } = setup();
+    const masteryAccess = {
+      canAccessEnrollmentLesson: vi.fn().mockResolvedValue(false),
+    };
+    const gated = new LessonLearningService(repository as unknown as LessonLearningRepository, masteryAccess as unknown as LessonMasteryAccess);
+
+    await expect(gated.studentVocabulary('enrollment-1', 'lesson-1', student)).rejects.toMatchObject({ code: 'LESSON_MASTERY_LOCKED' });
+    await expect(gated.studentQuiz('enrollment-1', 'lesson-1', student)).rejects.toMatchObject({ code: 'LESSON_MASTERY_LOCKED' });
+    expect(repository.listVocabulary).not.toHaveBeenCalled();
+    expect(repository.findStudentQuestions).not.toHaveBeenCalled();
   });
 
   it('rejects malformed answer sets before grading', async () => {

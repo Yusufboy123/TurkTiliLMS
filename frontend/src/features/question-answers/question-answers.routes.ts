@@ -1,0 +1,1 @@
+export const questionAnswerPaths = { student: '/app/questions', studentNew: '/app/questions/new', studentDetail: (id: string) => `/app/questions/${id}`, teacher: '/teacher/questions', teacherDetail: (id: string) => `/teacher/questions/${id}` } as const;

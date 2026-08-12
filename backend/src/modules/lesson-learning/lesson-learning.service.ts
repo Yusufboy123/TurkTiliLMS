@@ -3,6 +3,7 @@ import { AppError } from '../../utils/app-error.js';
 import type { CreateQuestionInput, CreateVocabularyInput, SubmitQuizInput, UpdateQuestionInput, UpdateVocabularyInput } from './lesson-learning.schemas.js';
 import type { EnrollmentContext, LessonLearningRepository } from './lesson-learning.repository.js';
 import type { LearningActor, QuizQuestionRecord, StudentQuizQuestion } from './lesson-learning.types.js';
+import type { LessonMasteryAccess } from '../lesson-mastery/lesson-mastery.types.js';
 
 function isAdmin(actor: LearningActor): boolean {
   return actor.roles.includes(RoleCode.ADMIN);
@@ -38,7 +39,10 @@ function mapAttempt(attempt: { id: string; lessonId: string; enrollmentId: strin
 }
 
 export class LessonLearningService {
-  constructor(private readonly repository: LessonLearningRepository) {}
+  constructor(
+    private readonly repository: LessonLearningRepository,
+    private readonly masteryAccess?: LessonMasteryAccess,
+  ) {}
 
   private async managedLesson(courseId: string, lessonId: string, actor: LearningActor) {
     const lesson = await this.repository.findLesson(courseId, lessonId);
@@ -103,6 +107,9 @@ export class LessonLearningService {
     if (!actor.roles.includes(RoleCode.STUDENT)) throw new AppError('Bu amal faqat student uchun.', 403, 'ACCESS_DENIED');
     const enrollment = await this.repository.findActiveStudentEnrollment(enrollmentId, lessonId, actor.userId);
     if (!enrollment) throw new AppError('Kurs enrollment’i topilmadi yoki unga kirish mumkin emas.', 403, 'ENROLLMENT_ACCESS_DENIED');
+    if (this.masteryAccess && !(await this.masteryAccess.canAccessEnrollmentLesson(enrollmentId, lessonId, actor.userId))) {
+      throw new AppError('Avval oldingi darsni o‘zlashtiring.', 403, 'LESSON_MASTERY_LOCKED');
+    }
     return enrollment as EnrollmentContext;
   }
 

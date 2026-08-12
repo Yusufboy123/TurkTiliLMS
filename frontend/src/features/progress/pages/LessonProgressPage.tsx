@@ -73,10 +73,11 @@ export default function LessonProgressPage() {
   const content = useStudentLessonContent(
     progress.data?.course.slug ?? '',
     lesson?.slug ?? '',
-    Boolean(progress.data?.capabilities.canAccessCourseContent && lesson),
+    Boolean(progress.data?.capabilities.canAccessCourseContent && lesson?.capabilities.canAccessLesson !== false),
   );
+  const lessonAccessible = lesson?.capabilities.canAccessLesson !== false;
   const lessonBookmark = useLessonBookmark(lessonId);
-  const lessonNote = useLessonNote(lessonId, Boolean(progress.data?.capabilities.canAccessCourseContent));
+  const lessonNote = useLessonNote(lessonId, Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible));
   const [noteText, setNoteText] = useState('');
   const recordVisit = visitMutation.mutateAsync;
 
@@ -95,13 +96,13 @@ export default function LessonProgressPage() {
     void visitStateMachine
       .attempt(
         {
-          canRecordActivity: progress.data.capabilities.canRecordActivity,
+          canRecordActivity: progress.data.capabilities.canRecordActivity && lessonAccessible,
           isOnline,
         },
         recordVisit,
       )
       .catch(() => undefined);
-  }, [enrollmentId, isOnline, lesson, progress.data, recordVisit]);
+  }, [enrollmentId, isOnline, lesson, lessonAccessible, progress.data, recordVisit]);
 
   useEffect(() => {
     if (lessonNote.query.data) setNoteText(lessonNote.query.data.content);
@@ -193,11 +194,13 @@ export default function LessonProgressPage() {
             {progressMessages.progress.blocks}
           </span>
         </div>
+        {lesson.mastery?.locked ? <Card className="mt-6 max-w-reading border-warning-border bg-warning-bg" role="status"><h2 className="type-heading-3">🔒 Avvalgi darsni o‘zlashtiring</h2><p className="mt-2 text-body-md text-warning-text">{lesson.mastery.previousLessonTitle ? `${lesson.mastery.previousLessonTitle} darsini tugating va talab qilingan test natijasini oling.` : 'Avval oldingi darsni o‘zlashtiring.'}</p>{lesson.mastery.passingPercentage ? <p className="mt-2 text-body-sm text-warning-text">O‘tish uchun: {lesson.mastery.passingPercentage}%</p> : null}<Link className="mt-4 inline-flex min-h-target items-center text-button text-warning-text" to={progressPaths.course(enrollmentId)}>Kurs darslariga qaytish</Link></Card> : null}
+        {lesson.mastery?.required && !lesson.mastery.passed && !lesson.mastery.locked ? <Card className="mt-6 max-w-reading border-info-border bg-info-bg" role="status"><h2 className="type-heading-3">Natija: {lesson.mastery.latestPercentage ?? 0}%</h2><p className="mt-2 text-body-md text-info-text">O‘tish uchun: {lesson.mastery.passingPercentage}%</p><p className="mt-2 text-body-sm text-info-text">Qayta ko‘rib chiqing va testni qayta ishlang.</p></Card> : null}
         <div className="mt-5 max-w-reading">
           <ProgressBar label={progressMessages.progress.lessonProgress} value={lesson.percentage} />
         </div>
 
-        {content.lesson.data?.summary || content.lesson.data?.content ? (
+        {lessonAccessible && (content.lesson.data?.summary || content.lesson.data?.content) ? (
           <Card className="mt-8 max-w-reading" elevation="none" padding="lg">
             {content.lesson.data.summary ? <p className="text-body-lg leading-8">{content.lesson.data.summary}</p> : null}
             {content.lesson.data.content ? <p className="mt-4 whitespace-pre-wrap text-body-lg leading-8">{content.lesson.data.content}</p> : null}
@@ -210,7 +213,7 @@ export default function LessonProgressPage() {
           </p>
         ) : null}
 
-        {content.blocks.data?.length ? (
+        {lessonAccessible && content.blocks.data?.length ? (
           <section aria-labelledby="lesson-content-heading" className="mt-12 max-w-reading">
             <h2 className="type-heading-2" id="lesson-content-heading">Dars materiali</h2>
             <div className="mt-5 space-y-5">
@@ -226,10 +229,11 @@ export default function LessonProgressPage() {
           </section>
         ) : null}
 
-        {progress.data.capabilities.canAccessCourseContent ? <Card className="mt-10 max-w-reading" elevation="none" padding="lg"><h2 className="type-heading-2">Mening qaydlarim</h2><textarea aria-label="Mening qaydlarim" className="mt-4 min-h-36 w-full rounded-md border border-border-control bg-surface p-3 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" maxLength={10000} onChange={(event) => setNoteText(event.target.value)} placeholder="Bu dars uchun shaxsiy qaydingiz..." value={noteText} /> <div className="mt-3 flex flex-wrap items-center gap-3"><Button disabled={lessonNote.save.isPending} loading={lessonNote.save.isPending} onClick={() => lessonNote.save.mutate(noteText)}>Saqlash</Button>{lessonNote.query.data ? <Button disabled={lessonNote.clear.isPending} intent="secondary" onClick={() => { lessonNote.clear.mutate(); setNoteText(''); }}>Tozalash</Button> : null}{lessonNote.save.isSuccess ? <span className="text-body-sm text-success-text" role="status">Qayd saqlandi.</span> : null}{lessonNote.save.isError ? <span className="text-body-sm text-danger-text" role="alert">Qayd saqlanmadi. Matningiz saqlanib qoldi.</span> : null}</div></Card> : null}
+        {lessonAccessible && progress.data.capabilities.canAccessCourseContent ? <Card className="mt-10 max-w-reading" elevation="none" padding="lg"><h2 className="type-heading-2">Mening qaydlarim</h2><textarea aria-label="Mening qaydlarim" className="mt-4 min-h-36 w-full rounded-md border border-border-control bg-surface p-3 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" maxLength={10000} onChange={(event) => setNoteText(event.target.value)} placeholder="Bu dars uchun shaxsiy qaydingiz..." value={noteText} /> <div className="mt-3 flex flex-wrap items-center gap-3"><Button disabled={lessonNote.save.isPending} loading={lessonNote.save.isPending} onClick={() => lessonNote.save.mutate(noteText)}>Saqlash</Button>{lessonNote.query.data ? <Button disabled={lessonNote.clear.isPending} intent="secondary" onClick={() => { lessonNote.clear.mutate(); setNoteText(''); }}>Tozalash</Button> : null}{lessonNote.save.isSuccess ? <span className="text-body-sm text-success-text" role="status">Qayd saqlandi.</span> : null}{lessonNote.save.isError ? <span className="text-body-sm text-danger-text" role="alert">Qayd saqlanmadi. Matningiz saqlanib qoldi.</span> : null}</div></Card> : null}
 
-        <StudentVocabularyPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent)} enrollmentId={enrollmentId} lessonId={lessonId} />
-        <StudentQuizPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent)} enrollmentId={enrollmentId} lessonId={lessonId} />
+        {lessonAccessible && progress.data.capabilities.canAccessCourseContent ? <Link className="mt-6 inline-flex min-h-target items-center text-button" to={`/app/questions/new?courseId=${encodeURIComponent(progress.data.course.id)}&lessonId=${encodeURIComponent(lesson.id)}`}>O‘qituvchidan so‘rash</Link> : null}
+        <StudentVocabularyPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)} enrollmentId={enrollmentId} lessonId={lessonId} />
+        <StudentQuizPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)} enrollmentId={enrollmentId} lessonId={lessonId} />
 
         {unavailable ? (
           <p
@@ -253,7 +257,7 @@ export default function LessonProgressPage() {
           </Card>
         ) : null}
 
-        <section aria-labelledby="lesson-blocks-heading" className="mt-10">
+        {lessonAccessible ? <section aria-labelledby="lesson-blocks-heading" className="mt-10">
           <h2 className="type-heading-2" id="lesson-blocks-heading">
             {progressMessages.lesson.blocks}
           </h2>
@@ -312,7 +316,7 @@ export default function LessonProgressPage() {
               />
             </div>
           )}
-        </section>
+        </section> : null}
       </main>
 
       <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky border-t border-border-decorative bg-surface p-3 shadow-navigation md:sticky md:mx-auto md:mt-6 md:max-w-content md:rounded-lg md:border">

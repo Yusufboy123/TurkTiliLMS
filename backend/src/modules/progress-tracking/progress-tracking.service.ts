@@ -190,6 +190,32 @@ interface LoadedProgress {
   root: ProgressRootRecord;
 }
 
+function hasMasteryQuiz(lesson: ProgressEnrollmentRecord['course']['sections'][number]['lessons'][number]): boolean {
+  return lesson.masteryEnabled === true && lesson.masteryHasQuiz === true;
+}
+
+function orderedProgressLessons(enrollment: ProgressEnrollmentRecord) {
+  return enrollment.course.sections.flatMap((section) => section.lessons);
+}
+
+function assertLessonAccessible(enrollment: ProgressEnrollmentRecord, lessonId: string): void {
+  const lessons = orderedProgressLessons(enrollment);
+  const index = lessons.findIndex((lesson) => lesson.id === lessonId);
+  if (index < 0) throw lessonNotFound();
+  const previous = index > 0 ? lessons[index - 1] : null;
+  if (!previous || previous.progress?.state === 'COMPLETED') {
+    if (!previous || !hasMasteryQuiz(previous) || (previous.latestQuizPercentage ?? -1) >= (previous.masteryPassingPercentage ?? 75)) return;
+    throw new AppError('Avval oldingi dars testidan yetarli ball oling.', 403, 'LESSON_MASTERY_LOCKED');
+  }
+  throw new AppError('Avval oldingi darsni tugating.', 403, 'LESSON_MASTERY_LOCKED');
+}
+
+function assertLessonMasteryPassed(lesson: ProgressEnrollmentRecord['course']['sections'][number]['lessons'][number]): void {
+  if (hasMasteryQuiz(lesson) && (lesson.latestQuizPercentage ?? -1) < (lesson.masteryPassingPercentage ?? 75)) {
+    throw new AppError('Keyingi darsni ochish uchun testdan yetarli ball oling.', 409, 'LESSON_MASTERY_REQUIRED');
+  }
+}
+
 export interface ProgressTrackingUseCases {
   getOwnSummary(activeLimit: number, actor: ProgressActor): Promise<StudentProgressSummaryDto>;
   listOwnCompleted(
@@ -425,6 +451,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
         .flatMap((section) => section.lessons)
         .find((candidate) => candidate.id === input.lessonId);
       if (!lesson) throw lessonNotFound();
+      assertLessonAccessible(loaded.enrollment, lesson.id);
 
       const occurredAt = await transaction.getDatabaseTimestamp();
       await transaction.lockLessonProgress(enrollmentId, lesson.id);
@@ -506,6 +533,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
         .find((candidate) => candidate.blocks.some((block) => block.id === blockId));
       const block = lesson?.blocks.find((candidate) => candidate.id === blockId);
       if (!lesson || !block) throw blockNotFound();
+      assertLessonAccessible(loaded.enrollment, lesson.id);
 
       await transaction.lockLessonProgress(enrollmentId, lesson.id);
       await transaction.lockBlockProgress(enrollmentId, block.id);
@@ -610,6 +638,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
         .flatMap((section) => section.lessons)
         .find((candidate) => candidate.id === lessonId);
       if (!lesson) throw lessonNotFound();
+      assertLessonAccessible(loaded.enrollment, lesson.id);
 
       await transaction.lockLessonProgress(enrollmentId, lesson.id);
       const isComplete = operation === IdempotencyOperation.COMPLETE_LESSON;
@@ -627,6 +656,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
           'LESSON_COMPLETION_REQUIREMENTS_NOT_MET',
         );
       }
+      if (isComplete) assertLessonMasteryPassed(lesson);
       if (!isComplete && previousState === 'NOT_STARTED') {
         throw new AppError(
           'O‘qish jarayoni uchun bu o‘tish mumkin emas.',

@@ -7,6 +7,7 @@ import { progressPaths } from '../features/progress/progress.routes';
 import { SessionActions } from '../features/auth';
 import { NotificationBell } from '../features/notifications';
 import { studentProductivityPaths } from '../features/student-productivity';
+import { questionAnswerPaths } from '../features/question-answers';
 
 const navigation = [
   {
@@ -34,6 +35,7 @@ const navigation = [
     end: true,
   },
   { label: 'Saqlanganlar', shortLabel: 'Saqlangan', to: studentProductivityPaths.bookmarks, end: true },
+  { label: 'Savollarim', shortLabel: 'Savollar', to: questionAnswerPaths.student, end: true },
 ] as const;
 
 function NavigationItems({ compact = false }: { compact?: boolean }) {
@@ -124,7 +126,7 @@ export function StudentLayout() {
 
       <nav
         aria-label={progressMessages.navigation.studentMobile}
-        className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky grid grid-cols-5 border-t border-border-decorative bg-surface/95 px-2 py-2 shadow-navigation backdrop-blur md:hidden"
+        className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky grid grid-cols-6 border-t border-border-decorative bg-surface/95 px-2 py-2 shadow-navigation backdrop-blur md:hidden"
       >
         <NavigationItems compact />
       </nav>

@@ -83,6 +83,10 @@ export interface ProgressLessonRecord {
   title: string;
   slug: string;
   position: number;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
+  masteryHasQuiz?: boolean;
+  latestQuizPercentage?: number | null;
   progress: {
     state: PersistedLessonProgressState;
     firstActivityAt: Date;
@@ -173,8 +177,18 @@ export interface LessonProgressDto {
   firstActivityAt: string | null;
   lastActivityAt: string | null;
   completedAt: string | null;
+  mastery: {
+    required: boolean;
+    passingPercentage: number;
+    latestPercentage: number | null;
+    passed: boolean;
+    locked: boolean;
+    lockReason: 'PREVIOUS_LESSON' | 'PREVIOUS_MASTERY' | null;
+    previousLessonTitle: string | null;
+  };
   blocks: BlockProgressDto[];
   capabilities: {
+    canAccessLesson: boolean;
     canCompleteLesson: boolean;
     canReopenLesson: boolean;
     unavailableReason: ProgressUnavailableReason;

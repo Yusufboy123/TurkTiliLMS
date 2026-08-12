@@ -72,8 +72,18 @@ export interface LessonProgress {
   firstActivityAt: string | null;
   lastActivityAt: string | null;
   completedAt: string | null;
+  mastery?: {
+    required: boolean;
+    passingPercentage: number;
+    latestPercentage: number | null;
+    passed: boolean;
+    locked: boolean;
+    lockReason: 'PREVIOUS_LESSON' | 'PREVIOUS_MASTERY' | null;
+    previousLessonTitle: string | null;
+  };
   blocks: BlockProgress[];
   capabilities: {
+    canAccessLesson?: boolean;
     canCompleteLesson: boolean;
     canReopenLesson: boolean;
     unavailableReason: ProgressUnavailableReason;

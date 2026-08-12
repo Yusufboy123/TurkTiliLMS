@@ -14,6 +14,7 @@ import { teacherCoursePaths } from '../features/teacher-courses';
 import { adminUsersPaths } from '../features/admin-users';
 import { adminActivityPaths } from '../features/admin-activity';
 import { NotificationBell } from '../features/notifications';
+import { questionAnswerPaths } from '../features/question-answers';
 
 const reportingNavLinkClass = ({ isActive }: { isActive: boolean }) =>
   classNames(
@@ -145,6 +146,9 @@ export function ReportingLayout() {
                 to={teacherStudentPaths.list}
               >
                 Talabalar
+              </NavLink>
+              <NavLink className={reportingNavLinkClass} to={questionAnswerPaths.teacher}>
+                Talabalar savollari
               </NavLink>
               <NotificationBell />
             </div>

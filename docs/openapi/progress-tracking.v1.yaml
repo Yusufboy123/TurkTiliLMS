@@ -892,6 +892,8 @@ components:
         - LESSON_UNAVAILABLE
         - CONTENT_BLOCK_UNAVAILABLE
         - LESSON_COMPLETION_REQUIREMENTS_NOT_MET
+        - LESSON_MASTERY_LOCKED
+        - LESSON_MASTERY_REQUIRED
         - INVALID_PROGRESS_TRANSITION
         - CURRICULUM_VERSION_CONFLICT
         - COMPLETION_VERSION_CONFLICT
@@ -1048,8 +1050,10 @@ components:
     LessonMutationCapabilities:
       type: object
       additionalProperties: false
-      required: [canCompleteLesson, canReopenLesson, unavailableReason]
+      required: [canAccessLesson, canCompleteLesson, canReopenLesson, unavailableReason]
       properties:
+        canAccessLesson:
+          type: boolean
         canCompleteLesson:
           type: boolean
         canReopenLesson:
@@ -1120,6 +1124,7 @@ components:
         - lastActivityAt
         - completedAt
         - blocks
+        - mastery
         - capabilities
       properties:
         id:
@@ -1156,8 +1161,34 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BlockProgress'
+        mastery:
+          $ref: '#/components/schemas/LessonMastery'
         capabilities:
           $ref: '#/components/schemas/LessonMutationCapabilities'
+    LessonMastery:
+      type: object
+      additionalProperties: false
+      required: [required, passingPercentage, latestPercentage, passed, locked, lockReason, previousLessonTitle]
+      properties:
+        required:
+          type: boolean
+        passingPercentage:
+          type: integer
+          minimum: 50
+          maximum: 100
+        latestPercentage:
+          oneOf:
+            - $ref: '#/components/schemas/Percentage'
+            - type: 'null'
+        passed:
+          type: boolean
+        locked:
+          type: boolean
+        lockReason:
+          type: [string, 'null']
+          enum: [PREVIOUS_LESSON, PREVIOUS_MASTERY, null]
+        previousLessonTitle:
+          type: [string, 'null']
     SectionProgress:
       type: object
       additionalProperties: false

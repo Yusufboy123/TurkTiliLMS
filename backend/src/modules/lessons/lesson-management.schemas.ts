@@ -47,6 +47,8 @@ export const createLessonSchema = z
     position: z.coerce.number().int().min(1).max(1_000_000).optional(),
     durationMinutes: z.coerce.number().int().min(1).max(100_000).optional(),
     isPreview: z.boolean().default(false),
+    masteryEnabled: z.boolean().default(false),
+    masteryPassingPercentage: z.coerce.number().int().min(50).max(100).default(75),
     teacherId: z.uuid().optional(),
   })
   .strict();
@@ -60,6 +62,8 @@ export const updateLessonSchema = z
     lessonType: z.nativeEnum(LessonType).optional(),
     durationMinutes: z.coerce.number().int().min(1).max(100_000).nullable().optional(),
     isPreview: z.boolean().optional(),
+    masteryEnabled: z.boolean().optional(),
+    masteryPassingPercentage: z.coerce.number().int().min(50).max(100).optional(),
   })
   .strict()
   .refine((input) => Object.keys(input).length > 0, {
@@ -97,5 +101,9 @@ export const deleteContentSchema = z
 
 export type CreateSectionInput = z.infer<typeof createSectionSchema>;
 export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;
-export type CreateLessonInput = z.infer<typeof createLessonSchema>;
+export type CreateLessonInput = Omit<z.infer<typeof createLessonSchema>, 'isPreview' | 'masteryEnabled' | 'masteryPassingPercentage'> & {
+  isPreview?: boolean;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
+};
 export type UpdateLessonInput = z.infer<typeof updateLessonSchema>;

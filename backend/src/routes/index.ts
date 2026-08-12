@@ -32,6 +32,7 @@ import { stepUpAuthenticationRouter } from '../modules/step-up-authentication/st
 import { userManagementRouter } from '../modules/users/user-management.routes.js';
 import { notificationRouter } from '../modules/notifications/notification.routes.js';
 import { studentProductivityRouter } from '../modules/student-productivity/student-productivity.routes.js';
+import { questionAnswerRouter } from '../modules/question-answers/index.js';
 
 export const apiV1Router = Router();
 
@@ -42,6 +43,7 @@ apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/auth/step-up', stepUpAuthenticationRouter);
 apiV1Router.use(notificationRouter);
 apiV1Router.use(studentProductivityRouter);
+apiV1Router.use(questionAnswerRouter);
 apiV1Router.use('/users', userManagementRouter);
 apiV1Router.use('/groups', groupsRouter);
 apiV1Router.use('/students', studentMonitoringRouter);

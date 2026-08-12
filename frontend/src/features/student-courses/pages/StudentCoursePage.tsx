@@ -70,9 +70,10 @@ export default function StudentCoursePage() {
             <div className="contents" key={section.id}>
               {section.lessons.map((lesson) => (
                 <Card className="flex h-full flex-col" key={lesson.id} padding="lg">
-                  <div className="flex items-start justify-between gap-3"><h3 className="type-heading-4 break-words">{lesson.title}</h3><Badge intent={lesson.status === 'COMPLETED' ? 'success' : 'neutral'}>{lesson.status === 'COMPLETED' ? 'Tugallangan' : `${lesson.percentage}%`}</Badge></div>
+                  <div className="flex items-start justify-between gap-3"><h3 className="type-heading-4 break-words">{lesson.title}</h3><Badge intent={lesson.mastery?.locked ? 'neutral' : lesson.status === 'COMPLETED' ? 'success' : 'neutral'}>{lesson.mastery?.locked ? '🔒 Qulflangan' : lesson.status === 'COMPLETED' ? 'O‘zlashtirildi ✓' : `${lesson.percentage}%`}</Badge></div>
                   <p className="mt-3 text-body-sm text-text-secondary">{lesson.completedEligibleBlocks}/{lesson.totalEligibleBlocks} material</p>
-                  <div className="mt-auto pt-5">{data.capabilities.canAccessCourseContent ? <Link className="inline-flex min-h-target items-center text-button" to={progressPaths.lesson(enrollment.id, lesson.id)}>Darsni ochish</Link> : <span className="text-body-sm text-text-muted">Kirish yopiq</span>}</div>
+                  {lesson.mastery?.locked ? <p className="mt-3 text-body-sm text-text-secondary">{lesson.mastery.previousLessonTitle ? `Avval ${lesson.mastery.previousLessonTitle} darsini o‘zlashtiring.` : 'Avval oldingi darsni o‘zlashtiring.'}</p> : null}
+                  <div className="mt-auto pt-5">{data.capabilities.canAccessCourseContent && lesson.capabilities.canAccessLesson !== false ? <Link className="inline-flex min-h-target items-center text-button" to={progressPaths.lesson(enrollment.id, lesson.id)}>Darsni ochish</Link> : lesson.mastery?.locked ? <span className="text-body-sm text-text-muted">Avvalgi dars talab qilinadi</span> : <span className="text-body-sm text-text-muted">Kirish yopiq</span>}</div>
                 </Card>
               ))}
             </div>

@@ -3,6 +3,7 @@ import { AppError } from '../../utils/app-error.js';
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
 import type { CourseRepository } from '../courses/course.repository.js';
 import type { StudentCourseContentAccess } from '../course-enrollments/course-content-access.js';
+import type { LessonMasteryAccess } from '../lesson-mastery/lesson-mastery.types.js';
 import { courseSlugSchema } from '../courses/course.schemas.js';
 import { generateCourseSlug } from '../courses/course.slug.js';
 import type { CourseRecord } from '../courses/course.types.js';
@@ -66,11 +67,16 @@ export interface NonPreviewLessonAccessPolicy {
 }
 
 export class EnrollmentLessonAccessPolicy implements NonPreviewLessonAccessPolicy {
-  constructor(private readonly enrollments: StudentCourseContentAccess) {}
+  constructor(
+    private readonly enrollments: StudentCourseContentAccess,
+    private readonly masteryAccess?: LessonMasteryAccess,
+  ) {}
 
   canAccess(principal: AuthenticatedPrincipal, lesson: CatalogLesson): Promise<boolean> {
     if (!principal.roles.includes(RoleCode.STUDENT)) return Promise.resolve(false);
-    return this.enrollments.hasAccess(lesson.courseId, principal.userId);
+    return this.masteryAccess
+      ? this.masteryAccess.canAccessCourseLesson(lesson.courseId, lesson.id, principal.userId)
+      : this.enrollments.hasAccess(lesson.courseId, principal.userId);
   }
 }
 
@@ -291,7 +297,9 @@ export class LessonManagementService {
           ...(input.durationMinutes !== undefined
             ? { durationMinutes: input.durationMinutes }
             : {}),
-          isPreview: input.isPreview,
+          isPreview: input.isPreview ?? false,
+          masteryEnabled: input.masteryEnabled ?? false,
+          masteryPassingPercentage: input.masteryPassingPercentage ?? 75,
           createdById: actor.userId,
           ...(teacherId ? { teacherId } : {}),
         },

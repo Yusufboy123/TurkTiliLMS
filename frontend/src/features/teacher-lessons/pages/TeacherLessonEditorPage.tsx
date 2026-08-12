@@ -33,6 +33,8 @@ export default function TeacherLessonEditorPage() {
   const [sectionId, setSectionId] = useState('');
   const [position, setPosition] = useState('1');
   const [isPreview, setIsPreview] = useState(false);
+  const [masteryEnabled, setMasteryEnabled] = useState(false);
+  const [masteryPassingPercentage, setMasteryPassingPercentage] = useState('75');
   const [sectionTitle, setSectionTitle] = useState('');
 
   useEffect(() => {
@@ -43,6 +45,8 @@ export default function TeacherLessonEditorPage() {
     setSectionId(lesson.data.section.id);
     setPosition(String(lesson.data.position));
     setIsPreview(lesson.data.isPreview);
+    setMasteryEnabled(lesson.data.masteryEnabled);
+    setMasteryPassingPercentage(String(lesson.data.masteryPassingPercentage));
   }, [isNew, lesson.data]);
 
   useEffect(() => {
@@ -66,6 +70,8 @@ export default function TeacherLessonEditorPage() {
           lessonType,
           position: numericPosition,
           isPreview,
+          masteryEnabled,
+          masteryPassingPercentage: Math.min(100, Math.max(50, Number(masteryPassingPercentage) || 75)),
         },
         { onSuccess: (created) => navigate(teacherLessonPaths.detail(courseId, created.id)) },
       );
@@ -77,6 +83,8 @@ export default function TeacherLessonEditorPage() {
         summary: summary.trim() || null,
         lessonType,
         isPreview,
+        masteryEnabled,
+        masteryPassingPercentage: Math.min(100, Math.max(50, Number(masteryPassingPercentage) || 75)),
       },
       {
         onSuccess: (updated) => {
@@ -151,6 +159,17 @@ export default function TeacherLessonEditorPage() {
           <input checked={isPreview} className="h-5 w-5 accent-action-primary" onChange={(event) => setIsPreview(event.target.checked)} type="checkbox" />
           {messages.previewLabel}
         </label>
+        <fieldset className="rounded-lg border border-border-decorative bg-subtle p-4">
+          <legend className="px-1 text-label-md">Darsni o‘zlashtirish talabi</legend>
+          <label className="mt-2 flex min-h-target items-center gap-3 text-label-md">
+            <input checked={masteryEnabled} className="h-5 w-5 accent-action-primary" onChange={(event) => setMasteryEnabled(event.target.checked)} type="checkbox" />
+            Keyingi darsni test orqali ochish
+          </label>
+          <p className="mt-2 text-body-sm text-text-secondary">Faol test savollari bo‘lmasa, bu talab qo‘llanmaydi.</p>
+          <FormField className="mt-4" label="O‘tish foizi" required={masteryEnabled}>
+            <Input disabled={!masteryEnabled} max={100} min={50} onChange={(event) => setMasteryPassingPercentage(event.target.value)} type="number" value={masteryPassingPercentage} />
+          </FormField>
+        </fieldset>
         <div className="flex flex-wrap gap-3">
           <Button disabled={pending || !title.trim() || !sectionId} loading={pending} type="submit">{pending ? messages.saving : messages.save}</Button>
           <Link to={isNew ? teacherLessonPaths.list(courseId) : teacherLessonPaths.detail(courseId, lessonId ?? '')}>

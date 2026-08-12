@@ -34,6 +34,8 @@ export interface TeacherLesson {
   position: number;
   durationMinutes: number | null;
   isPreview: boolean;
+  masteryEnabled: boolean;
+  masteryPassingPercentage: number;
   status: TeacherLessonStatus;
   publishedAt: string | null;
   archivedAt: string | null;
@@ -88,6 +90,8 @@ export interface CreateTeacherLessonInput {
   lessonType: TeacherLessonType;
   position?: number;
   isPreview: boolean;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
 }
 
 export interface UpdateTeacherLessonInput {
@@ -95,6 +99,8 @@ export interface UpdateTeacherLessonInput {
   summary?: string | null;
   lessonType?: TeacherLessonType;
   isPreview?: boolean;
+  masteryEnabled?: boolean;
+  masteryPassingPercentage?: number;
 }
 
 export interface ReorderTeacherLessonInput {

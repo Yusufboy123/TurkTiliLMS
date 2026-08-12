@@ -49,6 +49,7 @@ import {
   teacherLessonPaths,
 } from './features/teacher-lessons';
 import { StudentBookmarksPage, studentProductivityPaths } from './features/student-productivity';
+import { StudentQuestionsPage, TeacherQuestionsPage, questionAnswerPaths } from './features/question-answers';
 
 const StudentDashboardPage = lazy(() => import('./features/progress/pages/StudentDashboardPage'));
 const ProgressOverviewPage = lazy(() => import('./features/progress/pages/ProgressOverviewPage'));
@@ -101,6 +102,14 @@ function App() {
           >
             <Route element={<ReportingLayout />}>
               <Route path={authPaths.teacherHome} element={<TeacherDashboardPage />} />
+            </Route>
+          </Route>
+          <Route
+            element={<RequireAuthorization permissions={['courses.read']} roles={['TEACHER']} />}
+          >
+            <Route element={<ReportingLayout />}>
+              <Route path={questionAnswerPaths.teacher} element={<TeacherQuestionsPage />} />
+              <Route path={`${questionAnswerPaths.teacher}/:id`} element={<TeacherQuestionsPage />} />
             </Route>
           </Route>
           <Route
@@ -163,6 +172,11 @@ function App() {
               </Route>
               <Route path={studentProductivityPaths.bookmarks} element={<StudentLayout />}>
                 <Route index element={<StudentBookmarksPage />} />
+              </Route>
+              <Route path={questionAnswerPaths.student} element={<StudentLayout />}>
+                <Route index element={<StudentQuestionsPage />} />
+                <Route path="new" element={<StudentQuestionsPage />} />
+                <Route path=":id" element={<StudentQuestionsPage />} />
               </Route>
               <Route path={progressPaths.lessonPattern} element={<LessonProgressPage />} />
             </Route>

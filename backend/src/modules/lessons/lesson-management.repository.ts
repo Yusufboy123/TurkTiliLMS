@@ -35,6 +35,8 @@ const lessonSelect = {
   position: true,
   durationMinutes: true,
   isPreview: true,
+  masteryEnabled: true,
+  masteryPassingPercentage: true,
   status: true,
   publishedAt: true,
   archivedAt: true,
@@ -92,6 +94,8 @@ function lessonSummary(lesson: LessonPayload): Prisma.InputJsonObject {
     position: lesson.position,
     durationMinutes: lesson.durationMinutes,
     isPreview: lesson.isPreview,
+    masteryEnabled: lesson.masteryEnabled,
+    masteryPassingPercentage: lesson.masteryPassingPercentage,
     status: lesson.status,
     teacherId: lesson.teacher?.id ?? null,
     publishedAt: lesson.publishedAt?.toISOString() ?? null,
@@ -333,6 +337,8 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
             position: true,
             durationMinutes: true,
             isPreview: true,
+            masteryEnabled: true,
+            masteryPassingPercentage: true,
             status: true,
           },
           orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -621,6 +627,8 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
                 ? { durationMinutes: data.durationMinutes }
                 : {}),
               isPreview: data.isPreview,
+              masteryEnabled: data.masteryEnabled ?? false,
+              masteryPassingPercentage: data.masteryPassingPercentage ?? 75,
               createdById: data.createdById,
               ...(data.teacherId !== undefined ? { teacherId: data.teacherId } : {}),
             },
@@ -695,6 +703,8 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
               position,
               durationMinutes: source.durationMinutes,
               isPreview: source.isPreview,
+              masteryEnabled: source.masteryEnabled,
+              masteryPassingPercentage: source.masteryPassingPercentage,
               status: LessonStatus.DRAFT,
               createdById: data.createdById,
               teacherId: source.teacherId,
@@ -799,6 +809,10 @@ export class PrismaLessonManagementRepository implements LessonManagementReposit
               ? { durationMinutes: data.durationMinutes }
               : {}),
             ...(data.isPreview !== undefined ? { isPreview: data.isPreview } : {}),
+            ...(data.masteryEnabled !== undefined ? { masteryEnabled: data.masteryEnabled } : {}),
+            ...(data.masteryPassingPercentage !== undefined
+              ? { masteryPassingPercentage: data.masteryPassingPercentage }
+              : {}),
           },
           select: lessonSelect,
         });

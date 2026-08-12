@@ -116,6 +116,7 @@ export function presentReportingDetail(
       lessons: section.lessons.map((lesson) => ({
         ...lesson,
         capabilities: {
+          canAccessLesson: false,
           canCompleteLesson: false,
           canReopenLesson: false,
           unavailableReason,

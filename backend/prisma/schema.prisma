@@ -311,6 +311,14 @@ enum LessonQuizAttemptStatus {
   @@map("lesson_quiz_attempt_status")
 }
 
+enum QuestionThreadStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+
+  @@map("question_thread_status")
+}
+
 enum LessonContentBlockType {
   TEXT
   VIDEO
@@ -381,6 +389,9 @@ model User {
   groupsTaught               Group[]                            @relation("GroupTeacher")
   groupMemberships           GroupStudent[]
   studentProfile             StudentProfile?
+  studentQuestionThreads     QuestionThread[]                    @relation("QuestionThreadStudent")
+  teacherQuestionThreads     QuestionThread[]                    @relation("QuestionThreadTeacher")
+  questionMessages           QuestionMessage[]
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
   @@index([lastName, firstName], map: "users_last_name_first_name_idx")
@@ -605,6 +616,7 @@ model Course {
   sections                 CourseSection[]
   lessons                  Lesson[]
   enrollments              CourseEnrollment[]
+  questionThreads          QuestionThread[]
 
   @@index([status, deletedAt, sortOrder], map: "courses_status_deleted_at_sort_order_idx")
   @@index([teacherId, status, deletedAt], map: "courses_teacher_id_status_deleted_at_idx")
@@ -1099,6 +1111,8 @@ model Lesson {
   position                 Int
   durationMinutes          Int?                     @map("duration_minutes")
   isPreview                Boolean                  @default(false) @map("is_preview")
+  masteryEnabled           Boolean                  @default(false) @map("mastery_enabled")
+  masteryPassingPercentage Int                      @default(75) @map("mastery_passing_percentage")
   status                   LessonStatus             @default(DRAFT)
   createdById              String                   @map("created_by_id") @db.Uuid
   teacherId                String?                  @map("teacher_id") @db.Uuid
@@ -1120,6 +1134,7 @@ model Lesson {
   studentNotes             StudentLessonNote[]
   quizQuestions            LessonQuizQuestion[]
   quizAttempts             LessonQuizAttempt[]
+  questionThreads          QuestionThread[]
 
   @@unique([courseId, slug], map: "lessons_course_id_slug_key")
   @@index([courseId, status, deletedAt], map: "lessons_course_id_status_deleted_at_idx")
@@ -1149,6 +1164,42 @@ model Notification {
   @@index([userId, readAt, createdAt], map: "notifications_user_id_read_at_created_at_idx")
   @@index([userId, createdAt], map: "notifications_user_id_created_at_idx")
   @@map("notifications")
+}
+
+model QuestionThread {
+  id        String              @id @default(uuid(7)) @db.Uuid
+  studentId String              @map("student_id") @db.Uuid
+  teacherId String              @map("teacher_id") @db.Uuid
+  courseId  String              @map("course_id") @db.Uuid
+  lessonId  String?             @map("lesson_id") @db.Uuid
+  subject   String?             @db.VarChar(200)
+  status    QuestionThreadStatus @default(OPEN)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  student   User                @relation("QuestionThreadStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher   User                @relation("QuestionThreadTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  course    Course              @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lesson    Lesson?             @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  messages  QuestionMessage[]
+
+  @@index([studentId, updatedAt], map: "question_threads_student_id_updated_at_idx")
+  @@index([teacherId, status, updatedAt], map: "question_threads_teacher_id_status_updated_at_idx")
+  @@index([courseId, status, updatedAt], map: "question_threads_course_id_status_updated_at_idx")
+  @@map("question_threads")
+}
+
+model QuestionMessage {
+  id        String          @id @default(uuid(7)) @db.Uuid
+  threadId  String          @map("thread_id") @db.Uuid
+  senderId  String          @map("sender_id") @db.Uuid
+  body      String          @db.VarChar(5000)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  thread    QuestionThread  @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sender    User            @relation(fields: [senderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([threadId, createdAt, id], map: "question_messages_thread_id_created_at_idx")
+  @@index([senderId, createdAt], map: "question_messages_sender_id_created_at_idx")
+  @@map("question_messages")
 }
 
 model LessonVocabulary {

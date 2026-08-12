@@ -22,6 +22,7 @@ import type {
   StagedMediaUpload,
   StoredMediaObject,
 } from './media.types.js';
+import type { LessonMasteryAccess } from '../lesson-mastery/lesson-mastery.types.js';
 
 function mediaNotFound(): AppError {
   return new AppError('Media fayl topilmadi.', 404, 'MEDIA_FILE_NOT_FOUND');
@@ -90,6 +91,7 @@ export class MediaService implements MediaManagementUseCases {
     private readonly inspector: MediaFileInspector,
     private readonly deliveryTokens = new MediaDeliveryTokenService('local-development-media-delivery-secret'),
     private readonly userStorageQuotaBytes?: bigint,
+    private readonly masteryAccess?: LessonMasteryAccess,
   ) {}
 
   private async accessibleFile(id: string, actor: MediaActor): Promise<MediaFileRecord> {
@@ -261,6 +263,7 @@ export class MediaService implements MediaManagementUseCases {
   async createStudentDeliveryUrl(id: string, userId: string): Promise<{ url: string; expiresAt: string }> {
     const file = await this.repository.findStudentMediaAccess(id, userId, new Date());
     if (!file) throw mediaNotFound();
+    if (this.masteryAccess && !(await this.masteryAccess.canAccessMedia(id, userId))) throw mediaNotFound();
     const issued = this.deliveryTokens.create(id, userId);
     return { url: `/api/v1/media/student/${id}?token=${encodeURIComponent(issued.token)}`, expiresAt: new Date(issued.expiresAt * 1_000).toISOString() };
   }
@@ -269,6 +272,7 @@ export class MediaService implements MediaManagementUseCases {
     if (claims.mediaId !== id) throw mediaNotFound();
     const file = await this.repository.findStudentMediaAccess(id, claims.userId, new Date());
     if (!file || file.deletedAt || file.storageProvider !== this.storage.provider) throw mediaNotFound();
+    if (this.masteryAccess && !(await this.masteryAccess.canAccessMedia(id, claims.userId))) throw mediaNotFound();
     try {
       if (range) {
         const totalLength = Number(file.sizeBytes);
