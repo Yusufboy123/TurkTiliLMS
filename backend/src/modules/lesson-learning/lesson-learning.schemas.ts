@@ -7,6 +7,8 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 export const learningParentParamsSchema = z.object({ courseId: uuid, lessonId: uuid }).strict();
 export const studentQuizParamsSchema = z.object({ enrollmentId: uuid, lessonId: uuid }).strict();
 export const attemptParamsSchema = studentQuizParamsSchema.extend({ attemptId: uuid }).strict();
+export const practiceParamsSchema = studentQuizParamsSchema.extend({ practiceId: text(100) }).strict();
+export const submitPracticeSchema = z.object({ answer: text(1_000) }).strict();
 
 export const createVocabularySchema = z.object({
   turkishWord: text(200),

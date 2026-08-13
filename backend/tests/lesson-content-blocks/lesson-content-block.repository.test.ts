@@ -39,6 +39,7 @@ function databaseBlock(
     blockType: LessonContentBlockType;
     position: number;
     deletedAt: Date | null;
+    metadata: Prisma.JsonValue | null;
   }> = {},
 ) {
   return {
@@ -492,5 +493,34 @@ describe('PrismaLessonContentBlockRepository', () => {
     expect(blocks[0]).not.toHaveProperty('createdById');
     expect(blocks[0]).not.toHaveProperty('metadata');
     expect(blocks[0]).not.toHaveProperty('deletedAt');
+  });
+
+  it('projects interactive practice without exposing answer keys', async () => {
+    const findMany = vi.fn().mockResolvedValue([databaseBlock({
+      metadata: {
+        interactivePractice: [{
+          id: 'd1-01',
+          type: 'MULTIPLE_CHOICE',
+          prompt: 'Savol',
+          options: ['A', 'B'],
+          answer: 'A',
+          explanation: 'Izoh',
+          stage: 1,
+        }],
+      },
+    })]);
+    const repository = new PrismaLessonContentBlockRepository({ lessonContentBlock: { findMany } } as unknown as PrismaClient);
+
+    const blocks = await repository.listPublic(LESSON_ID);
+
+    expect(blocks[0]?.interactivePractice).toEqual([{
+      id: 'd1-01',
+      type: 'MULTIPLE_CHOICE',
+      prompt: 'Savol',
+      options: ['A', 'B'],
+      explanation: 'Izoh',
+      stage: 1,
+    }]);
+    expect(JSON.stringify(blocks)).not.toContain('answer');
   });
 });

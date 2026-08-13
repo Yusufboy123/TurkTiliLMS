@@ -20,6 +20,9 @@ const seedConfiguration = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    SEED_ADMIN_PASSWORD: z.string().min(12).optional(),
+    SEED_TEACHER_PASSWORD: z.string().min(12).optional(),
+    SEED_STUDENT_PASSWORD: z.string().min(12).optional(),
   })
   .parse(process.env);
 
@@ -44,7 +47,7 @@ const roleDefinitions = [
 const developmentUserDefinitions = [
   {
     email: 'admin@turktili.local',
-    password: 'Admin123!',
+    passwordEnv: 'SEED_ADMIN_PASSWORD',
     firstName: 'Development',
     lastName: 'Admin',
     displayName: 'Development Admin',
@@ -52,7 +55,7 @@ const developmentUserDefinitions = [
   },
   {
     email: 'teacher@turktili.local',
-    password: 'Teacher123!',
+    passwordEnv: 'SEED_TEACHER_PASSWORD',
     firstName: 'Development',
     lastName: 'Teacher',
     displayName: 'Development Teacher',
@@ -60,13 +63,25 @@ const developmentUserDefinitions = [
   },
   {
     email: 'student@turktili.local',
-    password: 'Student123!',
+    passwordEnv: 'SEED_STUDENT_PASSWORD',
     firstName: 'Development',
     lastName: 'Student',
     displayName: 'Development Student',
     role: RoleCode.STUDENT,
   },
 ] as const;
+
+type DevelopmentUserDefinition = (typeof developmentUserDefinitions)[number];
+
+function developmentUserPassword(definition: DevelopmentUserDefinition): string {
+  const password = seedConfiguration[definition.passwordEnv];
+  if (!password) {
+    throw new Error(
+      `${definition.passwordEnv} development seed foydalanuvchilarini yaratish uchun talab qilinadi.`,
+    );
+  }
+  return password;
+}
 
 const certificateEligibilityPolicyDefinition = {
   code: CertificateEligibilityPolicyCode.COURSE_COMPLETION_ONLY,
@@ -683,7 +698,7 @@ async function seedDevelopmentUsers(roles: Role[]): Promise<void> {
       throw new Error(`${definition.role} roli development foydalanuvchisi uchun topilmadi.`);
     }
 
-    const passwordHash = await passwordService.hash(definition.password);
+    const passwordHash = await passwordService.hash(developmentUserPassword(definition));
     const now = new Date();
 
     await prisma.$transaction(async (transaction) => {

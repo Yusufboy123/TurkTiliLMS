@@ -12,6 +12,18 @@ interface LessonProgressCardProps {
 }
 
 export function LessonProgressCard({ enrollmentId, lesson }: LessonProgressCardProps) {
+  const mastery = lesson.mastery;
+  const isLocked = Boolean(mastery?.locked);
+  const topicPassed = mastery?.previousTopicPercentage !== null && (mastery?.previousTopicPercentage ?? 0) >= (mastery?.previousPassingPercentage ?? 75);
+  const vocabRequired = Boolean(mastery?.previousVocabularyRequired);
+  const vocabPassed = mastery?.previousVocabularyPercentage !== null && (mastery?.previousVocabularyPercentage ?? 0) >= 75;
+
+  const targetPath = isLocked && topicPassed && vocabRequired && !vocabPassed && mastery?.previousLessonId
+    ? `${progressPaths.lesson(enrollmentId, mastery.previousLessonId)}#vocabulary`
+    : isLocked && mastery?.previousLessonId
+      ? progressPaths.lesson(enrollmentId, mastery.previousLessonId)
+      : progressPaths.lesson(enrollmentId, lesson.id);
+
   return (
     <Card elevation="none">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -25,11 +37,40 @@ export function LessonProgressCard({ enrollmentId, lesson }: LessonProgressCardP
         {lesson.completedEligibleBlocks}/{lesson.totalEligibleBlocks}{' '}
         {progressMessages.progress.blocks}
       </p>
+
+      {isLocked && mastery && (
+        <div className="mt-3 rounded-md border border-warning-border bg-warning-bg/40 p-2.5 text-caption text-warning-text">
+          <p className="font-semibold">🔒 Qulflangan — talablar:</p>
+          <div className="mt-1 space-y-0.5 font-medium">
+            <p>
+              {topicPassed
+                ? `✓ Mavzu testi: ${mastery.previousTopicPercentage}%`
+                : mastery.previousTopicPercentage === null
+                  ? '✕ Mavzu testi: hali topshirilmagan'
+                  : `✕ Mavzu testi: ${mastery.previousTopicPercentage}% — kamida ${mastery.previousPassingPercentage ?? 75}% kerak`}
+            </p>
+            {vocabRequired ? (
+              <p>
+                {vocabPassed
+                  ? `✓ Lug‘at testi: ${mastery.previousVocabularyPercentage}%`
+                  : mastery.previousVocabularyPercentage === null
+                    ? '✕ Lug‘at testi: hali topshirilmagan'
+                    : `✕ Lug‘at testi: ${mastery.previousVocabularyPercentage}% — kamida 75% kerak`}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       <Link
         className="mt-4 inline-flex min-h-target items-center text-button"
-        to={progressPaths.lesson(enrollmentId, lesson.id)}
+        to={targetPath}
       >
-        {progressMessages.common.open}
+        {isLocked && topicPassed && vocabRequired && !vocabPassed
+          ? 'Lug‘at o‘rganish va testga o‘tish →'
+          : isLocked
+            ? 'Oldingi darsga o‘tish →'
+            : progressMessages.common.open}
       </Link>
     </Card>
   );

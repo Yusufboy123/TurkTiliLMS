@@ -16,6 +16,13 @@ const statusIntent: Record<TeacherCourseStatus, BadgeIntent> = {
   ARCHIVED: 'neutral',
 };
 
+const statusLabel: Record<TeacherCourseStatus, string> = {
+  DRAFT: 'Qoralama',
+  IN_REVIEW: "Ko'rib chiqilmoqda",
+  PUBLISHED: 'Nashr etilgan',
+  ARCHIVED: 'Arxivlangan',
+};
+
 interface TeacherCourseReportViewProps {
   courseId: string;
   courseTitle: string;
@@ -45,9 +52,7 @@ export function TeacherCourseReportView({
   if (error && !report) {
     return (
       <div role="alert">
-        <p className="text-body-sm text-danger-text">
-          {teacherDashboardMessages.courseSummaryError}
-        </p>
+        <p className="text-sm text-danger-text">{teacherDashboardMessages.courseSummaryError}</p>
         <Button className="mt-3" intent="secondary" onClick={onRetry} size="sm">
           {teacherDashboardMessages.retry}
         </Button>
@@ -59,27 +64,21 @@ export function TeacherCourseReportView({
 
   return (
     <>
-      <dl className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <dt className="text-caption text-text-muted">
-            {teacherDashboardMessages.students.total}
-          </dt>
-          <dd className="mt-1 text-heading-4 font-semibold">{report.pagination.totalItems}</dd>
+      <dl className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg bg-subtle px-2 py-3">
+          <dt className="text-xs font-medium text-text-muted">Jami</dt>
+          <dd className="mt-0.5 text-xl font-extrabold tabular-nums">{report.pagination.totalItems}</dd>
         </div>
-        <div>
-          <dt className="text-caption text-text-muted">
-            {teacherDashboardMessages.students.active}
-          </dt>
-          <dd className="mt-1 text-heading-4 font-semibold">{report.activeEnrollmentCount}</dd>
+        <div className="rounded-lg bg-subtle px-2 py-3">
+          <dt className="text-xs font-medium text-text-muted">Faol</dt>
+          <dd className="mt-0.5 text-xl font-extrabold tabular-nums">{report.activeEnrollmentCount}</dd>
         </div>
-        <div>
-          <dt className="text-caption text-text-muted">
-            {teacherDashboardMessages.students.completed}
-          </dt>
-          <dd className="mt-1 text-heading-4 font-semibold">{report.completedEnrollmentCount}</dd>
+        <div className="rounded-lg bg-subtle px-2 py-3">
+          <dt className="text-xs font-medium text-text-muted">Yakunlagan</dt>
+          <dd className="mt-0.5 text-xl font-extrabold tabular-nums">{report.completedEnrollmentCount}</dd>
         </div>
       </dl>
-      <div className="mt-5">
+      <div className="mt-4">
         <ProgressBar
           ariaLabel={teacherDashboardMessages.averageProgressFor(courseTitle)}
           label={teacherDashboardMessages.averageProgress}
@@ -87,7 +86,7 @@ export function TeacherCourseReportView({
         />
       </div>
       <ProgressActionLink
-        className="mt-5 w-full"
+        className="mt-4 w-full"
         to={progressReportingPaths.teacherCourse(courseId)}
       >
         {teacherDashboardMessages.openReport}
@@ -101,18 +100,23 @@ export function TeacherCourseOverviewCard({ course }: { course: AssignedTeacherC
 
   return (
     <Card className="flex h-full min-w-0 flex-col" padding="lg">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h3 className="type-heading-4 min-w-0 overflow-wrap-anywhere">{course.title}</h3>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h3 className="type-heading-4 min-w-0 flex-1 overflow-wrap-anywhere leading-snug">
+          {course.title}
+        </h3>
         <Badge intent={statusIntent[course.status]}>
-          {teacherDashboardMessages.status[course.status]}
+          {statusLabel[course.status] ?? teacherDashboardMessages.status[course.status]}
         </Badge>
       </div>
+
       {course.level ? (
-        <p className="mt-2 text-caption text-text-muted">
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-text-muted">
+          <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full bg-action-primary-bg" />
           {teacherDashboardMessages.level}: {course.level}
         </p>
       ) : null}
-      <div className="mt-5 border-t border-border-decorative pt-5">
+
+      <div className="mt-4 flex-1 border-t border-border-decorative pt-4">
         <TeacherCourseReportView
           courseId={course.id}
           courseTitle={course.title}

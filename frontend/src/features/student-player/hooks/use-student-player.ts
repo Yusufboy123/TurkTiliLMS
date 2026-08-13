@@ -29,7 +29,18 @@ export function useStudentLessonContent(courseSlug: string, lessonSlug: string, 
 }
 
 export function useStudentLessonVocabulary(enrollmentId: string, lessonId: string, enabled: boolean) {
-  return useQuery({ queryKey: studentPlayerQueryKeys.vocabulary(enrollmentId, lessonId), queryFn: () => studentPlayerApi.getVocabulary(enrollmentId, lessonId), enabled: enabled && Boolean(enrollmentId && lessonId) });
+  return useQuery({ queryKey: [...studentPlayerQueryKeys.vocabulary(enrollmentId, lessonId), 'learning'], queryFn: () => studentPlayerApi.getVocabularyLearning(enrollmentId, lessonId), enabled: enabled && Boolean(enrollmentId && lessonId) });
+}
+
+export function useVocabularyLearningMutations(enrollmentId: string, lessonId: string, enabled = true) {
+  const client = useQueryClient();
+  const key = [...studentPlayerQueryKeys.vocabulary(enrollmentId, lessonId), 'learning'];
+  const invalidateProgress = () => void client.invalidateQueries({ queryKey: ['progress'] });
+  const status = useMutation({ mutationFn: ({ vocabularyId, value }: { vocabularyId: string; value: 'KNOWN' | 'NEEDS_REVIEW' }) => studentPlayerApi.updateVocabularyStatus(enrollmentId, lessonId, vocabularyId, value), onSuccess: () => void client.invalidateQueries({ queryKey: key }) });
+  const start = useMutation({ mutationFn: () => studentPlayerApi.startVocabularyTest(enrollmentId, lessonId) });
+  const submit = useMutation({ mutationFn: ({ attemptId, answers }: { attemptId: string; answers: Array<{ vocabularyId: string; submittedAnswer: string }> }) => studentPlayerApi.submitVocabularyTest(enrollmentId, lessonId, attemptId, answers), onSuccess: invalidateProgress });
+  const latest = useQuery({ queryKey: [...key, 'result'], queryFn: () => studentPlayerApi.getLatestVocabularyResult(enrollmentId, lessonId), enabled: enabled && Boolean(enrollmentId && lessonId) });
+  return { status, start, submit, latest };
 }
 
 export function useStudentLessonQuiz(enrollmentId: string, lessonId: string, enabled: boolean) {
@@ -37,6 +48,6 @@ export function useStudentLessonQuiz(enrollmentId: string, lessonId: string, ena
   const quiz = useQuery({ queryKey: studentPlayerQueryKeys.quiz(enrollmentId, lessonId), queryFn: () => studentPlayerApi.getQuiz(enrollmentId, lessonId), enabled: enabled && Boolean(enrollmentId && lessonId) });
   const latestResult = useQuery({ queryKey: studentPlayerQueryKeys.quizResult(enrollmentId, lessonId), queryFn: () => studentPlayerApi.getLatestQuizResult(enrollmentId, lessonId), enabled: enabled && Boolean(enrollmentId && lessonId) });
   const start = useMutation({ mutationFn: () => studentPlayerApi.startQuiz(enrollmentId, lessonId) });
-  const submit = useMutation({ mutationFn: ({ attemptId, answers }: { attemptId: string; answers: Parameters<typeof studentPlayerApi.submitQuiz>[3] }) => studentPlayerApi.submitQuiz(enrollmentId, lessonId, attemptId, answers), onSuccess: (result) => { client.setQueryData(studentPlayerQueryKeys.quizResult(enrollmentId, lessonId), result); } });
+  const submit = useMutation({ mutationFn: ({ attemptId, answers }: { attemptId: string; answers: Parameters<typeof studentPlayerApi.submitQuiz>[3] }) => studentPlayerApi.submitQuiz(enrollmentId, lessonId, attemptId, answers), onSuccess: (result) => { client.setQueryData(studentPlayerQueryKeys.quizResult(enrollmentId, lessonId), result); void client.invalidateQueries({ queryKey: ['progress'] }); } });
   return { quiz, latestResult, start, submit };
 }

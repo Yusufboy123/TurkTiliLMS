@@ -8,6 +8,8 @@ import {
   learningParentParamsSchema,
   questionIdParamsSchema,
   studentQuizParamsSchema,
+  practiceParamsSchema,
+  submitPracticeSchema,
   submitQuizSchema,
   updateQuestionSchema,
   updateVocabularySchema,
@@ -110,6 +112,12 @@ export class LessonLearningController {
     const principal = principalFrom(request);
     const { enrollmentId, lessonId } = studentQuizParamsSchema.parse(request.params);
     response.status(200).json({ success: true, message: 'Test natijasi olindi.', data: await this.service.latestResult(enrollmentId, lessonId, actorFrom(principal)) });
+  };
+
+  submitPractice = async (request: Request, response: Response): Promise<void> => {
+    const principal = principalFrom(request);
+    const { enrollmentId, lessonId, practiceId } = practiceParamsSchema.parse(request.params);
+    response.status(200).json({ success: true, message: 'Mashq javobi tekshirildi.', data: await this.service.submitPractice(enrollmentId, lessonId, practiceId, submitPracticeSchema.parse(request.body).answer, actorFrom(principal)) });
   };
 
   teacherResults = async (request: Request, response: Response): Promise<void> => {

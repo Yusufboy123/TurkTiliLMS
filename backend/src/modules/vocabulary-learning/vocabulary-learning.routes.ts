@@ -1,0 +1,13 @@
+import { RoleCode } from '@prisma/client';
+import { Router } from 'express';
+import { asyncHandler } from '../../utils/async-handler.js';
+import { requireAuthentication, requirePermission, requireRole } from '../authorization/authorization.middleware.js';
+import { vocabularyLearningController } from './vocabulary-learning.container.js';
+export const vocabularyLearningRouter = Router();
+const student = [requireAuthentication, requireRole(RoleCode.STUDENT), requirePermission('progress.self_read')];
+vocabularyLearningRouter.get('/enrollments/:enrollmentId/lessons/:lessonId/vocabulary/learning', ...student, asyncHandler(vocabularyLearningController.learning));
+vocabularyLearningRouter.post('/enrollments/:enrollmentId/lessons/:lessonId/vocabulary/:vocabularyId/status', ...student, requirePermission('progress.self_complete'), asyncHandler(vocabularyLearningController.status));
+vocabularyLearningRouter.get('/enrollments/:enrollmentId/lessons/:lessonId/vocabulary/test', ...student, asyncHandler(vocabularyLearningController.test));
+vocabularyLearningRouter.post('/enrollments/:enrollmentId/lessons/:lessonId/vocabulary/test/attempts', ...student, requirePermission('progress.self_complete'), asyncHandler(vocabularyLearningController.start));
+vocabularyLearningRouter.post('/enrollments/:enrollmentId/lessons/:lessonId/vocabulary/test/attempts/:attemptId/submit', ...student, requirePermission('progress.self_complete'), asyncHandler(vocabularyLearningController.submit));
+vocabularyLearningRouter.get('/enrollments/:enrollmentId/lessons/:lessonId/vocabulary/test/results/latest', ...student, asyncHandler(vocabularyLearningController.latest));

@@ -4,7 +4,6 @@ import { Button, Card, SkipLink } from '../../../components';
 import { useOnlineStatus } from '../../../hooks/use-online-status';
 import { progressMessages } from '../../../locales/uz-Latn/progress';
 import {
-  BlockStatusIndicator,
   LessonStatusBadge,
   ProgressBar,
   ProgressEmptyState,
@@ -19,72 +18,70 @@ import { useEnrollmentProgress } from '../hooks/use-progress-queries';
 import { createLessonVisitStateMachine } from '../lesson-visit-state-machine';
 import { progressPaths } from '../progress.routes';
 import { unavailableReasonLabel } from '../utils/progress-format';
-import { StudentQuizPanel, StudentVocabularyPanel, useStudentLessonContent } from '../../student-player';
-import type { StudentLessonBlock } from '../../student-player';
+import {
+  LearnModeView,
+  PracticeModeView,
+  PlayerModeStepper,
+  ResultModeView,
+  TestModeView,
+  useStudentLessonContent,
+  useStudentLessonQuiz,
+} from '../../student-player';
+import type { LessonPlayerMode } from '../../student-player/components/PlayerModeStepper';
 import { useLessonBookmark, useLessonNote } from '../../student-productivity';
-
-function blockMediaUrl(block: StudentLessonBlock, mediaUrls: Record<string, string>): string | null {
-  return (block.mediaFileId ? mediaUrls[block.mediaFileId] : undefined) ?? block.sourceUrl ?? block.fileUrl;
-}
-
-function LessonContentBlockView({ block, mediaUrls }: { block: StudentLessonBlock; mediaUrls: Record<string, string> }) {
-  const mediaUrl = blockMediaUrl(block, mediaUrls);
-  return (
-    <div className="mt-4">
-      {block.blockType === 'TEXT' ? (
-        <p className="whitespace-pre-wrap text-body-lg leading-8 text-text-primary">{block.textContent}</p>
-      ) : null}
-      {block.blockType === 'VIDEO' && mediaUrl ? (
-        <video aria-label={block.title ?? 'Video dars materiali'} className="mt-2 aspect-video w-full rounded-lg bg-black" controls preload="metadata" src={mediaUrl} />
-      ) : null}
-      {block.blockType === 'AUDIO' && mediaUrl ? (
-        <div className="mt-2 rounded-lg bg-subtle p-4"><audio aria-label={block.title ?? 'Audio dars materiali'} className="w-full" controls preload="metadata" src={mediaUrl} /></div>
-      ) : null}
-      {block.blockType === 'IMAGE' && mediaUrl ? (
-        <img alt={block.title ?? 'Dars rasmi'} className="mt-2 max-h-[32rem] w-full rounded-lg object-contain" src={mediaUrl} />
-      ) : null}
-      {!mediaUrl && block.blockType !== 'TEXT' ? <p className="text-body-sm text-text-secondary">Media materiali hozircha mavjud emas.</p> : null}
-    </div>
-  );
-}
 
 export default function LessonProgressPage() {
   const { enrollmentId = '', lessonId = '' } = useParams();
   const progress = useEnrollmentProgress(enrollmentId);
   const {
-    completeBlock,
     completeLesson,
     completionMutation,
-    reopenBlock,
     reopenLesson,
     visitMutation,
   } = useProgressMutations();
   const isOnline = useOnlineStatus();
   const visitStateMachineRef = useRef(createLessonVisitStateMachine(createIdempotencyKey));
 
+  // Player Mode State
+  const [currentMode, setCurrentMode] = useState<LessonPlayerMode>('LEARN');
+
   const lessons = useMemo(
     () => progress.data?.sections.flatMap((section) => section.lessons) ?? [],
-    [progress.data],
+    [progress.data]
   );
   const lesson = lessons.find((item) => item.id === lessonId);
   const lessonIndex = lessons.findIndex((item) => item.id === lessonId);
   const previousLesson = lessonIndex > 0 ? lessons[lessonIndex - 1] : null;
   const nextLesson = lessonIndex >= 0 ? lessons[lessonIndex + 1] : null;
+
   const content = useStudentLessonContent(
     progress.data?.course.slug ?? '',
     lesson?.slug ?? '',
-    Boolean(progress.data?.capabilities.canAccessCourseContent && lesson?.capabilities.canAccessLesson !== false),
+    Boolean(progress.data?.capabilities.canAccessCourseContent && lesson?.capabilities.canAccessLesson !== false)
   );
+
   const lessonAccessible = lesson?.capabilities.canAccessLesson !== false;
   const lessonBookmark = useLessonBookmark(lessonId);
-  const lessonNote = useLessonNote(lessonId, Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible));
+  const lessonNote = useLessonNote(
+    lessonId,
+    Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)
+  );
   const [noteText, setNoteText] = useState('');
   const recordVisit = visitMutation.mutateAsync;
 
+  const { latestResult } = useStudentLessonQuiz(
+    enrollmentId,
+    lessonId,
+    Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)
+  );
+
+  const quizResult = latestResult.data;
+  const hasAttemptedQuiz = Boolean(quizResult);
+  const passingPercentage = lesson?.mastery?.passingPercentage ?? 75;
+  const quizPassed = Boolean(quizResult && quizResult.percentage >= passingPercentage);
+
   useEffect(() => {
-    if (!progress.data || !lesson) {
-      return;
-    }
+    if (!progress.data || !lesson) return;
 
     const visitStateMachine = visitStateMachineRef.current;
     visitStateMachine.selectLesson({
@@ -99,7 +96,7 @@ export default function LessonProgressPage() {
           canRecordActivity: progress.data.capabilities.canRecordActivity && lessonAccessible,
           isOnline,
         },
-        recordVisit,
+        recordVisit
       )
       .catch(() => undefined);
   }, [enrollmentId, isOnline, lesson, lessonAccessible, progress.data, recordVisit]);
@@ -115,6 +112,7 @@ export default function LessonProgressPage() {
       </div>
     );
   }
+
   if (progress.isError && !progress.data) {
     return (
       <div className="mx-auto max-w-content px-4 py-8">
@@ -122,6 +120,7 @@ export default function LessonProgressPage() {
       </div>
     );
   }
+
   if (!lesson) {
     return (
       <div className="mx-auto max-w-content px-4 py-8">
@@ -148,180 +147,262 @@ export default function LessonProgressPage() {
     (completionMutation.data?.affectedLesson.id === lesson.id &&
       completionMutation.data.affectedLesson.status === 'COMPLETED');
 
+  const blocksData = content.blocks.data ?? [];
+
   return (
-    <div className="min-h-screen bg-canvas pb-32 text-text-primary md:pb-8">
+    <div className="min-h-screen bg-canvas pb-32 text-text-primary md:pb-12">
       <SkipLink targetId="lesson-main-content" />
+
+      {/* Player Header Bar */}
       <header className="sticky top-0 z-sticky border-b border-border-decorative/80 bg-surface/95 shadow-subtle backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-content items-center gap-4 px-4 md:px-6">
-          <Link
-            className="inline-flex min-h-target items-center text-button"
-            to={progressPaths.course(enrollmentId)}
-          >
-            {progressMessages.common.back}
-          </Link>
-          <p className="min-w-0 truncate text-label-md text-text-secondary">
-            {progress.data.course.title}
-          </p>
+        <div className="mx-auto flex h-16 max-w-content items-center justify-between gap-4 px-4 md:px-6">
+          <div className="flex items-center gap-3">
+            <Link
+              className="inline-flex min-h-target items-center text-button text-action-primary-text hover:underline"
+              to={progressPaths.course(enrollmentId)}
+            >
+              {progressMessages.common.back}
+            </Link>
+            <span className="text-border-control font-light">|</span>
+            <p className="min-w-0 truncate text-label-md text-text-secondary font-medium">
+              {progress.data.course.title}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex rounded-full bg-action-primary-bg/10 px-3 py-1 text-caption font-bold text-action-primary-text">
+              {progress.data.course.level ?? '—'} Daraja
+            </span>
+            <Button
+              disabled={!progress.data.capabilities.canAccessCourseContent || lessonBookmark.isPending}
+              intent="secondary"
+              onClick={lessonBookmark.toggle}
+            >
+              {lessonBookmark.isBookmarked ? '🔖 Saqlangan' : '🔖 Saqlash'}
+            </Button>
+          </div>
         </div>
       </header>
 
-      {!isOnline ? (
+      {!isOnline && (
         <div
           className="border-b border-warning-border bg-warning-bg px-4 py-3 text-center text-body-sm text-warning-text"
           role="status"
         >
           {progressMessages.common.offlineLesson}
         </div>
-      ) : null}
+      )}
 
       <main
         className="mx-auto max-w-content px-4 py-8 md:px-6"
         id="lesson-main-content"
         tabIndex={-1}
       >
-        <div className="max-w-reading">
-          <div className="flex flex-wrap items-start justify-between gap-3"><ProgressPageHeader title={lesson.title} /><Button disabled={!progress.data.capabilities.canAccessCourseContent || lessonBookmark.isPending} intent="secondary" onClick={lessonBookmark.toggle}>{lessonBookmark.isBookmarked ? 'Saqlangan' : 'Saqlash'}</Button></div>
+        {/* Lesson Title & Subheader */}
+        <div className="max-w-reading mb-6">
+          <ProgressPageHeader title={lesson.title} />
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <LessonStatusBadge status={lesson.status} />
+            <span className="text-caption text-text-muted">
+              {content.lesson.data?.durationMinutes ?? 45} daqiqa ajratilgan
+            </span>
+          </div>
         </div>
+
         <ProgressRefreshStatus
           error={progress.error}
           isError={progress.isError}
           isFetching={progress.isFetching}
         />
-        <div className="flex flex-wrap items-center gap-3">
-          <LessonStatusBadge status={lesson.status} />
-          <span className="text-caption text-text-muted">
-            {lesson.completedEligibleBlocks}/{lesson.totalEligibleBlocks}{' '}
-            {progressMessages.progress.blocks}
-          </span>
-        </div>
-        {lesson.mastery?.locked ? <Card className="mt-6 max-w-reading border-warning-border bg-warning-bg" role="status"><h2 className="type-heading-3">🔒 Avvalgi darsni o‘zlashtiring</h2><p className="mt-2 text-body-md text-warning-text">{lesson.mastery.previousLessonTitle ? `${lesson.mastery.previousLessonTitle} darsini tugating va talab qilingan test natijasini oling.` : 'Avval oldingi darsni o‘zlashtiring.'}</p>{lesson.mastery.passingPercentage ? <p className="mt-2 text-body-sm text-warning-text">O‘tish uchun: {lesson.mastery.passingPercentage}%</p> : null}<Link className="mt-4 inline-flex min-h-target items-center text-button text-warning-text" to={progressPaths.course(enrollmentId)}>Kurs darslariga qaytish</Link></Card> : null}
-        {lesson.mastery?.required && !lesson.mastery.passed && !lesson.mastery.locked ? <Card className="mt-6 max-w-reading border-info-border bg-info-bg" role="status"><h2 className="type-heading-3">Natija: {lesson.mastery.latestPercentage ?? 0}%</h2><p className="mt-2 text-body-md text-info-text">O‘tish uchun: {lesson.mastery.passingPercentage}%</p><p className="mt-2 text-body-sm text-info-text">Qayta ko‘rib chiqing va testni qayta ishlang.</p></Card> : null}
-        <div className="mt-5 max-w-reading">
+
+        {/* Mastery Lock Warning */}
+        {lesson.mastery?.locked && (() => {
+          const topicPassed = lesson.mastery.previousTopicPercentage !== null && lesson.mastery.previousTopicPercentage >= (lesson.mastery.previousPassingPercentage ?? passingPercentage);
+          const vocabRequired = lesson.mastery.previousVocabularyRequired;
+          const vocabPassed = lesson.mastery.previousVocabularyPercentage !== null && lesson.mastery.previousVocabularyPercentage >= 75;
+          const targetPath = topicPassed && vocabRequired && !vocabPassed && lesson.mastery.previousLessonId
+            ? `${progressPaths.lesson(enrollmentId, lesson.mastery.previousLessonId)}#vocabulary`
+            : lesson.mastery.previousLessonId
+              ? progressPaths.lesson(enrollmentId, lesson.mastery.previousLessonId)
+              : progressPaths.course(enrollmentId);
+
+          return (
+            <Card className="my-6 max-w-reading border-warning-border bg-warning-bg" role="status">
+              <h2 className="type-heading-3 text-warning-text">🔒 Dars qulflangan</h2>
+              <p className="mt-2 text-body-md text-warning-text">
+                {lesson.mastery.previousLessonTitle ? `${lesson.mastery.previousLessonTitle} darsining barcha talablarini o‘zlashtiring:` : 'Avval oldingi darsni o‘zlashtiring.'}
+              </p>
+              {lesson.mastery.previousLessonTitle ? (
+                <div className="mt-3 grid gap-1.5 text-body-sm font-medium text-warning-text">
+                  <div>
+                    {topicPassed
+                      ? `✓ Mavzu testi: ${lesson.mastery.previousTopicPercentage}%`
+                      : lesson.mastery.previousTopicPercentage === null
+                        ? '✕ Mavzu testi: hali topshirilmagan'
+                        : `✕ Mavzu testi: ${lesson.mastery.previousTopicPercentage}% — kamida ${lesson.mastery.previousPassingPercentage ?? passingPercentage}% kerak`}
+                  </div>
+                  {vocabRequired ? (
+                    <div>
+                      {vocabPassed
+                        ? `✓ Lug‘at testi: ${lesson.mastery.previousVocabularyPercentage}%`
+                        : lesson.mastery.previousVocabularyPercentage === null
+                          ? '✕ Lug‘at testi: hali topshirilmagan'
+                          : `✕ Lug‘at testi: ${lesson.mastery.previousVocabularyPercentage}% — kamida 75% kerak`}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <Link
+                className="mt-4 inline-flex min-h-target items-center font-bold text-button text-warning-text hover:underline"
+                to={targetPath}
+              >
+                {topicPassed && vocabRequired && !vocabPassed
+                  ? 'Lug‘at o‘rganish va testga o‘tish →'
+                  : 'Oldingi darsga o‘tish →'}
+              </Link>
+            </Card>
+          );
+        })()}
+
+        {/* Lesson Progress Bar */}
+        <div className="my-5 max-w-reading">
           <ProgressBar label={progressMessages.progress.lessonProgress} value={lesson.percentage} />
         </div>
 
-        {lessonAccessible && (content.lesson.data?.summary || content.lesson.data?.content) ? (
-          <Card className="mt-8 max-w-reading" elevation="none" padding="lg">
-            {content.lesson.data.summary ? <p className="text-body-lg leading-8">{content.lesson.data.summary}</p> : null}
-            {content.lesson.data.content ? <p className="mt-4 whitespace-pre-wrap text-body-lg leading-8">{content.lesson.data.content}</p> : null}
-          </Card>
-        ) : null}
+        {/* Player Mode Stepper Navigation (1. LEARN, 2. PRACTICE, 3. TEST, 4. RESULT) */}
+        {!lesson.mastery?.locked && (
+          <div className="max-w-reading">
+            <PlayerModeStepper
+              currentMode={currentMode}
+              hasAttemptedQuiz={hasAttemptedQuiz}
+              onSelectMode={setCurrentMode}
+              practiceCompleted={blocksData.length > 0}
+              quizPassed={quizPassed}
+            />
+          </div>
+        )}
 
-        {content.lesson.isError || content.blocks.isError ? (
-          <p className="mt-6 rounded-md border border-warning-border bg-warning-bg p-4 text-body-sm text-warning-text" role="status">
-            Dars materiali hozircha yuklanmadi. Jarayon ma’lumotlari mavjud.
-          </p>
-        ) : null}
+        {/* Mode Rendered Subtree */}
+        {!lesson.mastery?.locked && (
+          <div className="max-w-reading">
+            {currentMode === 'LEARN' && (
+              <LearnModeView
+                blocks={blocksData}
+                canAccess={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)}
+                content={content.lesson.data?.content ?? null}
+                enrollmentId={enrollmentId}
+                lessonId={lessonId}
+                mediaUrls={content.mediaUrls}
+                onStartPractice={() => setCurrentMode('PRACTICE')}
+                summary={content.lesson.data?.summary ?? null}
+              />
+            )}
 
-        {lessonAccessible && content.blocks.data?.length ? (
-          <section aria-labelledby="lesson-content-heading" className="mt-12 max-w-reading">
-            <h2 className="type-heading-2" id="lesson-content-heading">Dars materiali</h2>
-            <div className="mt-5 space-y-5">
-              {content.blocks.data.map((block) => (
-                <Card elevation="none" key={block.id} padding="lg">
-                  <p className="text-caption text-text-muted">{block.position}. {block.blockType}</p>
-                  <h3 className="type-heading-4 mt-1">{block.title ?? 'Material'}</h3>
-                  {block.description ? <p className="mt-2 text-body-sm text-text-secondary">{block.description}</p> : null}
-                  <LessonContentBlockView block={block} mediaUrls={content.mediaUrls} />
-                </Card>
-              ))}
+            {currentMode === 'PRACTICE' && (
+              <PracticeModeView
+                blocks={blocksData}
+                enrollmentId={enrollmentId}
+                lessonId={lessonId}
+                onReturnToLearn={() => setCurrentMode('LEARN')}
+                onStartTest={() => setCurrentMode('TEST')}
+              />
+            )}
+
+            {currentMode === 'TEST' && (
+              <TestModeView
+                enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)}
+                enrollmentId={enrollmentId}
+                lessonId={lessonId}
+                passingPercentage={passingPercentage}
+                onQuizSubmitted={() => setCurrentMode('RESULT')}
+                onReturnToPractice={() => setCurrentMode('PRACTICE')}
+              />
+            )}
+
+            {currentMode === 'RESULT' && (
+              <ResultModeView
+                enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)}
+                enrollmentId={enrollmentId}
+                lessonId={lessonId}
+                passingPercentage={passingPercentage}
+                nextLessonPath={nextLesson ? progressPaths.lesson(enrollmentId, nextLesson.id) : null}
+                onGoToLearn={() => setCurrentMode('LEARN')}
+                onGoToPractice={() => setCurrentMode('PRACTICE')}
+                onRetakeTest={() => setCurrentMode('TEST')}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Student Personal Notes (Available in LEARN mode or footer) */}
+        {currentMode === 'LEARN' && lessonAccessible && progress.data.capabilities.canAccessCourseContent && (
+          <Card className="mt-12 max-w-reading border-border-decorative bg-surface" elevation="none" padding="lg">
+            <h2 className="type-heading-3 text-text-primary">Mening qaydlarim</h2>
+            <p className="mt-1 text-body-sm text-text-secondary">
+              Ushbu dars bo‘yicha shaxsiy eslatmalaringizni yozib qo‘ying.
+            </p>
+            <textarea
+              aria-label="Mening qaydlarim"
+              className="mt-4 min-h-32 w-full rounded-md border border-border-control bg-surface p-3 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              maxLength={10000}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Bu dars uchun shaxsiy qaydingiz..."
+              value={noteText}
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button disabled={lessonNote.save.isPending} loading={lessonNote.save.isPending} onClick={() => lessonNote.save.mutate(noteText)}>
+                Saqlash
+              </Button>
+              {lessonNote.query.data && (
+                <Button
+                  disabled={lessonNote.clear.isPending}
+                  intent="secondary"
+                  onClick={() => {
+                    lessonNote.clear.mutate();
+                    setNoteText('');
+                  }}
+                >
+                  Tozalash
+                </Button>
+              )}
+              {lessonNote.save.isSuccess && (
+                <span className="text-body-sm text-success-text font-semibold" role="status">
+                  ✓ Qayd saqlandi.
+                </span>
+              )}
+              {lessonNote.save.isError && (
+                <span className="text-body-sm text-danger-text font-semibold" role="alert">
+                  Qayd saqlanmadi. Matningiz saqlanib qoldi.
+                </span>
+              )}
             </div>
-          </section>
-        ) : null}
+          </Card>
+        )}
 
-        {lessonAccessible && progress.data.capabilities.canAccessCourseContent ? <Card className="mt-10 max-w-reading" elevation="none" padding="lg"><h2 className="type-heading-2">Mening qaydlarim</h2><textarea aria-label="Mening qaydlarim" className="mt-4 min-h-36 w-full rounded-md border border-border-control bg-surface p-3 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" maxLength={10000} onChange={(event) => setNoteText(event.target.value)} placeholder="Bu dars uchun shaxsiy qaydingiz..." value={noteText} /> <div className="mt-3 flex flex-wrap items-center gap-3"><Button disabled={lessonNote.save.isPending} loading={lessonNote.save.isPending} onClick={() => lessonNote.save.mutate(noteText)}>Saqlash</Button>{lessonNote.query.data ? <Button disabled={lessonNote.clear.isPending} intent="secondary" onClick={() => { lessonNote.clear.mutate(); setNoteText(''); }}>Tozalash</Button> : null}{lessonNote.save.isSuccess ? <span className="text-body-sm text-success-text" role="status">Qayd saqlandi.</span> : null}{lessonNote.save.isError ? <span className="text-body-sm text-danger-text" role="alert">Qayd saqlanmadi. Matningiz saqlanib qoldi.</span> : null}</div></Card> : null}
-
-        {lessonAccessible && progress.data.capabilities.canAccessCourseContent ? <Link className="mt-6 inline-flex min-h-target items-center text-button" to={`/app/questions/new?courseId=${encodeURIComponent(progress.data.course.id)}&lessonId=${encodeURIComponent(lesson.id)}`}>O‘qituvchidan so‘rash</Link> : null}
-        <StudentVocabularyPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)} enrollmentId={enrollmentId} lessonId={lessonId} />
-        <StudentQuizPanel enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)} enrollmentId={enrollmentId} lessonId={lessonId} />
-
-        {unavailable ? (
-          <p
-            className="mt-6 rounded-md border border-warning-border bg-warning-bg p-4 text-body-sm text-warning-text"
-            role="status"
-          >
+        {unavailable && (
+          <p className="mt-6 max-w-reading rounded-md border border-warning-border bg-warning-bg p-4 text-body-sm text-warning-text" role="status">
             {unavailable}
           </p>
-        ) : null}
+        )}
 
-        {lessonCompleted ? (
-          <Card className="mt-8 border-success-border bg-success-bg" role="status">
-            <h2 className="type-heading-3 text-success-text">Dars tugallandi</h2>
+        {lessonCompleted && (
+          <Card className="mt-8 max-w-reading border-success-border bg-success-bg" role="status">
+            <h2 className="type-heading-3 text-success-text">✓ Dars muvaffaqiyatli tugallandi</h2>
             {progress.data.status === 'COMPLETED' ? (
-              <p className="mt-2 text-body-md text-success-text">Kurs ham yakunlandi.</p>
+              <p className="mt-2 text-body-md text-success-text">Butun A1 kursi ham yakunlandi!</p>
             ) : nextLesson ? (
-              <Link className="mt-4 inline-flex min-h-target items-center text-button text-success-text" to={progressPaths.lesson(enrollmentId, nextLesson.id)}>
-                Keyingi dars: {nextLesson.title}
+              <Link className="mt-4 inline-flex min-h-target items-center text-button text-success-text hover:underline" to={progressPaths.lesson(enrollmentId, nextLesson.id)}>
+                Keyingi dars: {nextLesson.title} →
               </Link>
             ) : null}
           </Card>
-        ) : null}
-
-        {lessonAccessible ? <section aria-labelledby="lesson-blocks-heading" className="mt-10">
-          <h2 className="type-heading-2" id="lesson-blocks-heading">
-            {progressMessages.lesson.blocks}
-          </h2>
-          {lesson.blocks.length ? (
-            <ol className="mt-5 space-y-4">
-              {lesson.blocks.map((block) => {
-                const isPending = mutationPending && pendingResourceId === block.id;
-                return (
-                  <li key={block.id}>
-                    <Card elevation="none" padding="lg">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-caption text-text-muted">
-                            {progressMessages.blockType[block.blockType]}
-                          </p>
-                          <h3 className="type-heading-4 mt-1">
-                            {block.title ??
-                              `${block.position}-${progressMessages.lesson.blockFallback}`}
-                          </h3>
-                        </div>
-                        <BlockStatusIndicator block={block} />
-                      </div>
-                      {block.capabilities.canCompleteBlock ? (
-                        <Button
-                          className="mt-5"
-                          disabled={!isOnline || mutationPending}
-                          loading={isPending}
-                          onClick={() =>
-                            completeBlock({ ...completionInput, resourceId: block.id })
-                          }
-                        >
-                          {progressMessages.lesson.completeBlock}
-                        </Button>
-                      ) : null}
-                      {block.capabilities.canReopenBlock ? (
-                        <Button
-                          className="mt-5"
-                          disabled={!isOnline || mutationPending}
-                          intent="secondary"
-                          loading={isPending}
-                          onClick={() => reopenBlock({ ...completionInput, resourceId: block.id })}
-                        >
-                          {progressMessages.lesson.reopenBlock}
-                        </Button>
-                      ) : null}
-                    </Card>
-                  </li>
-                );
-              })}
-            </ol>
-          ) : (
-            <div className="mt-5">
-              <ProgressEmptyState
-                body={progressMessages.lesson.noBlocks}
-                title={progressMessages.lesson.blocks}
-              />
-            </div>
-          )}
-        </section> : null}
+        )}
       </main>
 
-      <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky border-t border-border-decorative bg-surface p-3 shadow-navigation md:sticky md:mx-auto md:mt-6 md:max-w-content md:rounded-lg md:border">
+      {/* Sticky Bottom Navigation */}
+      <div className="safe-area-bottom fixed inset-x-0 bottom-0 z-sticky border-t border-border-decorative bg-surface p-3 shadow-navigation md:sticky md:mx-auto md:mt-8 md:max-w-content md:rounded-lg md:border">
         <div className="mx-auto grid max-w-content gap-2">
-          {lesson.capabilities.canCompleteLesson ? (
+          {lesson.capabilities.canCompleteLesson && (
             <Button
               disabled={!isOnline || mutationPending}
               loading={mutationPending && pendingResourceId === lesson.id}
@@ -330,8 +411,8 @@ export default function LessonProgressPage() {
             >
               {progressMessages.lesson.complete}
             </Button>
-          ) : null}
-          {lesson.capabilities.canReopenLesson ? (
+          )}
+          {lesson.capabilities.canReopenLesson && (
             <Button
               disabled={!isOnline || mutationPending}
               intent="secondary"
@@ -341,15 +422,15 @@ export default function LessonProgressPage() {
             >
               {progressMessages.lesson.reopen}
             </Button>
-          ) : null}
+          )}
           <div className="grid grid-cols-2 gap-2">
             {previousLesson ? (
               <Link
                 aria-label={`${progressMessages.lesson.previousLabel}: ${previousLesson.title}`}
-                className="inline-flex min-h-target items-center justify-center rounded-md border border-action-secondary-border bg-action-secondary-bg px-3 py-2 text-button text-action-secondary-text no-underline visited:text-action-secondary-text"
+                className="inline-flex min-h-target items-center justify-center rounded-md border border-action-secondary-border bg-action-secondary-bg px-3 py-2 text-button text-action-secondary-text no-underline visited:text-action-secondary-text hover:bg-subtle"
                 to={progressPaths.lesson(enrollmentId, previousLesson.id)}
               >
-                {progressMessages.common.previous}
+                ← {progressMessages.common.previous}
               </Link>
             ) : (
               <span aria-hidden="true" />
@@ -357,10 +438,10 @@ export default function LessonProgressPage() {
             {nextLesson ? (
               <Link
                 aria-label={`${progressMessages.lesson.nextLabel}: ${nextLesson.title}`}
-                className="inline-flex min-h-target items-center justify-center rounded-md border border-action-secondary-border bg-action-secondary-bg px-3 py-2 text-button text-action-secondary-text no-underline visited:text-action-secondary-text"
+                className="inline-flex min-h-target items-center justify-center rounded-md border border-action-secondary-border bg-action-secondary-bg px-3 py-2 text-button text-action-secondary-text no-underline visited:text-action-secondary-text hover:bg-subtle"
                 to={progressPaths.lesson(enrollmentId, nextLesson.id)}
               >
-                {progressMessages.common.next}
+                {progressMessages.common.next} →
               </Link>
             ) : (
               <span aria-hidden="true" />

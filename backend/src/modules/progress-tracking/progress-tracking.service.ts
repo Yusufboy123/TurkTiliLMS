@@ -203,16 +203,19 @@ function assertLessonAccessible(enrollment: ProgressEnrollmentRecord, lessonId: 
   const index = lessons.findIndex((lesson) => lesson.id === lessonId);
   if (index < 0) throw lessonNotFound();
   const previous = index > 0 ? lessons[index - 1] : null;
-  if (!previous || previous.progress?.state === 'COMPLETED') {
-    if (!previous || !hasMasteryQuiz(previous) || (previous.latestQuizPercentage ?? -1) >= (previous.masteryPassingPercentage ?? 75)) return;
-    throw new AppError('Avval oldingi dars testidan yetarli ball oling.', 403, 'LESSON_MASTERY_LOCKED');
-  }
+  if (!previous || previous.progress?.state === 'COMPLETED') return;
+  const topicPassed = !hasMasteryQuiz(previous) || (previous.latestQuizPercentage ?? -1) >= (previous.masteryPassingPercentage ?? 75);
+  const vocabularyPassed = !previous.vocabularyHasItems || (previous.latestVocabularyPercentage ?? -1) >= 75;
+  if (topicPassed && vocabularyPassed) return;
   throw new AppError('Avval oldingi darsni tugating.', 403, 'LESSON_MASTERY_LOCKED');
 }
 
 function assertLessonMasteryPassed(lesson: ProgressEnrollmentRecord['course']['sections'][number]['lessons'][number]): void {
   if (hasMasteryQuiz(lesson) && (lesson.latestQuizPercentage ?? -1) < (lesson.masteryPassingPercentage ?? 75)) {
     throw new AppError('Keyingi darsni ochish uchun testdan yetarli ball oling.', 409, 'LESSON_MASTERY_REQUIRED');
+  }
+  if (lesson.vocabularyHasItems && (lesson.latestVocabularyPercentage ?? -1) < 75) {
+    throw new AppError('Keyingi darsni ochish uchun lug‘at testidan yetarli ball oling.', 409, 'LESSON_VOCABULARY_MASTERY_REQUIRED');
   }
 }
 

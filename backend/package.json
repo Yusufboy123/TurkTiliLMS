@@ -15,6 +15,9 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:seed": "prisma db seed",
+    "prisma:seed:a1": "tsx prisma/seed-a1-content.ts",
+    "prisma:seed:a2": "tsx prisma/seed-a2-content.ts",
+    "prisma:seed:vocabulary": "tsx prisma/seed-vocabulary.ts",
     "bootstrap:admin": "tsx prisma/bootstrap-admin.ts",
     "postinstall": "prisma generate"
   },

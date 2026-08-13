@@ -288,6 +288,7 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
             id: true,
             title: true,
             slug: true,
+            level: true,
             status: true,
             publishedAt: true,
             deletedAt: true,
@@ -312,6 +313,8 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
                     masteryPassingPercentage: true,
                     quizQuestions: { where: { deletedAt: null }, take: 1, select: { id: true } },
                     quizAttempts: { where: { enrollmentId, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 1, select: { percentage: true } },
+                    vocabulary: { where: { deletedAt: null }, take: 1, select: { id: true } },
+                    vocabularyTestAttempts: { where: { enrollmentId, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 1, select: { percentage: true } },
                     progress: {
                       where: { enrollmentId },
                       take: 1,
@@ -364,6 +367,7 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
         id: enrollment.course.id,
         title: enrollment.course.title,
         slug: enrollment.course.slug,
+        level: enrollment.course.level,
         status: enrollment.course.status,
         publishedAt: enrollment.course.publishedAt,
         deletedAt: enrollment.course.deletedAt,
@@ -382,6 +386,8 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
             masteryPassingPercentage: lesson.masteryPassingPercentage,
             masteryHasQuiz: lesson.quizQuestions.length > 0,
             latestQuizPercentage: lesson.quizAttempts[0]?.percentage ?? null,
+            vocabularyHasItems: lesson.vocabulary.length > 0,
+            latestVocabularyPercentage: lesson.vocabularyTestAttempts[0]?.percentage ?? null,
             progress: lesson.progress[0] ?? null,
             blocks: lesson.contentBlocks.map((block) => ({
               id: block.id,

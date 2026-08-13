@@ -25,6 +25,9 @@ function setup(overrides: Record<string, unknown> = {}) {
     findActiveStudentEnrollment: vi.fn().mockResolvedValue({ id: 'enrollment-1', courseId: 'course-1', studentId: 'student-1' }),
     findStudentQuestions: vi.fn().mockResolvedValue([]),
     createAttempt: vi.fn().mockResolvedValue({ id: 'attempt-1', status: 'IN_PROGRESS' }),
+    findOpenAttempt: vi.fn().mockResolvedValue(null),
+    countFailedAttemptsToday: vi.fn().mockResolvedValue(0),
+    findInteractivePractice: vi.fn().mockResolvedValue({ id: 'd1-01', type: 'MULTIPLE_CHOICE', prompt: 'Savol', answer: '29', explanation: '29 ta harf.', stage: 1 }),
     findAttempt: vi.fn().mockResolvedValue({ id: 'attempt-1', status: 'IN_PROGRESS' }),
     submitAttempt: vi.fn().mockResolvedValue({ id: 'attempt-1', status: 'SUBMITTED', score: 1 }),
     latestResult: vi.fn().mockResolvedValue(null),
@@ -95,6 +98,16 @@ describe('authenticated lesson learning foundation', () => {
     expect(repository.createAttempt).toHaveBeenCalledTimes(2);
   });
 
+  it('resumes an existing open attempt instead of failing the start request', async () => {
+    const existing = { id: 'attempt-existing', lessonId: 'lesson-1', enrollmentId: 'enrollment-1', status: 'IN_PROGRESS', maxScore: 2 };
+    const { repository, service } = setup({
+      listQuestions: vi.fn().mockResolvedValue([{ id: 'q1', type: LessonQuizQuestionType.TRUE_FALSE, prompt: 'Savol', points: 2, position: 1, options: [] }]),
+      findOpenAttempt: vi.fn().mockResolvedValue(existing),
+    });
+    await expect(service.startAttempt('enrollment-1', 'lesson-1', student)).resolves.toEqual(existing);
+    expect(repository.createAttempt).not.toHaveBeenCalled();
+  });
+
   it('persists the authoritative score returned by server grading', async () => {
     const { service } = setup({
       listQuestions: vi.fn().mockResolvedValue([{ id: 'q1', type: LessonQuizQuestionType.TRUE_FALSE, prompt: 'Savol', points: 1, position: 1, options: [{ id: 'o1', text: 'True', isCorrect: true, position: 1 }] }]),
@@ -132,6 +145,22 @@ describe('authenticated lesson learning foundation', () => {
       listQuestions: vi.fn().mockResolvedValue([{ id: 'q1', type: LessonQuizQuestionType.TRUE_FALSE, prompt: 'Savol', points: 1, position: 1, options: [] }]),
     });
     await expect(malformed.service.submitAttempt('enrollment-1', 'lesson-1', 'attempt-1', { answers: [] }, student)).rejects.toMatchObject({ code: 'QUIZ_ANSWERS_INVALID' });
+  });
+
+  it('blocks the fourth failed mastery attempt on the same server day', async () => {
+    const { service, repository } = setup({
+      findLesson: vi.fn().mockResolvedValue({ ...lesson, masteryEnabled: true, masteryPassingPercentage: 75 }),
+      countFailedAttemptsToday: vi.fn().mockResolvedValue(3),
+      listQuestions: vi.fn().mockResolvedValue([{ id: 'q1', type: LessonQuizQuestionType.TRUE_FALSE, prompt: 'Savol', points: 1, position: 1, options: [{ id: 'o1', text: 'True', isCorrect: true, position: 1 }] }]),
+    });
+    await expect(service.startAttempt('enrollment-1', 'lesson-1', student)).rejects.toMatchObject({ code: 'QUIZ_DAILY_LIMIT_REACHED', statusCode: 429 });
+    expect(repository.createAttempt).not.toHaveBeenCalled();
+  });
+
+  it('grades interactive practice only after authenticated submission', async () => {
+    const { service, repository } = setup();
+    await expect(service.submitPractice('enrollment-1', 'lesson-1', 'd1-01', '26', student)).resolves.toMatchObject({ correct: false, correctAnswer: '29' });
+    expect(repository.findInteractivePractice).toHaveBeenCalledWith('lesson-1', 'd1-01');
   });
 
   it('returns only the latest safe result fields to teachers', async () => {

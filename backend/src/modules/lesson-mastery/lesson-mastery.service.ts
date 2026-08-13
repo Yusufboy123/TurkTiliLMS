@@ -10,6 +10,7 @@ const lessonAccessSelect = {
   isPreview: true,
   masteryEnabled: true,
   masteryPassingPercentage: true,
+  vocabulary: { where: { deletedAt: null }, take: 1, select: { id: true } },
   quizQuestions: {
     where: { deletedAt: null },
     take: 1,
@@ -19,6 +20,12 @@ const lessonAccessSelect = {
     select: { state: true },
   },
   quizAttempts: {
+    where: { status: 'SUBMITTED' },
+    orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+    select: { percentage: true },
+  },
+  vocabularyTestAttempts: {
     where: { status: 'SUBMITTED' },
     orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
     take: 1,
@@ -37,6 +44,8 @@ export type AccessLesson = {
   quizQuestions: Array<{ id: string }>;
   progress: Array<{ state: LessonProgressState }>;
   quizAttempts: Array<{ percentage: number }>;
+  vocabulary?: Array<{ id: string }>;
+  vocabularyTestAttempts?: Array<{ percentage: number }>;
 };
 
 export function decisionFor(lessons: AccessLesson[], lessonId: string): LessonMasteryDecision {
@@ -56,16 +65,22 @@ export function decisionFor(lessons: AccessLesson[], lessonId: string): LessonMa
   if (!previous) {
     return { allowed: true, lessonId, previousLessonId: null, previousLessonTitle: null, lockReason: null, requiredPercentage: null, previousPercentage: null };
   }
+  const hasMasteryQuiz = previous.masteryEnabled && previous.quizQuestions.length > 0;
+  const hasVocabulary = (previous.vocabulary?.length ?? 0) > 0;
   const previousCompleted = previous.progress[0]?.state === LessonProgressState.COMPLETED;
-  if (!previousCompleted) {
+  // A lesson with a configured mastery gate is unlocked by the authoritative
+  // topic + vocabulary results. The persisted lesson state may still be
+  // IN_PROGRESS until the explicit completion mutation records completion.
+  if (!previousCompleted && !hasMasteryQuiz && !hasVocabulary) {
     return { allowed: false, lessonId, previousLessonId: previous.id, previousLessonTitle: previous.title, lockReason: 'PREVIOUS_LESSON', requiredPercentage: null, previousPercentage: null };
   }
-  const hasMasteryQuiz = previous.masteryEnabled && previous.quizQuestions.length > 0;
-  if (!hasMasteryQuiz) {
+  if (!hasMasteryQuiz && !hasVocabulary) {
     return { allowed: true, lessonId, previousLessonId: previous.id, previousLessonTitle: previous.title, lockReason: null, requiredPercentage: null, previousPercentage: null };
   }
   const previousPercentage = previous.quizAttempts[0]?.percentage ?? null;
-  const allowed = previousPercentage !== null && previousPercentage >= previous.masteryPassingPercentage;
+  const vocabularyPercentage = previous.vocabularyTestAttempts?.[0]?.percentage ?? null;
+  const allowed = (!hasMasteryQuiz || (previousPercentage !== null && previousPercentage >= previous.masteryPassingPercentage))
+    && (!hasVocabulary || (vocabularyPercentage !== null && vocabularyPercentage >= 75));
   return {
     allowed,
     lessonId,
@@ -81,9 +96,25 @@ export class PrismaLessonMasteryAccess implements LessonMasteryAccess {
   constructor(private readonly client: PrismaClient = prisma) {}
 
   private async lessonsForEnrollment(enrollmentId: string, courseId: string | undefined, studentId: string): Promise<AccessLesson[] | null> {
+    // Course-level access checks do not have an enrollment id yet. Resolve the
+    // student's current enrollment first so nested progress/attempt filters
+    // never receive an empty UUID (which Prisma rejects at runtime).
+    const resolvedEnrollmentId = enrollmentId || (await this.client.courseEnrollment.findFirst({
+      where: {
+        ...(courseId ? { courseId } : {}),
+        studentId,
+        status: { in: [CourseEnrollmentStatus.ACTIVE, CourseEnrollmentStatus.COMPLETED] },
+        accessStartsAt: { lte: new Date() },
+        accessExpiresAt: { gt: new Date() },
+        student: { status: 'ACTIVE', roles: { some: { role: { code: 'STUDENT' } } } },
+        course: { status: 'PUBLISHED', publishedAt: { not: null }, deletedAt: null },
+      },
+      select: { id: true },
+    }))?.id;
+    if (!resolvedEnrollmentId) return null;
     const enrollment = await this.client.courseEnrollment.findFirst({
       where: {
-        ...(enrollmentId ? { id: enrollmentId } : {}),
+        id: resolvedEnrollmentId,
         ...(courseId ? { courseId } : {}),
         studentId,
         status: { in: [CourseEnrollmentStatus.ACTIVE, CourseEnrollmentStatus.COMPLETED] },
@@ -104,8 +135,9 @@ export class PrismaLessonMasteryAccess implements LessonMasteryAccess {
                   orderBy: [{ position: 'asc' }, { id: 'asc' }],
                   select: {
                     ...lessonAccessSelect,
-                    progress: { where: { enrollmentId }, select: { state: true } },
-                    quizAttempts: { where: { enrollmentId, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 1, select: { percentage: true } },
+                    progress: { where: { enrollmentId: resolvedEnrollmentId }, select: { state: true } },
+                    quizAttempts: { where: { enrollmentId: resolvedEnrollmentId, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 1, select: { percentage: true } },
+                    vocabularyTestAttempts: { where: { enrollmentId: resolvedEnrollmentId, status: 'SUBMITTED' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 1, select: { percentage: true } },
                   },
                 },
               },

@@ -1,4 +1,12 @@
 export { studentPlayerApi } from './api/student-player.api';
-export { useStudentLessonContent, useStudentLessonQuiz, useStudentLessonVocabulary } from './hooks/use-student-player';
+export { useStudentLessonContent, useStudentLessonQuiz, useStudentLessonVocabulary, useVocabularyLearningMutations } from './hooks/use-student-player';
 export { StudentQuizPanel, StudentVocabularyPanel } from './components/StudentLessonLearningPanels';
+export { InteractivePracticePanel } from './components/InteractivePracticePanel';
+export { PlayerModeStepper } from './components/PlayerModeStepper';
+export { RichTextContent } from './components/RichTextContent';
+export { LearnModeView } from './components/LearnModeView';
+export { PracticeModeView } from './components/PracticeModeView';
+export { TestModeView } from './components/TestModeView';
+export { ResultModeView } from './components/ResultModeView';
+export { VocabularyLearningPanel } from './components/VocabularyLearningPanel';
 export type * from './types/student-player.types';

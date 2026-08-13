@@ -311,6 +311,29 @@ enum LessonQuizAttemptStatus {
   @@map("lesson_quiz_attempt_status")
 }
 
+enum VocabularySourceStatus {
+  NEW
+  REVIEW
+  QUESTIONABLE
+
+  @@map("vocabulary_source_status")
+}
+
+enum StudentVocabularyStatus {
+  NEW
+  KNOWN
+  NEEDS_REVIEW
+
+  @@map("student_vocabulary_status")
+}
+
+enum VocabularyTestAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+
+  @@map("vocabulary_test_attempt_status")
+}
+
 enum QuestionThreadStatus {
   OPEN
   ANSWERED
@@ -368,6 +391,7 @@ model User {
   notifications              Notification[]                     @relation("NotificationRecipient")
   studentBookmarks           StudentBookmark[]
   studentLessonNotes         StudentLessonNote[]
+  vocabularyProgress         StudentVocabularyProgress[]
   coursesCreated             Course[]                           @relation("CourseCreator")
   coursesTaught              Course[]                           @relation("CourseTeacher")
   courseSectionsCreated      CourseSection[]                    @relation("CourseSectionCreator")
@@ -401,12 +425,12 @@ model User {
 
 model StudentProfile {
   userId                 String                  @id @map("user_id") @db.Uuid
-  currentLevel           StudentOnboardingLevel
-  learningGoal           StudentLearningGoal
-  ageRange               StudentAgeRange?
-  gender                 StudentGender?
-  weeklyStudyBand        StudentWeeklyStudyBand?
-  preferredSkillFocus    StudentSkillFocus?
+  currentLevel           StudentOnboardingLevel   @map("current_level")
+  learningGoal           StudentLearningGoal      @map("learning_goal")
+  ageRange               StudentAgeRange?         @map("age_range")
+  gender                 StudentGender?           @map("gender")
+  weeklyStudyBand        StudentWeeklyStudyBand? @map("weekly_study_band")
+  preferredSkillFocus    StudentSkillFocus?      @map("preferred_skill_focus")
   onboardingCompletedAt  DateTime?               @map("onboarding_completed_at") @db.Timestamptz(3)
   createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -656,6 +680,7 @@ model CourseEnrollment {
   certificate            Certificate?
   idempotencyRecords     IdempotencyRecord[]
   quizAttempts           LessonQuizAttempt[]
+  vocabularyTestAttempts VocabularyTestAttempt[]
 
   @@unique([id, courseId], map: "course_enrollments_id_course_id_key")
   @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
@@ -1134,6 +1159,7 @@ model Lesson {
   studentNotes             StudentLessonNote[]
   quizQuestions            LessonQuizQuestion[]
   quizAttempts             LessonQuizAttempt[]
+  vocabularyTestAttempts  VocabularyTestAttempt[]
   questionThreads          QuestionThread[]
 
   @@unique([courseId, slug], map: "lessons_course_id_slug_key")
@@ -1212,11 +1238,69 @@ model LessonVocabulary {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
+  sourceId        String?  @map("source_id") @db.VarChar(120)
+  sourceStatus    VocabularySourceStatus @default(NEW) @map("source_status")
   lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   bookmarks       StudentBookmark[]
+  learnerProgress StudentVocabularyProgress[]
+  vocabularyTestAnswers VocabularyTestAnswer[]
 
   @@index([lessonId, deletedAt, position], map: "lesson_vocabulary_lesson_id_deleted_at_position_idx")
+  @@index([sourceId, sourceStatus], map: "lesson_vocabulary_source_id_status_idx")
+  @@unique([lessonId, sourceId], map: "lesson_vocabulary_lesson_source_key")
   @@map("lesson_vocabulary")
+}
+
+model StudentVocabularyProgress {
+  id            String                  @id @default(uuid(7)) @db.Uuid
+  userId        String                  @map("user_id") @db.Uuid
+  vocabularyId  String                  @map("vocabulary_id") @db.Uuid
+  status        StudentVocabularyStatus @default(NEW)
+  firstSeenAt   DateTime?               @map("first_seen_at") @db.Timestamptz(3)
+  lastReviewedAt DateTime?              @map("last_reviewed_at") @db.Timestamptz(3)
+  reviewCount   Int                     @default(0) @map("review_count")
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  vocabulary    LessonVocabulary        @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, vocabularyId], map: "student_vocabulary_progress_user_vocabulary_key")
+  @@index([userId, status, lastReviewedAt], map: "student_vocabulary_progress_user_status_reviewed_idx")
+  @@map("student_vocabulary_progress")
+}
+
+model VocabularyTestAttempt {
+  id             String                     @id @default(uuid(7)) @db.Uuid
+  enrollmentId   String                     @map("enrollment_id") @db.Uuid
+  lessonId       String                     @map("lesson_id") @db.Uuid
+  startedAt      DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
+  submittedAt    DateTime?                  @map("submitted_at") @db.Timestamptz(3)
+  score          Int                        @default(0)
+  maxScore      Int                        @map("max_score")
+  percentage     Int                        @default(0)
+  correctCount   Int                        @default(0) @map("correct_count")
+  incorrectCount Int                        @default(0) @map("incorrect_count")
+  status         VocabularyTestAttemptStatus @default(IN_PROGRESS)
+  enrollment     CourseEnrollment            @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lesson         Lesson                     @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  answers        VocabularyTestAnswer[]
+
+  @@index([enrollmentId, lessonId, status, startedAt], map: "vocabulary_test_attempts_enrollment_lesson_status_idx")
+  @@index([lessonId, status, submittedAt], map: "vocabulary_test_attempts_lesson_status_submitted_idx")
+  @@map("vocabulary_test_attempts")
+}
+
+model VocabularyTestAnswer {
+  id            String               @id @default(uuid(7)) @db.Uuid
+  attemptId     String               @map("attempt_id") @db.Uuid
+  vocabularyId  String               @map("vocabulary_id") @db.Uuid
+  submittedAnswer String             @map("submitted_answer") @db.Text
+  isCorrect     Boolean              @default(false) @map("is_correct")
+  awardedPoints Int                  @default(0) @map("awarded_points")
+  attempt       VocabularyTestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  vocabulary    LessonVocabulary     @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([attemptId, vocabularyId], map: "vocabulary_test_answers_attempt_vocabulary_key")
+  @@index([attemptId], map: "vocabulary_test_answers_attempt_id_idx")
+  @@map("vocabulary_test_answers")
 }
 
 model StudentBookmark {

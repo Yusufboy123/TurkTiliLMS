@@ -1,6 +1,9 @@
+import { randomInt } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
 import type { CreateQuestionInput, CreateVocabularyInput, UpdateQuestionInput, UpdateVocabularyInput } from './lesson-learning.schemas.js';
+import { storedInteractivePracticeFromMetadata } from '../lesson-content-blocks/lesson-content-block.repository.js';
+import type { StoredInteractivePracticeItem } from '../lesson-content-blocks/lesson-content-block.types.js';
 
 const vocabularySelect = {
   id: true, lessonId: true, turkishWord: true, uzbekMeaning: true, exampleSentence: true,
@@ -22,7 +25,7 @@ export class LessonLearningRepository {
   constructor(private readonly client: PrismaClient = prisma) {}
 
   findLesson(courseId: string, lessonId: string) {
-    return this.client.lesson.findFirst({ where: { id: lessonId, courseId }, select: { id: true, courseId: true, deletedAt: true, status: true, course: { select: { id: true, teacherId: true, deletedAt: true } } } });
+    return this.client.lesson.findFirst({ where: { id: lessonId, ...(courseId ? { courseId } : {}) }, select: { id: true, courseId: true, deletedAt: true, status: true, masteryEnabled: true, masteryPassingPercentage: true, course: { select: { id: true, teacherId: true, deletedAt: true } } } });
   }
 
   findEnrollment(enrollmentId: string) {
@@ -94,12 +97,60 @@ export class LessonLearningRepository {
     return this.client.courseEnrollment.findFirst({ where: { id: enrollmentId, studentId, status: { in: ['ACTIVE', 'COMPLETED'] }, accessStartsAt: { lte: now }, accessExpiresAt: { gt: now }, student: { status: 'ACTIVE', roles: { some: { role: { code: 'STUDENT' } } } }, course: { status: 'PUBLISHED', publishedAt: { not: null }, deletedAt: null, lessons: { some: { id: lessonId, status: 'PUBLISHED', deletedAt: null, section: { isPublished: true } } } } }, select: { id: true, courseId: true, studentId: true } });
   }
 
-  findStudentQuestions(lessonId: string) {
-    return this.client.lessonQuizQuestion.findMany({ where: { lessonId, deletedAt: null }, orderBy: [{ position: 'asc' }, { id: 'asc' }], select: { id: true, type: true, prompt: true, points: true, position: true, options: { orderBy: [{ position: 'asc' }, { id: 'asc' }], select: { id: true, text: true, position: true } } } });
+  async findStudentQuestions(lessonId: string) {
+    const questions = await this.client.lessonQuizQuestion.findMany({ where: { lessonId, deletedAt: null }, orderBy: [{ position: 'asc' }, { id: 'asc' }], select: { id: true, type: true, prompt: true, points: true, position: true, options: { orderBy: [{ position: 'asc' }, { id: 'asc' }], select: { id: true, text: true, position: true } } } });
+    const shuffledQuestions = [...questions];
+    for (let index = shuffledQuestions.length - 1; index > 0; index -= 1) {
+      const swapIndex = randomInt(index + 1);
+      const current = shuffledQuestions[index];
+      const target = shuffledQuestions[swapIndex];
+      if (current && target) {
+        shuffledQuestions[index] = target;
+        shuffledQuestions[swapIndex] = current;
+      }
+    }
+    return shuffledQuestions.map((question) => {
+      if (question.type !== 'MULTIPLE_CHOICE') return question;
+      const options = [...question.options];
+      for (let index = options.length - 1; index > 0; index -= 1) {
+        const swapIndex = randomInt(index + 1);
+        const current = options[index];
+        const target = options[swapIndex];
+        if (current && target) {
+          options[index] = target;
+          options[swapIndex] = current;
+        }
+      }
+      return { ...question, options };
+    });
   }
 
   createAttempt(enrollmentId: string, lessonId: string, maxScore: number) {
     return this.client.lessonQuizAttempt.create({ data: { enrollmentId, lessonId, maxScore }, select: attemptSelect });
+  }
+
+  findOpenAttempt(enrollmentId: string, lessonId: string) {
+    return this.client.lessonQuizAttempt.findFirst({
+      where: { enrollmentId, lessonId, status: 'IN_PROGRESS' },
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      select: attemptSelect,
+    });
+  }
+
+  async countFailedAttemptsToday(enrollmentId: string, lessonId: string, passingPercentage: number, now = new Date()): Promise<number> {
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    return this.client.lessonQuizAttempt.count({
+      where: { enrollmentId, lessonId, status: 'SUBMITTED', submittedAt: { gte: dayStart, lte: now }, percentage: { lt: passingPercentage } },
+    });
+  }
+
+  async findInteractivePractice(lessonId: string, practiceId: string): Promise<StoredInteractivePracticeItem | null> {
+    const blocks = await this.client.lessonContentBlock.findMany({ where: { lessonId, deletedAt: null, isVisible: true }, select: { metadata: true } });
+    for (const block of blocks) {
+      const item = storedInteractivePracticeFromMetadata(block.metadata)?.find((practice) => practice.id === practiceId);
+      if (item) return item;
+    }
+    return null;
   }
 
   findAttempt(attemptId: string, enrollmentId: string, lessonId: string) {

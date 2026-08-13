@@ -12,6 +12,7 @@ import { studentPlayerApi } from '../src/features/student-player/api/student-pla
 import { studentPlayerQueryKeys } from '../src/features/student-player/hooks/student-player-query-keys';
 import { progressPaths } from '../src/features/progress/progress.routes';
 import { ToastProvider } from '../src/components';
+import { InteractivePracticePanel } from '../src/features/student-player';
 import type { StudentEnrollmentPage } from '../src/features/student-courses/types/student-courses.types';
 import { courseProgressFixture } from './progress-fixtures';
 
@@ -130,6 +131,24 @@ describe('student lesson player', () => {
     expect(markup).toContain('<audio');
     expect(markup).toContain('aria-label="Video"');
     expect(markup).toContain('aria-label="Audio"');
-    expect(markup).toContain('Dars materiali');
+    expect(markup).toContain('O‘quv matni');
+  });
+
+  it('renders reusable interactive practice controls for each supported type', () => {
+    const markup = renderToStaticMarkup(<QueryClientProvider client={new QueryClient()}><InteractivePracticePanel enabled enrollmentId="enrollment-1" lessonId="lesson-1" blocks={[{
+      ...contentBlocks[2],
+      interactivePractice: [
+        { id: 'mc', type: 'MULTIPLE_CHOICE', prompt: 'Tanlang', options: ['A', 'B'], explanation: 'Izoh', stage: 1 },
+        { id: 'tf', type: 'TRUE_FALSE', prompt: 'To‘g‘rimi?', options: ['To‘g‘ri', 'Noto‘g‘ri'], explanation: 'Izoh', stage: 2 },
+        { id: 'missing', type: 'MISSING_WORD', prompt: 'Yozing', explanation: 'Izoh', stage: 3 },
+        { id: 'classify', type: 'CLASSIFY', prompt: 'Tasniflang', options: ['Qalin', 'Ingichka'], explanation: 'Izoh', stage: 4 },
+      ],
+    }]} /></QueryClientProvider>);
+    expect(markup).toContain('Qoidani amalda sinab ko‘ring');
+    expect(markup).toContain('Tanlang');
+    expect(markup).toContain('Yozing');
+    expect(markup.match(/Javobni tekshirish/g)?.length).toBe(4);
+    expect(markup).toContain('type="radio"');
+    expect(markup).toContain('aria-label="Mashq 3 javobi"');
   });
 });

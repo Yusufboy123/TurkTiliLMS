@@ -53,7 +53,20 @@ export interface PublicLessonContentBlock {
   fileSizeBytes: string | null;
   durationSeconds: number | null;
   thumbnailUrl: string | null;
+  interactivePractice?: PublicInteractivePracticeItem[] | undefined;
 }
+
+export type StoredInteractivePracticeItem = {
+  id: string;
+  type: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD' | 'CLASSIFY';
+  prompt: string;
+  options?: string[];
+  answer: string;
+  explanation: string;
+  stage: number;
+};
+
+export type PublicInteractivePracticeItem = Omit<StoredInteractivePracticeItem, 'answer'>;
 
 export interface LessonContentBlockListQuery {
   page: number;

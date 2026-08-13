@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: TurkTiliLMS Vocabulary Learning API
+  version: 1.0.0
+paths:
+  /api/v1/enrollments/{enrollmentId}/lessons/{lessonId}/vocabulary/learning:
+    get:
+      summary: List enrolled student's lesson vocabulary and private learning status
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/EnrollmentId' }, { $ref: '#/components/parameters/LessonId' }]
+      responses: {'200': {description: Vocabulary projection}, '403': {description: Access denied}}
+  /api/v1/enrollments/{enrollmentId}/lessons/{lessonId}/vocabulary/{vocabularyId}/status:
+    post:
+      summary: Mark a vocabulary item known or needing review
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/EnrollmentId' }, { $ref: '#/components/parameters/LessonId' }, { $ref: '#/components/parameters/VocabularyId' }]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VocabularyStatus'}}}}
+      responses: {'200': {description: Status saved}, '403': {description: Access denied}}
+  /api/v1/enrollments/{enrollmentId}/lessons/{lessonId}/vocabulary/test/attempts:
+    post:
+      summary: Start a vocabulary test without exposing answer keys
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/EnrollmentId' }, { $ref: '#/components/parameters/LessonId' }]
+      responses: {'201': {description: Typed Uzbek-to-Turkish questions}, '429': {description: Daily failed-attempt limit reached}}
+  /api/v1/enrollments/{enrollmentId}/lessons/{lessonId}/vocabulary/test/attempts/{attemptId}/submit:
+    post:
+      summary: Submit vocabulary test answers
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/EnrollmentId' }, { $ref: '#/components/parameters/LessonId' }, { $ref: '#/components/parameters/AttemptId' }]
+      responses: {'200': {description: Authoritative result}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  parameters:
+    EnrollmentId: {name: enrollmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    LessonId: {name: lessonId, in: path, required: true, schema: {type: string, format: uuid}}
+    VocabularyId: {name: vocabularyId, in: path, required: true, schema: {type: string, format: uuid}}
+    AttemptId: {name: attemptId, in: path, required: true, schema: {type: string, format: uuid}}
+  schemas:
+    VocabularyStatus:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [KNOWN, NEEDS_REVIEW]}

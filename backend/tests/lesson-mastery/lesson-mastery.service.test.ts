@@ -13,6 +13,8 @@ function lesson(overrides: Partial<AccessLesson> = {}): AccessLesson {
     quizQuestions: overrides.quizQuestions ?? [],
     progress: overrides.progress ?? [],
     quizAttempts: overrides.quizAttempts ?? [],
+    vocabulary: overrides.vocabulary ?? [],
+    vocabularyTestAttempts: overrides.vocabularyTestAttempts ?? [],
   };
 }
 
@@ -63,5 +65,30 @@ describe('lesson mastery gate', () => {
         next.id,
       ).allowed,
     ).toBe(true);
+  });
+
+  it('requires vocabulary mastery alongside topic mastery before unlocking', () => {
+    const previous = lesson({ id: 'previous', masteryEnabled: true, quizQuestions: [{ id: 'question' }], progress: [{ state: LessonProgressState.COMPLETED }], quizAttempts: [{ percentage: 90 }], vocabulary: [{ id: 'word' }], vocabularyTestAttempts: [{ percentage: 74 }] });
+    const next = lesson({ id: 'next' });
+    expect(decisionFor([previous, next], next.id).allowed).toBe(false);
+    expect(decisionFor([{ ...previous, vocabularyTestAttempts: [{ percentage: 75 }] }, next], next.id).allowed).toBe(true);
+  });
+
+  it('allows a passed dual gate while completion state is still being persisted', () => {
+    const previous = lesson({
+      id: 'previous',
+      masteryEnabled: true,
+      quizQuestions: [{ id: 'question' }],
+      quizAttempts: [{ percentage: 86 }],
+      vocabulary: [{ id: 'word' }],
+      vocabularyTestAttempts: [{ percentage: 85 }],
+    });
+    const next = lesson({ id: 'next' });
+
+    expect(decisionFor([previous, next], next.id)).toMatchObject({
+      allowed: true,
+      lockReason: null,
+      previousLessonId: 'previous',
+    });
   });
 });

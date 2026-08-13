@@ -126,12 +126,22 @@ export class LessonLearningService {
 
   async startAttempt(enrollmentId: string, lessonId: string, actor: LearningActor) {
     await this.studentEnrollment(enrollmentId, lessonId, actor);
+    const lesson = await this.repository.findLesson('', lessonId);
+    if (lesson?.masteryEnabled && (await this.repository.countFailedAttemptsToday(enrollmentId, lessonId, lesson.masteryPassingPercentage)) >= 3) {
+      throw new AppError('Bugungi yakuniy test urinishlari tugadi. Darsni qayta ko‘rib chiqing va ertaga yana urinib ko‘ring.', 429, 'QUIZ_DAILY_LIMIT_REACHED');
+    }
     const questions = await this.repository.listQuestions(lessonId);
     if (questions.length === 0) throw new AppError('Bu darsda test savollari mavjud emas.', 409, 'QUIZ_EMPTY');
+    const existing = await this.repository.findOpenAttempt(enrollmentId, lessonId);
+    if (existing) return existing;
     try {
       return await this.repository.createAttempt(enrollmentId, lessonId, questions.reduce((sum, question) => sum + question.points, 0));
     } catch (error: unknown) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new AppError('Bu dars uchun ochiq test urinishi mavjud.', 409, 'QUIZ_ATTEMPT_IN_PROGRESS');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const concurrent = await this.repository.findOpenAttempt(enrollmentId, lessonId);
+        if (concurrent) return concurrent;
+        throw new AppError('Bu dars uchun ochiq test urinishi mavjud.', 409, 'QUIZ_ATTEMPT_IN_PROGRESS');
+      }
       throw error;
     }
   }
@@ -158,6 +168,14 @@ export class LessonLearningService {
   async latestResult(enrollmentId: string, lessonId: string, actor: LearningActor) {
     await this.studentEnrollment(enrollmentId, lessonId, actor);
     return this.repository.latestResult(enrollmentId, lessonId);
+  }
+
+  async submitPractice(enrollmentId: string, lessonId: string, practiceId: string, answer: string, actor: LearningActor) {
+    await this.studentEnrollment(enrollmentId, lessonId, actor);
+    const practice = await this.repository.findInteractivePractice(lessonId, practiceId);
+    if (!practice) throw new AppError('Mashq topilmadi.', 404, 'PRACTICE_NOT_FOUND');
+    const correct = practice.answer.trim().toLocaleLowerCase('tr-TR') === answer.trim().toLocaleLowerCase('tr-TR');
+    return { practiceId, correct, explanation: practice.explanation, ...(correct ? {} : { correctAnswer: practice.answer }) };
   }
 
   async teacherResults(courseId: string, lessonId: string, actor: LearningActor) {

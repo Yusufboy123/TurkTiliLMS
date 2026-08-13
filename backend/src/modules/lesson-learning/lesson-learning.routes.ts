@@ -34,6 +34,7 @@ export function createLessonLearningRouter(dependencies: LessonLearningRouteDepe
   router.post('/enrollments/:enrollmentId/lessons/:lessonId/quiz/attempts', ...student, dependencies.permission('progress.self_complete'), asyncHandler(dependencies.controller.startAttempt));
   router.post('/enrollments/:enrollmentId/lessons/:lessonId/quiz/attempts/:attemptId/submit', ...student, dependencies.permission('progress.self_complete'), asyncHandler(dependencies.controller.submitAttempt));
   router.get('/enrollments/:enrollmentId/lessons/:lessonId/quiz/results/latest', ...student, dependencies.permission('progress.self_read'), asyncHandler(dependencies.controller.latestResult));
+  router.post('/enrollments/:enrollmentId/lessons/:lessonId/practice/:practiceId/answer', ...student, dependencies.permission('progress.self_complete'), asyncHandler(dependencies.controller.submitPractice));
   return router;
 }
 

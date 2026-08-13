@@ -107,12 +107,17 @@ function lessonHasMasteryQuiz(lesson: ProgressLessonRecord): boolean {
   return lesson.masteryEnabled === true && lesson.masteryHasQuiz === true;
 }
 
+function lessonHasVocabulary(lesson: ProgressLessonRecord): boolean {
+  return lesson.vocabularyHasItems === true;
+}
+
 function lessonIsUnlocked(lessons: ProgressLessonRecord[], index: number): boolean {
   if (index <= 0) return true;
   const previous = lessons[index - 1];
   if (!previous) return true;
-  if (previous.progress?.state !== 'COMPLETED') return false;
-  return !lessonHasMasteryQuiz(previous) || (previous.latestQuizPercentage ?? -1) >= (previous.masteryPassingPercentage ?? 75);
+  if (previous.progress?.state === 'COMPLETED') return true;
+  return (!lessonHasMasteryQuiz(previous) || (previous.latestQuizPercentage ?? -1) >= (previous.masteryPassingPercentage ?? 75))
+    && (!lessonHasVocabulary(previous) || (previous.latestVocabularyPercentage ?? -1) >= 75);
 }
 
 function courseState(
@@ -163,20 +168,32 @@ export function presentLessonProgress(
     (block) => block.progress?.state === 'COMPLETED',
   ).length;
   const status = lessonStatus(lesson);
-  const percentage =
-    requiredBlocks.length === 0
-      ? status === 'COMPLETED'
-        ? 100
-        : 0
+  const isLessonCompleted = status === 'COMPLETED';
+  const percentage = isLessonCompleted
+    ? 100
+    : requiredBlocks.length === 0
+      ? 0
       : Math.floor((completedEligibleBlocks * 100) / requiredBlocks.length);
+  const displayCompletedBlocks = isLessonCompleted ? requiredBlocks.length : completedEligibleBlocks;
   const masteryRequired = lessonHasMasteryQuiz(lesson);
   const passingPercentage = lesson.masteryPassingPercentage ?? 75;
   const latestPercentage = lesson.latestQuizPercentage ?? null;
-  const masteryPassed = !masteryRequired || (latestPercentage !== null && latestPercentage >= passingPercentage);
+  const vocabularyRequired = lessonHasVocabulary(lesson);
+  const latestVocabularyPercentage = lesson.latestVocabularyPercentage ?? null;
+  const vocabularyPassed = !vocabularyRequired || (latestVocabularyPercentage !== null && latestVocabularyPercentage >= 75);
+  const masteryPassed = (isLessonCompleted || !masteryRequired || (latestPercentage !== null && latestPercentage >= passingPercentage)) && vocabularyPassed;
   const previousCompleted = previousLesson === null || previousLesson.progress?.state === 'COMPLETED';
-  const previousMasteryPassed = previousLesson === null || !lessonHasMasteryQuiz(previousLesson) || ((previousLesson.latestQuizPercentage ?? -1) >= (previousLesson.masteryPassingPercentage ?? 75));
-  const locked = !previousCompleted || !previousMasteryPassed;
-  const lockReason = !previousCompleted ? 'PREVIOUS_LESSON' : locked ? 'PREVIOUS_MASTERY' : null;
+  const previousTopicPassed = previousLesson === null || previousCompleted || !lessonHasMasteryQuiz(previousLesson) || ((previousLesson.latestQuizPercentage ?? -1) >= (previousLesson.masteryPassingPercentage ?? 75));
+  const previousVocabularyPassed = previousLesson === null || previousCompleted || !lessonHasVocabulary(previousLesson) || ((previousLesson.latestVocabularyPercentage ?? -1) >= 75);
+  const previousMasteryPassed = previousTopicPassed && previousVocabularyPassed;
+  const locked = !previousCompleted && !previousMasteryPassed;
+  const lockReason = !locked
+    ? null
+    : !previousTopicPassed
+      ? 'PREVIOUS_MASTERY'
+      : !previousVocabularyPassed
+        ? 'PREVIOUS_VOCABULARY'
+        : 'PREVIOUS_LESSON';
 
   return {
     id: lesson.id,
@@ -185,7 +202,7 @@ export function presentLessonProgress(
     slug: lesson.slug,
     position: lesson.position,
     status,
-    completedEligibleBlocks,
+    completedEligibleBlocks: displayCompletedBlocks,
     totalEligibleBlocks: requiredBlocks.length,
     percentage,
     firstActivityAt: lesson.progress?.firstActivityAt.toISOString() ?? null,
@@ -197,9 +214,20 @@ export function presentLessonProgress(
       passingPercentage,
       latestPercentage,
       passed: masteryPassed,
+      vocabularyRequired,
+      vocabularyPassingPercentage: 75,
+      latestVocabularyPercentage,
+      vocabularyPassed,
       locked,
       lockReason,
+      previousLessonId: previousLesson?.id ?? null,
       previousLessonTitle: previousLesson?.title ?? null,
+      previousPassingPercentage: previousLesson && lessonHasMasteryQuiz(previousLesson)
+        ? previousLesson.masteryPassingPercentage ?? 75
+        : null,
+      previousTopicPercentage: previousLesson?.latestQuizPercentage ?? null,
+      previousVocabularyPercentage: previousLesson?.latestVocabularyPercentage ?? null,
+      previousVocabularyRequired: previousLesson ? lessonHasVocabulary(previousLesson) : false,
     },
     capabilities: {
       canAccessLesson: capabilities.canAccessCourseContent && !locked,
@@ -284,6 +312,7 @@ export function presentResumeTarget(
       id: enrollment.course.id,
       title: enrollment.course.title,
       slug: enrollment.course.slug,
+      level: enrollment.course.level,
     },
     section: {
       id: section.id,
@@ -314,6 +343,7 @@ export function presentCourseSummary(
       id: enrollment.course.id,
       title: enrollment.course.title,
       slug: enrollment.course.slug,
+      level: enrollment.course.level,
     },
     enrollmentStatus: enrollment.status,
     accessExpiresAt: enrollment.accessExpiresAt.toISOString(),
@@ -375,6 +405,7 @@ export function presentCompletedCourse(
       id: enrollment.course.id,
       title: enrollment.course.title,
       slug: enrollment.course.slug,
+      level: enrollment.course.level,
     },
     completionCurriculumVersion: root.curriculumVersion,
     percentage: 100,

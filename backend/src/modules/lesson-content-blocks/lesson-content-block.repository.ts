@@ -20,6 +20,8 @@ import type {
   LessonContentBlockListQuery,
   LessonContentBlockRecord,
   PublicLessonContentBlock,
+  PublicInteractivePracticeItem,
+  StoredInteractivePracticeItem,
   UpdateLessonContentBlockData,
 } from './lesson-content-block.types.js';
 
@@ -72,6 +74,7 @@ const publicBlockSelect = {
   fileSizeBytes: true,
   durationSeconds: true,
   thumbnailUrl: true,
+  metadata: true,
 } satisfies Prisma.LessonContentBlockSelect;
 
 type BlockPayload = Prisma.LessonContentBlockGetPayload<{
@@ -80,6 +83,32 @@ type BlockPayload = Prisma.LessonContentBlockGetPayload<{
 type PublicBlockPayload = Prisma.LessonContentBlockGetPayload<{
   select: typeof publicBlockSelect;
 }>;
+
+export function storedInteractivePracticeFromMetadata(metadata: Prisma.JsonValue | null): StoredInteractivePracticeItem[] | undefined {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
+  const candidate = (metadata as Record<string, Prisma.JsonValue>).interactivePractice;
+  if (!Array.isArray(candidate)) return undefined;
+  const safe = candidate.filter((item): item is Record<string, Prisma.JsonValue> => Boolean(item && typeof item === 'object' && !Array.isArray(item))).filter((item) =>
+    typeof item.id === 'string' &&
+    ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'MISSING_WORD', 'CLASSIFY'].includes(String(item.type)) &&
+    typeof item.prompt === 'string' && typeof item.answer === 'string' && typeof item.explanation === 'string' &&
+    typeof item.stage === 'number' &&
+    (item.options === undefined || (Array.isArray(item.options) && item.options.every((option) => typeof option === 'string'))),
+  ).map((item) => ({
+    id: String(item.id),
+    type: item.type as StoredInteractivePracticeItem['type'],
+    prompt: String(item.prompt),
+    ...(Array.isArray(item.options) ? { options: item.options.map(String) } : {}),
+    answer: String(item.answer),
+    explanation: String(item.explanation),
+    stage: Number(item.stage),
+  }));
+  return safe.length ? safe : undefined;
+}
+
+function publicInteractivePractice(metadata: Prisma.JsonValue | null): PublicInteractivePracticeItem[] | undefined {
+  return storedInteractivePracticeFromMetadata(metadata)?.map(({ answer: _answer, ...item }) => item);
+}
 
 export class LessonBlockPositionConflictError extends Error {}
 export class LessonBlockPositionCapacityError extends Error {}
@@ -121,6 +150,7 @@ function mapPublicBlock(block: PublicBlockPayload): PublicLessonContentBlock {
     fileSizeBytes: block.fileSizeBytes?.toString() ?? null,
     durationSeconds: block.durationSeconds,
     thumbnailUrl: block.thumbnailUrl,
+    ...(publicInteractivePractice(block.metadata) ? { interactivePractice: publicInteractivePractice(block.metadata) } : {}),
   };
 }
 
@@ -659,4 +689,5 @@ export class PrismaLessonContentBlockRepository implements LessonContentBlockRep
     });
     return blocks.map(mapPublicBlock);
   }
+
 }

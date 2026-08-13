@@ -1168,7 +1168,7 @@ components:
     LessonMastery:
       type: object
       additionalProperties: false
-      required: [required, passingPercentage, latestPercentage, passed, locked, lockReason, previousLessonTitle]
+      required: [required, passingPercentage, latestPercentage, passed, locked, lockReason, previousLessonTitle, previousPassingPercentage]
       properties:
         required:
           type: boolean
@@ -1189,6 +1189,10 @@ components:
           enum: [PREVIOUS_LESSON, PREVIOUS_MASTERY, null]
         previousLessonTitle:
           type: [string, 'null']
+        previousPassingPercentage:
+          oneOf:
+            - $ref: '#/components/schemas/Percentage'
+            - type: 'null'
     SectionProgress:
       type: object
       additionalProperties: false

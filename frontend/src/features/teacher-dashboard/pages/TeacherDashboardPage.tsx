@@ -36,44 +36,76 @@ export default function TeacherDashboardPage() {
     setSearchParams(normalizedPage > 1 ? { page: String(normalizedPage) } : {}, { replace: true });
   }, [normalizedPage, page, responsePage, setSearchParams]);
 
+  const totalCourses = courses.data?.pagination.totalItems ?? 0;
+
   return (
     <>
-      <header>
-        <p className="text-label-md text-brand-text">{teacherDashboardMessages.eyebrow}</p>
+      {/* ── PAGE HEADER ──────────────────────────────────── */}
+      <header className="mb-8 border-b border-border-decorative pb-6">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-text">
+          {teacherDashboardMessages.eyebrow}
+        </p>
         <h1 className="type-heading-1 mt-2">{teacherDashboardMessages.title}</h1>
-        <p className="mt-3 max-w-reading text-body-md text-text-secondary">
+        <p className="mt-2 max-w-reading text-base text-text-secondary">
           {teacherDashboardMessages.description}
         </p>
       </header>
 
-      <section aria-labelledby="assigned-courses-heading" className="mt-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="type-heading-2" id="assigned-courses-heading">
-              {teacherDashboardMessages.assignedCourses}
-            </h2>
-            {courses.data ? (
-              <p className="mt-2 text-body-sm text-text-secondary">
-                {teacherDashboardMessages.assignedCount(courses.data.pagination.totalItems)}
-              </p>
-            ) : null}
+      {/* ── STATS ROW ────────────────────────────────────── */}
+      {courses.data && (
+        <div className="mb-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-border-decorative bg-surface p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Jami kurslar
+            </p>
+            <p className="mt-2 text-3xl font-extrabold tabular-nums text-text-primary">
+              {totalCourses}
+            </p>
           </div>
+          <div className="rounded-xl border border-border-decorative bg-surface p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Nashr etilgan
+            </p>
+            <p className="mt-2 text-3xl font-extrabold tabular-nums text-text-primary">
+              {courses.data.items.filter((c) => c.status === 'PUBLISHED').length}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border-decorative bg-surface p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Joriy sahifa
+            </p>
+            <p className="mt-2 text-3xl font-extrabold tabular-nums text-text-primary">
+              {page} / {responsePage?.totalPages ?? 1}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── COURSE LIST ──────────────────────────────────── */}
+      <section aria-labelledby="assigned-courses-heading">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="type-heading-2" id="assigned-courses-heading">
+            {teacherDashboardMessages.assignedCourses}
+          </h2>
+          {courses.data && (
+            <p className="text-sm text-text-muted">
+              {teacherDashboardMessages.assignedCount(courses.data.pagination.totalItems)}
+            </p>
+          )}
         </div>
 
         {courses.isPending || isOutOfRange ? (
-          <div className="mt-5">
-            <TeacherDashboardSkeleton />
-          </div>
+          <TeacherDashboardSkeleton />
         ) : null}
+
         {courses.isError && !courses.data ? (
-          <div className="mt-5">
-            <ReportingError
-              error={courses.error}
-              headingLevel="h3"
-              onRetry={() => void courses.refetch()}
-            />
-          </div>
+          <ReportingError
+            error={courses.error}
+            headingLevel="h3"
+            onRetry={() => void courses.refetch()}
+          />
         ) : null}
+
         {courses.data && !isOutOfRange ? (
           <>
             <ReportingRefreshStatus
@@ -82,19 +114,17 @@ export default function TeacherDashboardPage() {
               isFetching={courses.isFetching}
             />
             {courses.data.items.length ? (
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {courses.data.items.map((course) => (
                   <TeacherCourseOverviewCard course={course} key={course.id} />
                 ))}
               </div>
             ) : (
-              <div className="mt-5">
-                <ProgressEmptyState
-                  body={teacherDashboardMessages.empty.body}
-                  headingLevel="h3"
-                  title={teacherDashboardMessages.empty.title}
-                />
-              </div>
+              <ProgressEmptyState
+                body={teacherDashboardMessages.empty.body}
+                headingLevel="h3"
+                title={teacherDashboardMessages.empty.title}
+              />
             )}
             <ReportingPagination
               ariaLabel={teacherDashboardMessages.paginationLabel}

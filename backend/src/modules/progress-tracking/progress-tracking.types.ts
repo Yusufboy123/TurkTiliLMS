@@ -1,5 +1,6 @@
 import type {
   BlockProgressState,
+  CourseLevel,
   CourseEnrollmentStatus,
   CourseStatus,
   IdempotencyOperation,
@@ -87,6 +88,8 @@ export interface ProgressLessonRecord {
   masteryPassingPercentage?: number;
   masteryHasQuiz?: boolean;
   latestQuizPercentage?: number | null;
+  vocabularyHasItems?: boolean;
+  latestVocabularyPercentage?: number | null;
   progress: {
     state: PersistedLessonProgressState;
     firstActivityAt: Date;
@@ -118,6 +121,7 @@ export interface ProgressEnrollmentRecord {
     id: string;
     title: string;
     slug: string;
+    level: CourseLevel | null;
     status: CourseStatus;
     publishedAt: Date | null;
     deletedAt: Date | null;
@@ -182,9 +186,18 @@ export interface LessonProgressDto {
     passingPercentage: number;
     latestPercentage: number | null;
     passed: boolean;
+    vocabularyRequired: boolean;
+    vocabularyPassingPercentage: number;
+    latestVocabularyPercentage: number | null;
+    vocabularyPassed: boolean;
     locked: boolean;
-    lockReason: 'PREVIOUS_LESSON' | 'PREVIOUS_MASTERY' | null;
+    lockReason: 'PREVIOUS_LESSON' | 'PREVIOUS_MASTERY' | 'PREVIOUS_VOCABULARY' | null;
+    previousLessonId: string | null;
     previousLessonTitle: string | null;
+    previousPassingPercentage: number | null;
+    previousTopicPercentage: number | null;
+    previousVocabularyPercentage: number | null;
+    previousVocabularyRequired: boolean;
   };
   blocks: BlockProgressDto[];
   capabilities: {
@@ -210,6 +223,7 @@ export interface CourseReferenceDto {
   id: string;
   title: string;
   slug: string;
+  level: CourseLevel | null;
 }
 
 export interface ResumeLearningDto {

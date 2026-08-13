@@ -2,6 +2,7 @@ export type EnrollmentStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'COMPLETED
 export type BlockProgressState = 'NOT_STARTED' | 'INCOMPLETE' | 'COMPLETED';
 export type LessonProgressState = 'NOT_STARTED' | 'IN_PROGRESS' | 'READY_TO_COMPLETE' | 'COMPLETED';
 export type CourseProgressState = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+export type CourseLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type LessonContentBlockType =
   'TEXT' | 'VIDEO' | 'AUDIO' | 'PDF' | 'DOCUMENT' | 'IMAGE' | 'LINK' | 'DOWNLOAD';
 export type ProgressUnavailableReason =
@@ -32,6 +33,7 @@ export interface CourseReference {
   id: string;
   title: string;
   slug: string;
+  level: CourseLevel | null;
 }
 
 export interface ResumeLearning {
@@ -77,9 +79,18 @@ export interface LessonProgress {
     passingPercentage: number;
     latestPercentage: number | null;
     passed: boolean;
+    vocabularyRequired: boolean;
+    vocabularyPassingPercentage: number;
+    latestVocabularyPercentage: number | null;
+    vocabularyPassed: boolean;
     locked: boolean;
-    lockReason: 'PREVIOUS_LESSON' | 'PREVIOUS_MASTERY' | null;
+    lockReason: 'PREVIOUS_LESSON' | 'PREVIOUS_MASTERY' | 'PREVIOUS_VOCABULARY' | null;
+    previousLessonId?: string | null;
     previousLessonTitle: string | null;
+    previousPassingPercentage?: number | null;
+    previousTopicPercentage: number | null;
+    previousVocabularyPercentage: number | null;
+    previousVocabularyRequired: boolean;
   };
   blocks: BlockProgress[];
   capabilities: {

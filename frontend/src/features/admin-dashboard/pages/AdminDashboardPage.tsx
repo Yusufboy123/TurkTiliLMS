@@ -101,10 +101,13 @@ export default function AdminDashboardPage() {
 
   return (
     <>
-      <header>
-        <p className="text-label-md text-brand-text">{adminDashboardMessages.eyebrow}</p>
+      {/* ── PAGE HEADER ──────────────────────────────────── */}
+      <header className="mb-8 border-b border-border-decorative pb-6">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-text">
+          {adminDashboardMessages.eyebrow}
+        </p>
         <h1 className="type-heading-1 mt-2">{adminDashboardMessages.title}</h1>
-        <p className="mt-3 max-w-reading text-body-md text-text-secondary">
+        <p className="mt-2 max-w-reading text-base text-text-secondary">
           {adminDashboardMessages.description}
         </p>
       </header>
@@ -113,14 +116,14 @@ export default function AdminDashboardPage() {
       {summary.isError && !data ? (
         <AdminDashboardError error={summary.error} onRetry={() => void summary.refetch()} />
       ) : null}
+
       {data ? (
-        <div className="mt-8 space-y-10">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-body-sm text-text-secondary">
-              <span className="font-semibold">{adminDashboardMessages.snapshot.label}:</span>{' '}
-              <time dateTime={data.generatedAt}>
-                {formatAdminDashboardSnapshot(data.generatedAt)}
-              </time>
+        <div className="space-y-10">
+          {/* snapshot bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-decorative bg-subtle px-4 py-3 text-sm">
+            <p className="text-text-secondary">
+              <span className="font-semibold text-text-primary">{adminDashboardMessages.snapshot.label}:</span>{' '}
+              <time dateTime={data.generatedAt}>{formatAdminDashboardSnapshot(data.generatedAt)}</time>
             </p>
             <AdminDashboardRefreshStatus
               hasError={summary.isError}
@@ -132,15 +135,14 @@ export default function AdminDashboardPage() {
             <AdminSummarySection key={section.headingId} {...section} />
           ))}
 
-          <section aria-labelledby="admin-quick-actions">
-            <h2 className="type-heading-2" id="admin-quick-actions">
+          {/* quick actions */}
+          <section aria-labelledby="admin-quick-actions" className="rounded-xl border border-border-decorative bg-surface p-6">
+            <h2 className="type-heading-3 mb-4" id="admin-quick-actions">
               {adminDashboardMessages.sections.quickActions}
             </h2>
-            <div className="mt-4">
-              <ProgressActionLink to={progressReportingPaths.admin}>
-                {adminDashboardMessages.quickActions.progress}
-              </ProgressActionLink>
-            </div>
+            <ProgressActionLink to={progressReportingPaths.admin}>
+              {adminDashboardMessages.quickActions.progress}
+            </ProgressActionLink>
           </section>
         </div>
       ) : null}

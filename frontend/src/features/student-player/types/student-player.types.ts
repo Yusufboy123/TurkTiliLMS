@@ -44,6 +44,25 @@ export interface StudentLessonBlock {
   fileSizeBytes: string | null;
   durationSeconds: number | null;
   thumbnailUrl: string | null;
+  interactivePractice?: InteractivePracticeItem[] | undefined;
+}
+
+export type InteractivePracticeItemType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD' | 'CLASSIFY';
+
+export interface InteractivePracticeItem {
+  id: string;
+  type: InteractivePracticeItemType;
+  prompt: string;
+  options?: string[];
+  explanation: string;
+  stage: number;
+}
+
+export interface StudentPracticeResult {
+  practiceId: string;
+  correct: boolean;
+  explanation: string;
+  correctAnswer?: string;
 }
 
 export interface StudentVocabulary {
@@ -53,7 +72,15 @@ export interface StudentVocabulary {
   uzbekMeaning: string;
   exampleSentence: string | null;
   position: number;
+  sourceId?: string | null;
+  sourceStatus?: 'NEW' | 'REVIEW' | 'QUESTIONABLE';
+  learnerStatus?: 'NEW' | 'KNOWN' | 'NEEDS_REVIEW';
+  reviewCount?: number;
 }
+
+export interface VocabularyTestQuestion { vocabularyId: string; prompt: string; direction: 'UZ_TO_TR_TYPED'; }
+export interface VocabularyTestStart { attempt: StudentVocabularyTestAttempt; questions: VocabularyTestQuestion[]; }
+export interface StudentVocabularyTestAttempt { id: string; lessonId: string; enrollmentId: string; startedAt: string; submittedAt: string | null; score: number; maxScore: number; percentage: number; correctCount: number; incorrectCount: number; status: 'IN_PROGRESS' | 'SUBMITTED'; }
 
 export type StudentQuizQuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD';
 

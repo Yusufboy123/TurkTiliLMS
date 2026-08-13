@@ -21,20 +21,26 @@ const tsxCliPath = resolve(workspaceRoot, 'node_modules', 'tsx', 'dist', 'cli.mj
 const prismaCliPath = resolve(workspaceRoot, 'node_modules', 'prisma', 'build', 'index.js');
 const seedScriptPath = resolve(backendRoot, 'prisma', 'seed.ts');
 
+const testSeedPasswords = {
+  admin: `test-admin-${randomUUID()}-seed-password`,
+  teacher: `test-teacher-${randomUUID()}-seed-password`,
+  student: `test-student-${randomUUID()}-seed-password`,
+} as const;
+
 const expectedAccounts = [
   {
     email: 'admin@turktili.local',
-    password: 'Admin123!',
+    password: testSeedPasswords.admin,
     role: RoleCode.ADMIN,
   },
   {
     email: 'teacher@turktili.local',
-    password: 'Teacher123!',
+    password: testSeedPasswords.teacher,
     role: RoleCode.TEACHER,
   },
   {
     email: 'student@turktili.local',
-    password: 'Student123!',
+    password: testSeedPasswords.student,
     role: RoleCode.STUDENT,
   },
 ] as const;
@@ -98,6 +104,9 @@ describeDatabase('development user seed PostgreSQL integration', () => {
       NODE_ENV: nodeEnvironment,
       BCRYPT_ROUNDS: '10',
       SEED_DEVELOPMENT_USERS: seedDevelopmentUsers ? 'true' : 'false',
+      SEED_ADMIN_PASSWORD: testSeedPasswords.admin,
+      SEED_TEACHER_PASSWORD: testSeedPasswords.teacher,
+      SEED_STUDENT_PASSWORD: testSeedPasswords.student,
     };
   }
 
