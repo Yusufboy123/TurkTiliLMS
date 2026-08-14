@@ -15,9 +15,18 @@ export function createStudentProfileRouter(
   dependencies: StudentProfileRouterDependencies,
 ): Router {
   const router = Router();
-  router.use(dependencies.authentication, dependencies.studentRole);
-  router.get('/me/student-profile', asyncHandler(dependencies.controller.get));
-  router.put('/me/student-profile', asyncHandler(dependencies.controller.update));
+  router.get(
+    '/me/student-profile',
+    dependencies.authentication,
+    dependencies.studentRole,
+    asyncHandler(dependencies.controller.get),
+  );
+  router.put(
+    '/me/student-profile',
+    dependencies.authentication,
+    dependencies.studentRole,
+    asyncHandler(dependencies.controller.update),
+  );
   return router;
 }
 

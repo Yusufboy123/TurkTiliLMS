@@ -1,6 +1,7 @@
 import { CourseEnrollmentStatus, LessonProgressState, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
 import type { LessonMasteryAccess, LessonMasteryDecision } from './lesson-mastery.types.js';
+import type { PrismaLevelGate } from '../level-final-exam/level-gate.js';
 
 const lessonAccessSelect = {
   id: true,
@@ -93,7 +94,7 @@ export function decisionFor(lessons: AccessLesson[], lessonId: string): LessonMa
 }
 
 export class PrismaLessonMasteryAccess implements LessonMasteryAccess {
-  constructor(private readonly client: PrismaClient = prisma) {}
+  constructor(private readonly client: PrismaClient = prisma, private readonly levelGate?: PrismaLevelGate) {}
 
   private async lessonsForEnrollment(enrollmentId: string, courseId: string | undefined, studentId: string): Promise<AccessLesson[] | null> {
     // Course-level access checks do not have an enrollment id yet. Resolve the
@@ -156,10 +157,15 @@ export class PrismaLessonMasteryAccess implements LessonMasteryAccess {
   }
 
   async canAccessCourseLesson(courseId: string, lessonId: string, studentId: string): Promise<boolean> {
+    if (this.levelGate && !(await this.levelGate.canAccessCourse(courseId, studentId))) return false;
     return (await this.evaluateCourseLesson(courseId, lessonId, studentId)).allowed;
   }
 
   async canAccessEnrollmentLesson(enrollmentId: string, lessonId: string, studentId: string): Promise<boolean> {
+    if (this.levelGate) {
+      const enrollment = await this.client.courseEnrollment.findFirst({ where: { id: enrollmentId, studentId }, select: { courseId: true } });
+      if (!enrollment || !(await this.levelGate.canAccessCourse(enrollment.courseId, studentId))) return false;
+    }
     const lessons = await this.lessonsForEnrollment(enrollmentId, undefined, studentId);
     return lessons ? decisionFor(lessons, lessonId).allowed : false;
   }

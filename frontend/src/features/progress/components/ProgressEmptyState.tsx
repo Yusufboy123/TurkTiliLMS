@@ -17,7 +17,7 @@ export function ProgressEmptyState({
         aria-hidden="true"
         className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-neutral-bg text-heading-4 text-neutral-text"
       >
-        0
+        ✓
       </div>
       <Heading className="type-heading-4 mt-4">{title}</Heading>
       <p className="mx-auto mt-2 max-w-reading text-body-sm text-text-secondary">{body}</p>

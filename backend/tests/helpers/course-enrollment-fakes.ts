@@ -2,6 +2,7 @@ import {
   CourseEnrollmentSource,
   CourseEnrollmentStatus,
   CourseStatus,
+  CourseLevel,
   RoleCode,
 } from '@prisma/client';
 import type {
@@ -53,6 +54,7 @@ export function createEnrollmentCourse(
     title: 'Published course',
     slug: 'published-course',
     status: CourseStatus.PUBLISHED,
+    level: CourseLevel.A1,
     publishedAt: new Date('2026-01-01T00:00:00.000Z'),
     deletedAt: null,
     teacherId: TEACHER_ID,

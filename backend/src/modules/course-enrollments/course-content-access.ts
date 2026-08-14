@@ -1,5 +1,6 @@
 import { CourseEnrollmentStatus, RoleCode, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma.js';
+import { PrismaLevelGate } from '../level-final-exam/level-gate.js';
 
 export interface StudentCourseContentAccess {
   hasAccess(courseId: string, studentId: string): Promise<boolean>;
@@ -7,7 +8,11 @@ export interface StudentCourseContentAccess {
 
 /** Read-only enrollment policy shared by catalog content delivery. */
 export class PrismaStudentCourseContentAccess implements StudentCourseContentAccess {
-  constructor(private readonly client: PrismaClient = prisma) {}
+  private readonly levelGate: PrismaLevelGate;
+
+  constructor(private readonly client: PrismaClient = prisma) {
+    this.levelGate = new PrismaLevelGate(client);
+  }
 
   async hasAccess(courseId: string, studentId: string): Promise<boolean> {
     const enrollment = await this.client.courseEnrollment.findFirst({
@@ -24,6 +29,6 @@ export class PrismaStudentCourseContentAccess implements StudentCourseContentAcc
       },
       select: { id: true },
     });
-    return enrollment !== null;
+    return enrollment !== null && (await this.levelGate.canAccessCourse(courseId, studentId));
   }
 }

@@ -144,8 +144,8 @@ describe('progress page integration', () => {
     );
 
     expect(markup).toContain('Salomlashish');
-    expect(markup).toContain('Salomlashish videosi');
-    expect(markup).toContain('Materialni tugallash');
+    expect(markup).toContain('Mashqlarni boshlash');
+    expect(markup).toContain('Mening qaydlarim');
     expect(markup).not.toContain('Talaba mobil navigatsiyasi');
   });
 });

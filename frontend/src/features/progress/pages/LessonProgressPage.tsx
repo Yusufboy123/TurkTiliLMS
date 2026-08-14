@@ -30,6 +30,14 @@ import {
 import type { LessonPlayerMode } from '../../student-player/components/PlayerModeStepper';
 import { useLessonBookmark, useLessonNote } from '../../student-productivity';
 
+function BookmarkGlyph() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M6 4.5A2.5 2.5 0 0 1 8.5 2h7A2.5 2.5 0 0 1 18 4.5V21l-6-3.5L6 21V4.5Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 export default function LessonProgressPage() {
   const { enrollmentId = '', lessonId = '' } = useParams();
   const progress = useEnrollmentProgress(enrollmentId);
@@ -155,30 +163,37 @@ export default function LessonProgressPage() {
 
       {/* Player Header Bar */}
       <header className="sticky top-0 z-sticky border-b border-border-decorative/80 bg-surface/95 shadow-subtle backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-content items-center justify-between gap-4 px-4 md:px-6">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex min-h-16 max-w-content items-center justify-between gap-2 px-3 sm:gap-4 sm:px-4 md:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <Link
-              className="inline-flex min-h-target items-center text-button text-action-primary-text hover:underline"
+              aria-label={progressMessages.common.back}
+              className="inline-flex min-h-target shrink-0 items-center text-button text-action-primary-text hover:underline"
               to={progressPaths.course(enrollmentId)}
             >
-              {progressMessages.common.back}
+              <span aria-hidden="true" className="sm:hidden">←</span>
+              <span className="hidden sm:inline">{progressMessages.common.back}</span>
             </Link>
-            <span className="text-border-control font-light">|</span>
+            <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border-control sm:block" />
             <p className="min-w-0 truncate text-label-md text-text-secondary font-medium">
               {progress.data.course.title}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex rounded-full bg-action-primary-bg/10 px-3 py-1 text-caption font-bold text-action-primary-text">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <span className="hidden rounded-full bg-action-primary-bg/10 px-3 py-1 text-caption font-bold text-action-primary-text md:inline-flex">
               {progress.data.course.level ?? '—'} Daraja
             </span>
             <Button
+              aria-label={lessonBookmark.isBookmarked ? 'Saqlanganlardan olib tashlash' : 'Darsni saqlash'}
+              className="shrink-0 px-3 sm:px-4"
               disabled={!progress.data.capabilities.canAccessCourseContent || lessonBookmark.isPending}
               intent="secondary"
               onClick={lessonBookmark.toggle}
+              size="sm"
+              startIcon={<BookmarkGlyph />}
             >
-              {lessonBookmark.isBookmarked ? '🔖 Saqlangan' : '🔖 Saqlash'}
+              <span className="hidden sm:inline">{lessonBookmark.isBookmarked ? 'Saqlangan' : 'Saqlash'}</span>
+              <span className="sr-only sm:hidden">{lessonBookmark.isBookmarked ? 'Saqlangan' : 'Saqlash'}</span>
             </Button>
           </div>
         </div>
@@ -219,7 +234,8 @@ export default function LessonProgressPage() {
         {lesson.mastery?.locked && (() => {
           const topicPassed = lesson.mastery.previousTopicPercentage !== null && lesson.mastery.previousTopicPercentage >= (lesson.mastery.previousPassingPercentage ?? passingPercentage);
           const vocabRequired = lesson.mastery.previousVocabularyRequired;
-          const vocabPassed = lesson.mastery.previousVocabularyPercentage !== null && lesson.mastery.previousVocabularyPercentage >= 75;
+          const vocabularyPassingPercentage = lesson.mastery.vocabularyPassingPercentage ?? passingPercentage;
+          const vocabPassed = lesson.mastery.previousVocabularyPercentage !== null && lesson.mastery.previousVocabularyPercentage >= vocabularyPassingPercentage;
           const targetPath = topicPassed && vocabRequired && !vocabPassed && lesson.mastery.previousLessonId
             ? `${progressPaths.lesson(enrollmentId, lesson.mastery.previousLessonId)}#vocabulary`
             : lesson.mastery.previousLessonId
@@ -247,7 +263,7 @@ export default function LessonProgressPage() {
                         ? `✓ Lug‘at testi: ${lesson.mastery.previousVocabularyPercentage}%`
                         : lesson.mastery.previousVocabularyPercentage === null
                           ? '✕ Lug‘at testi: hali topshirilmagan'
-                          : `✕ Lug‘at testi: ${lesson.mastery.previousVocabularyPercentage}% — kamida 75% kerak`}
+                          : `✕ Lug‘at testi: ${lesson.mastery.previousVocabularyPercentage}% — kamida ${vocabularyPassingPercentage}% kerak`}
                     </div>
                   ) : null}
                 </div>
@@ -338,17 +354,19 @@ export default function LessonProgressPage() {
         {currentMode === 'LEARN' && lessonAccessible && progress.data.capabilities.canAccessCourseContent && (
           <Card className="mt-12 max-w-reading border-border-decorative bg-surface" elevation="none" padding="lg">
             <h2 className="type-heading-3 text-text-primary">Mening qaydlarim</h2>
-            <p className="mt-1 text-body-sm text-text-secondary">
+            <p className="mt-1 text-body-sm text-text-secondary" id="lesson-note-hint">
               Ushbu dars bo‘yicha shaxsiy eslatmalaringizni yozib qo‘ying.
             </p>
             <textarea
               aria-label="Mening qaydlarim"
-              className="mt-4 min-h-32 w-full rounded-md border border-border-control bg-surface p-3 text-body-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              aria-describedby="lesson-note-hint lesson-note-count"
+              className="mt-4 min-h-32 w-full resize-y rounded-lg border border-border-control bg-surface p-3 text-body-md shadow-subtle transition-shadow placeholder:text-text-muted focus:border-action-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none"
               maxLength={10000}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder="Bu dars uchun shaxsiy qaydingiz..."
               value={noteText}
             />
+            <p className="mt-2 text-right text-caption text-text-muted" id="lesson-note-count">{noteText.length} / 10 000</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <Button disabled={lessonNote.save.isPending} loading={lessonNote.save.isPending} onClick={() => lessonNote.save.mutate(noteText)}>
                 Saqlash

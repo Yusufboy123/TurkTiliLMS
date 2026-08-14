@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Button, Card } from '../../../components';
 import { useStudentLessonQuiz } from '../hooks/use-student-player';
 import type { StudentQuizAttempt } from '../types/student-player.types';
@@ -105,12 +106,12 @@ export function ResultModeView({
           {isPassed ? (
             <>
               {nextLessonPath ? (
-                <a
-                  href={nextLessonPath}
+                <Link
+                  to={nextLessonPath}
                   className="inline-flex min-h-target items-center justify-center rounded-md bg-action-primary-bg px-6 py-3 text-button font-bold text-white shadow-card hover:bg-action-primary-hover no-underline visited:text-white"
                 >
                   Keyingi darsga o‘tish ▶
-                </a>
+                </Link>
               ) : null}
               <Button intent="secondary" onClick={onGoToLearn}>
                 Nazariyani ko‘rish

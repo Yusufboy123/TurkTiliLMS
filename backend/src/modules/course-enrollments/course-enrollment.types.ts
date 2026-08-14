@@ -2,6 +2,7 @@ import type {
   CourseEnrollmentSource,
   CourseEnrollmentStatus,
   CourseStatus,
+  CourseLevel,
   RoleCode,
 } from '@prisma/client';
 
@@ -15,6 +16,7 @@ export interface EnrollmentCourseAccess {
   title: string;
   slug: string;
   status: CourseStatus;
+  level: CourseLevel | null;
   publishedAt: Date | null;
   deletedAt: Date | null;
   teacherId: string | null;

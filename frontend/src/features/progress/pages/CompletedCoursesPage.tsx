@@ -47,7 +47,7 @@ export default function CompletedCoursesPage() {
           </div>
           <nav
             aria-label={progressMessages.completed.paginationLabel}
-            className="mt-8 flex items-center justify-between gap-4"
+            className="mt-8 flex items-center justify-between gap-3 rounded-2xl border border-border-decorative bg-surface p-3 shadow-subtle sm:gap-4 sm:p-4"
           >
             <Button
               disabled={completed.data.pagination.page <= 1 || completed.isFetching}

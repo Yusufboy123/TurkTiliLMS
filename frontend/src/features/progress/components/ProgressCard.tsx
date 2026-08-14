@@ -22,6 +22,11 @@ export function ProgressCard({ progress }: { progress: CourseProgressSummary }) 
     <Card className="flex h-full flex-col" padding="lg">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          {progress.course.level ? (
+            <span className="inline-flex rounded-full bg-info-bg px-3 py-1 text-label-sm font-semibold text-info-text">
+              {progress.course.level}
+            </span>
+          ) : null}
           <h3 className="type-heading-4">{progress.course.title}</h3>
           <p className="mt-1 text-caption text-text-muted">{statusLabel(progress.status)}</p>
         </div>

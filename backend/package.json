@@ -17,7 +17,12 @@
     "prisma:seed": "prisma db seed",
     "prisma:seed:a1": "tsx prisma/seed-a1-content.ts",
     "prisma:seed:a2": "tsx prisma/seed-a2-content.ts",
+    "prisma:seed:b2": "tsx prisma/seed-b2-content.ts",
+    "prisma:seed:b1": "tsx prisma/seed-b1-content.ts",
+    "prisma:seed:final-exams": "tsx prisma/seed-level-final-exams.ts",
     "prisma:seed:vocabulary": "tsx prisma/seed-vocabulary.ts",
+    "prisma:seed:b2-vocabulary": "tsx prisma/seed-b2-vocabulary.ts",
+    "prisma:seed:b1-vocabulary": "tsx prisma/seed-b1-vocabulary.ts",
     "bootstrap:admin": "tsx prisma/bootstrap-admin.ts",
     "postinstall": "prisma generate"
   },

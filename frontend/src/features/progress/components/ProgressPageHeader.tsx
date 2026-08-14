@@ -14,7 +14,8 @@ export function ProgressPageHeader({ description, title }: ProgressPageHeaderPro
   }, [title]);
 
   return (
-    <header className="mb-8">
+    <header className="mb-8 max-w-reading">
+      <div aria-hidden="true" className="mb-4 h-1 w-12 rounded-full bg-action-primary-bg" />
       <h1 className="type-heading-1 outline-none" ref={headingRef} tabIndex={-1}>
         {title}
       </h1>

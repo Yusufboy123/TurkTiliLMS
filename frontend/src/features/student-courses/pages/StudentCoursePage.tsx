@@ -5,6 +5,28 @@ import { useEnrollmentProgress } from '../../progress/hooks/use-progress-queries
 import { progressPaths } from '../../progress/progress.routes';
 import { useStudentCourses, latestEnrollmentsByCourse } from '../hooks/use-student-courses';
 import { studentCoursesMessages as messages } from '../student-courses.messages';
+import { LevelFinalExamCard } from '../../level-final-exam';
+import type { LessonProgress } from '../../progress/types/progress.types';
+
+function LessonLockDetails({ lesson }: { lesson: LessonProgress }) {
+  const mastery = lesson.mastery;
+  if (!mastery?.locked) return null;
+  const topicPassed = mastery.previousTopicPercentage !== null && mastery.previousTopicPercentage >= (mastery.previousPassingPercentage ?? 75);
+  const vocabularyPassingPercentage = mastery.vocabularyPassingPercentage ?? mastery.previousPassingPercentage ?? 75;
+  const vocabularyPassed = mastery.previousVocabularyPercentage !== null && mastery.previousVocabularyPercentage >= vocabularyPassingPercentage;
+
+  return (
+    <div className="mt-3 rounded-lg border border-warning-border bg-warning-bg/40 p-3 text-body-sm text-warning-text" role="status">
+      <p className="font-semibold">Qulflangan — talablar:</p>
+      <div className="mt-1 space-y-1">
+        <p>{topicPassed ? `✓ Mavzu testi: ${mastery.previousTopicPercentage}%` : mastery.previousTopicPercentage === null ? '• Mavzu testi: hali topshirilmagan' : `• Mavzu testi: ${mastery.previousTopicPercentage}% — kamida ${mastery.previousPassingPercentage ?? 75}% kerak`}</p>
+        {mastery.previousVocabularyRequired ? (
+          <p>{vocabularyPassed ? `✓ Lug‘at testi: ${mastery.previousVocabularyPercentage}%` : mastery.previousVocabularyPercentage === null ? '• Lug‘at testi: hali topshirilmagan' : `• Lug‘at testi: ${mastery.previousVocabularyPercentage}% — kamida ${vocabularyPassingPercentage}% kerak`}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default function StudentCoursePage() {
   const { courseId = '' } = useParams<{ courseId: string }>();
@@ -63,6 +85,8 @@ export default function StudentCoursePage() {
         </Card>
       ) : null}
 
+      {course?.level ? <LevelFinalExamCard enrollmentId={enrollment.id} /> : null}
+
       <section aria-labelledby="student-course-lessons-heading">
         <h2 className="type-heading-2" id="student-course-lessons-heading">Darslar</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -72,8 +96,8 @@ export default function StudentCoursePage() {
                 <Card className="flex h-full flex-col" key={lesson.id} padding="lg">
                   <div className="flex items-start justify-between gap-3"><h3 className="type-heading-4 break-words">{lesson.title}</h3><Badge intent={lesson.mastery?.locked ? 'neutral' : lesson.status === 'COMPLETED' ? 'success' : 'neutral'}>{lesson.mastery?.locked ? '🔒 Qulflangan' : lesson.status === 'COMPLETED' ? 'O‘zlashtirildi ✓' : `${lesson.percentage}%`}</Badge></div>
                   <p className="mt-3 text-body-sm text-text-secondary">{lesson.completedEligibleBlocks}/{lesson.totalEligibleBlocks} material</p>
-                  {lesson.mastery?.locked ? <p className="mt-3 text-body-sm text-text-secondary">{lesson.mastery.previousLessonTitle ? `Avval ${lesson.mastery.previousLessonTitle} darsini o‘zlashtiring.` : 'Avval oldingi darsni o‘zlashtiring.'}</p> : null}
-                  <div className="mt-auto pt-5">{data.capabilities.canAccessCourseContent && lesson.capabilities.canAccessLesson !== false ? <Link className="inline-flex min-h-target items-center text-button" to={progressPaths.lesson(enrollment.id, lesson.id)}>Darsni ochish</Link> : lesson.mastery?.locked ? <span className="text-body-sm text-text-muted">Avvalgi dars talab qilinadi</span> : <span className="text-body-sm text-text-muted">Kirish yopiq</span>}</div>
+                  <LessonLockDetails lesson={lesson} />
+                  <div className="mt-auto pt-5">{data.capabilities.canAccessCourseContent && lesson.capabilities.canAccessLesson !== false ? <Link className="inline-flex min-h-target items-center text-button" to={progressPaths.lesson(enrollment.id, lesson.id)}>Darsni ochish</Link> : lesson.mastery?.locked && lesson.mastery.previousLessonId ? <Link className="inline-flex min-h-target items-center text-button text-warning-text" to={progressPaths.lesson(enrollment.id, lesson.mastery.previousLessonId)}>Oldingi darsga o‘tish →</Link> : lesson.mastery?.locked ? <span className="text-body-sm text-text-muted">Avvalgi dars talab qilinadi</span> : <span className="text-body-sm text-text-muted">Kirish yopiq</span>}</div>
                 </Card>
               ))}
             </div>

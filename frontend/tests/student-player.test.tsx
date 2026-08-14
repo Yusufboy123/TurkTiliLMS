@@ -131,7 +131,7 @@ describe('student lesson player', () => {
     expect(markup).toContain('<audio');
     expect(markup).toContain('aria-label="Video"');
     expect(markup).toContain('aria-label="Audio"');
-    expect(markup).toContain('O‘quv matni');
+    expect(markup).toContain('Matn');
   });
 
   it('renders reusable interactive practice controls for each supported type', () => {

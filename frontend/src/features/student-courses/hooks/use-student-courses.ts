@@ -6,6 +6,7 @@ import type {
   StudentEnrollmentPage,
 } from '../types/student-courses.types';
 import { studentCoursesQueryKeys } from './student-courses-query-keys';
+import { levelFinalExamApi } from '../../level-final-exam/api/level-final-exam.api';
 
 function enrollmentDate(enrollment: StudentEnrollment): number {
   return new Date(enrollment.enrolledAt).getTime();
@@ -32,6 +33,7 @@ export function useStudentCourses() {
     queryKey: studentCoursesQueryKeys.enrollments(),
     queryFn: studentCoursesApi.listEnrollments,
   });
+  const levelGates = useQuery({ queryKey: ['level-gates'], queryFn: levelFinalExamApi.gates });
   const enrollment = useMutation({
     mutationFn: studentCoursesApi.selfEnroll,
     onSuccess: (created) => {
@@ -58,5 +60,5 @@ export function useStudentCourses() {
     },
   });
 
-  return { catalog, enrollments, enrollment };
+  return { catalog, enrollments, enrollment, levelGates };
 }

@@ -61,12 +61,13 @@ export default function StudentDashboardPage() {
       {summary.data ? (
         <>
           {profile.data ? (
-            <Card className="mb-6 border-info-border bg-info-bg" elevation="none" padding="md">
-              <p className="text-body-sm text-info-text">
-                Daraja: <strong>{profile.data.currentLevel === 'UNKNOWN' ? 'Boshlovchi' : profile.data.currentLevel}</strong>
-                {' · '}
-                Maqsad: <strong>{goalLabels[profile.data.learningGoal] ?? profile.data.learningGoal}</strong>
-              </p>
+            <Card className="relative mb-6 overflow-hidden border-info-border bg-info-bg" elevation="none" padding="lg">
+              <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-action-primary-bg" />
+              <p className="text-label-sm font-semibold uppercase tracking-[0.1em] text-info-text">Sizning yo‘nalishingiz</p>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-body-sm text-info-text">
+                <span className="rounded-full bg-surface px-3 py-1 font-semibold">Daraja: {profile.data.currentLevel === 'UNKNOWN' ? 'Boshlovchi' : profile.data.currentLevel}</span>
+                <span className="rounded-full bg-surface px-3 py-1 font-semibold">Maqsad: {goalLabels[profile.data.learningGoal] ?? profile.data.learningGoal}</span>
+              </div>
             </Card>
           ) : null}
           <ProgressRefreshStatus
@@ -98,7 +99,7 @@ export default function StudentDashboardPage() {
               emptyTitle={progressMessages.dashboard.noCoursesTitle}
             />
             {!summary.data.activeCourses.length ? (
-              <Card className="mt-5 border-info-border bg-info-bg" elevation="none" padding="lg">
+              <Card className="mt-5 border-action-primary-border/40 bg-surface" elevation="none" padding="lg">
                 <h3 className="type-heading-3">Yangi kurs boshlang</h3>
                 <p className="mt-2 text-body-sm text-text-secondary">O‘zingizga mos kursni tanlab, o‘qishni boshlashingiz mumkin.</p>
                 <Link className="mt-4 inline-flex no-underline" to={studentCoursesPaths.list}>
@@ -128,7 +129,7 @@ export default function StudentDashboardPage() {
           </Link>
         </div>
 
-        {completed.isPending ? <ProgressSkeleton cards={2} /> : null}
+        {completed.isPending && !summary.isPending ? <ProgressSkeleton cards={2} /> : null}
         {completed.isError && !completed.data ? (
           <div className="mt-5">
             <ProgressError error={completed.error} onRetry={() => void completed.refetch()} />

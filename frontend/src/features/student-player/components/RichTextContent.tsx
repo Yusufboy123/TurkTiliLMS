@@ -10,7 +10,7 @@ function parseInlineFormatting(text: string): ReactNode[] {
     // Bold **text**
     const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*(.*)$/s);
     // Inline code `text`
-    const codeMatch = remaining.match(/^(.*?)\`(.+?)\`(.*)$/s);
+    const codeMatch = remaining.match(/^(.*?)(?:`(.+?)`)(.*)$/s);
     // Italic *text*
     const italicMatch = remaining.match(/^(.*?)\*(.+?)\*(.*)$/s);
 

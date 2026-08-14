@@ -16,7 +16,8 @@ export function LessonProgressCard({ enrollmentId, lesson }: LessonProgressCardP
   const isLocked = Boolean(mastery?.locked);
   const topicPassed = mastery?.previousTopicPercentage !== null && (mastery?.previousTopicPercentage ?? 0) >= (mastery?.previousPassingPercentage ?? 75);
   const vocabRequired = Boolean(mastery?.previousVocabularyRequired);
-  const vocabPassed = mastery?.previousVocabularyPercentage !== null && (mastery?.previousVocabularyPercentage ?? 0) >= 75;
+  const vocabularyPassingPercentage = mastery?.vocabularyPassingPercentage ?? mastery?.previousPassingPercentage ?? 75;
+  const vocabPassed = mastery?.previousVocabularyPercentage !== null && (mastery?.previousVocabularyPercentage ?? 0) >= vocabularyPassingPercentage;
 
   const targetPath = isLocked && topicPassed && vocabRequired && !vocabPassed && mastery?.previousLessonId
     ? `${progressPaths.lesson(enrollmentId, mastery.previousLessonId)}#vocabulary`
@@ -55,7 +56,7 @@ export function LessonProgressCard({ enrollmentId, lesson }: LessonProgressCardP
                   ? `✓ Lug‘at testi: ${mastery.previousVocabularyPercentage}%`
                   : mastery.previousVocabularyPercentage === null
                     ? '✕ Lug‘at testi: hali topshirilmagan'
-                    : `✕ Lug‘at testi: ${mastery.previousVocabularyPercentage}% — kamida 75% kerak`}
+                    : `✕ Lug‘at testi: ${mastery.previousVocabularyPercentage}% — kamida ${vocabularyPassingPercentage}% kerak`}
               </p>
             ) : null}
           </div>

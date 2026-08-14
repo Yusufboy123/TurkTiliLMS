@@ -23,6 +23,7 @@ import type {
   PaginatedEnrollments,
   UpdateEnrollmentAccessInput,
 } from './course-enrollment.types.js';
+import type { PrismaLevelGate } from '../level-final-exam/level-gate.js';
 
 const allowedTransitions: Record<CourseEnrollmentStatus, CourseEnrollmentStatus[]> = {
   ACTIVE: [
@@ -184,7 +185,7 @@ export interface CourseEnrollmentUseCases {
 }
 
 export class CourseEnrollmentService implements CourseEnrollmentUseCases {
-  constructor(private readonly repository: CourseEnrollmentRepository) {}
+  constructor(private readonly repository: CourseEnrollmentRepository, private readonly levelGate?: PrismaLevelGate) {}
 
   async selfEnroll(
     courseId: string,
@@ -371,6 +372,16 @@ export class CourseEnrollmentService implements CourseEnrollmentUseCases {
         const course = await transaction.findCourse(courseId);
         assertCourseEnrollable(course);
         if (source === CourseEnrollmentSource.ADMIN) assertCourseScope(actor, course);
+        if (course.level && this.levelGate) {
+          const gate = await this.levelGate.evaluate(course.level, studentId);
+          if (!gate.allowed) {
+            throw new AppError(
+              gate.remainingRequirements[gate.remainingRequirements.length - 1] ?? `${course.level} darajasi hali ochilmagan.`,
+              403,
+              'LEVEL_GATE_LOCKED',
+            );
+          }
+        }
 
         await transaction.lockStudentEligibility(studentId);
         const student = await transaction.findEligibleStudent(studentId);

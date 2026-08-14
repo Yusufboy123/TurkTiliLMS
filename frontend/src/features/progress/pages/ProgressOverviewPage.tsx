@@ -31,10 +31,12 @@ export default function ProgressOverviewPage() {
         isError={summary.isError}
         isFetching={summary.isFetching}
       />
-      <ProgressStatistics
-        activeCourseCount={summary.data.activeCourseCount}
-        completedCourseCount={summary.data.completedCourseCount}
-      />
+      <div className="rounded-2xl border border-border-decorative bg-surface p-4 shadow-subtle sm:p-5">
+        <ProgressStatistics
+          activeCourseCount={summary.data.activeCourseCount}
+          completedCourseCount={summary.data.completedCourseCount}
+        />
+      </div>
 
       <section aria-labelledby="resume-heading" className="mt-8">
         <h2 className="sr-only" id="resume-heading">

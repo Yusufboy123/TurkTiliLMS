@@ -438,6 +438,7 @@ async function findCourse(
       title: true,
       slug: true,
       status: true,
+      level: true,
       publishedAt: true,
       deletedAt: true,
       teacherId: true,

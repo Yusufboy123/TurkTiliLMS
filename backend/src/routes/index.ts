@@ -34,6 +34,7 @@ import { notificationRouter } from '../modules/notifications/notification.routes
 import { studentProductivityRouter } from '../modules/student-productivity/student-productivity.routes.js';
 import { questionAnswerRouter } from '../modules/question-answers/index.js';
 import { vocabularyLearningRouter } from '../modules/vocabulary-learning/vocabulary-learning.routes.js';
+import { levelFinalExamRouter } from '../modules/level-final-exam/level-final-exam.routes.js';
 
 export const apiV1Router = Router();
 
@@ -45,6 +46,7 @@ apiV1Router.use('/auth/step-up', stepUpAuthenticationRouter);
 apiV1Router.use(notificationRouter);
 apiV1Router.use(studentProductivityRouter);
 apiV1Router.use(vocabularyLearningRouter);
+apiV1Router.use(levelFinalExamRouter);
 apiV1Router.use(questionAnswerRouter);
 apiV1Router.use('/users', userManagementRouter);
 apiV1Router.use('/groups', groupsRouter);

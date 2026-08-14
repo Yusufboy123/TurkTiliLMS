@@ -311,6 +311,13 @@ enum LessonQuizAttemptStatus {
   @@map("lesson_quiz_attempt_status")
 }
 
+enum LevelFinalExamAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+
+  @@map("level_final_exam_attempt_status")
+}
+
 enum VocabularySourceStatus {
   NEW
   REVIEW
@@ -681,6 +688,7 @@ model CourseEnrollment {
   idempotencyRecords     IdempotencyRecord[]
   quizAttempts           LessonQuizAttempt[]
   vocabularyTestAttempts VocabularyTestAttempt[]
+  levelFinalExamAttempts LevelFinalExamAttempt[]
 
   @@unique([id, courseId], map: "course_enrollments_id_course_id_key")
   @@index([studentId, status, enrolledAt], map: "course_enrollments_student_id_status_enrolled_at_idx")
@@ -1348,6 +1356,7 @@ model LessonQuizQuestion {
   lesson        Lesson                    @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   options       LessonQuizOption[]
   answers       LessonQuizAnswer[]
+  finalExamQuestions LevelFinalExamQuestion[]
 
   @@index([lessonId, deletedAt, position], map: "lesson_quiz_questions_lesson_id_deleted_at_position_idx")
   @@map("lesson_quiz_questions")
@@ -1399,6 +1408,74 @@ model LessonQuizAnswer {
   @@unique([attemptId, questionId], map: "lesson_quiz_answers_attempt_id_question_id_key")
   @@index([questionId], map: "lesson_quiz_answers_question_id_idx")
   @@map("lesson_quiz_answers")
+}
+
+/// A reusable, level-scoped comprehensive exam. Questions reference the
+/// authoritative lesson question bank; no answer keys are copied into the
+/// public exam projection.
+model LevelFinalExam {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  level              CourseLevel    @unique(map: "level_final_exams_level_key")
+  title              String         @db.VarChar(200)
+  passingPercentage  Int            @default(75) @map("passing_percentage")
+  questionCount     Int            @map("question_count")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  questions          LevelFinalExamQuestion[]
+  attempts           LevelFinalExamAttempt[]
+
+  @@map("level_final_exams")
+}
+
+model LevelFinalExamQuestion {
+  id               String             @id @default(uuid(7)) @db.Uuid
+  examId           String             @map("exam_id") @db.Uuid
+  sourceQuestionId String             @map("source_question_id") @db.Uuid
+  position         Int
+  deletedAt        DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  exam             LevelFinalExam     @relation(fields: [examId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceQuestion   LessonQuizQuestion @relation(fields: [sourceQuestionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  answers          LevelFinalExamAnswer[]
+
+  @@index([examId, deletedAt, position], map: "level_final_exam_questions_exam_deleted_position_idx")
+  @@index([examId, deletedAt, sourceQuestionId], map: "level_final_exam_questions_exam_deleted_source_idx")
+  @@map("level_final_exam_questions")
+}
+
+model LevelFinalExamAttempt {
+  id             String                     @id @default(uuid(7)) @db.Uuid
+  examId         String                     @map("exam_id") @db.Uuid
+  enrollmentId   String                     @map("enrollment_id") @db.Uuid
+  startedAt      DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
+  submittedAt    DateTime?                  @map("submitted_at") @db.Timestamptz(3)
+  score          Int                        @default(0)
+  maxScore       Int                        @map("max_score")
+  percentage     Int                        @default(0)
+  correctCount   Int                        @default(0) @map("correct_count")
+  incorrectCount Int                        @default(0) @map("incorrect_count")
+  status         LevelFinalExamAttemptStatus @default(IN_PROGRESS)
+  exam           LevelFinalExam             @relation(fields: [examId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  enrollment     CourseEnrollment            @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  answers        LevelFinalExamAnswer[]
+
+  @@index([examId, enrollmentId, status, startedAt], map: "level_final_exam_attempts_exam_enrollment_status_idx")
+  @@index([enrollmentId, submittedAt], map: "level_final_exam_attempts_enrollment_submitted_idx")
+  @@map("level_final_exam_attempts")
+}
+
+model LevelFinalExamAnswer {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  attemptId      String                 @map("attempt_id") @db.Uuid
+  questionId     String                 @map("question_id") @db.Uuid
+  submittedAnswer String                @map("submitted_answer") @db.Text
+  isCorrect      Boolean                @map("is_correct")
+  awardedPoints  Int                    @map("awarded_points")
+  attempt        LevelFinalExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  question       LevelFinalExamQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([attemptId, questionId], map: "level_final_exam_answers_attempt_question_key")
+  @@index([questionId], map: "level_final_exam_answers_question_idx")
+  @@map("level_final_exam_answers")
 }
 
 /// Ordered lesson content keeps delivery references and metadata only. Binary

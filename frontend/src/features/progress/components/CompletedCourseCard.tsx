@@ -9,6 +9,7 @@ export function CompletedCourseCard({ course }: { course: CompletedCourse }) {
     <Card className="flex items-center gap-5" padding="lg">
       <ProgressRing label={course.course.title} size="sm" value={course.percentage} />
       <div className="min-w-0">
+        {course.course.level ? <span className="inline-flex rounded-full bg-info-bg px-3 py-1 text-label-sm font-semibold text-info-text">{course.course.level}</span> : null}
         <h2 className="type-heading-4 overflow-wrap-anywhere">{course.course.title}</h2>
         <p className="mt-2 text-body-sm text-text-secondary">
           {course.completedLessons}/{course.totalEligibleLessons}{' '}
