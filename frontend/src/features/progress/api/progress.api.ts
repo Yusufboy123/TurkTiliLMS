@@ -148,5 +148,18 @@ export function toProgressClientError(error: unknown): ProgressClientError {
 }
 
 export function createIdempotencyKey(): string {
-  return crypto.randomUUID();
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto?.randomUUID === 'function') {
+    return webCrypto.randomUUID();
+  }
+
+  if (typeof webCrypto?.getRandomValues === 'function') {
+    const values = new Uint32Array(4);
+    webCrypto.getRandomValues(values);
+    return `client-${Date.now().toString(36)}-${Array.from(values)
+      .map((value) => value.toString(16).padStart(8, '0'))
+      .join('')}`;
+  }
+
+  return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }

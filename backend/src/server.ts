@@ -1,8 +1,8 @@
 import { app } from './app.js';
 import { environment } from './config/environment.js';
 
-const server = app.listen(environment.PORT, () => {
-  console.log(`Turk Tili LMS API listening on http://localhost:${environment.PORT}`);
+const server = app.listen(environment.PORT, environment.HOST, () => {
+  console.log(`Turk Tili LMS API listening on http://${environment.HOST}:${environment.PORT}`);
 });
 
 function shutdown(signal: NodeJS.Signals): void {

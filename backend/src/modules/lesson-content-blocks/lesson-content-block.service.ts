@@ -12,6 +12,7 @@ import {
   updateLessonContentBlockSchema,
   type CreateLessonContentBlockInput,
   type UpdateLessonContentBlockInput,
+  type UpsertPracticeHolderInput,
 } from './lesson-content-block.schemas.js';
 import type { LessonContentBlockDelivery } from './lesson-content-block.storage.js';
 import type {
@@ -242,6 +243,45 @@ export class LessonContentBlockService {
     } catch (error: unknown) {
       return mapPositionConflict(error);
     }
+  }
+
+  async upsertPracticeHolder(
+    courseId: string,
+    lessonId: string,
+    input: UpsertPracticeHolderInput,
+    actor: LessonBlockActor,
+    context: LessonBlockAuditContext,
+  ): Promise<LessonContentBlockRecord> {
+    await this.managedLesson(courseId, lessonId, actor);
+    
+    // Find existing practice holder
+    const blocks = await this.repository.list(lessonId, { page: 1, pageSize: 100, includeDeleted: false });
+    const existingHolder = blocks.items.find((b) => 
+      typeof b.metadata === 'object' && b.metadata !== null && 'isPracticeHolder' in b.metadata && b.metadata.isPracticeHolder
+    );
+
+    const metadata = {
+      ...(typeof existingHolder?.metadata === 'object' && existingHolder.metadata !== null ? existingHolder.metadata : {}),
+      isPracticeHolder: true,
+      interactivePractice: input.interactivePractice,
+    };
+
+    if (existingHolder) {
+      const updated = await this.repository.update(lessonId, existingHolder.id, { metadata }, context);
+      if (!updated) throw blockNotFound();
+      return updated;
+    }
+
+    return this.repository.create(lessonId, {
+      blockType: 'TEXT',
+      title: 'Amaliy mashqlar',
+      textContent: undefined,
+      isRequired: true,
+      isVisible: true,
+      position: blocks.items.length + 1,
+      metadata,
+      createdById: actor.userId,
+    }, context).catch(mapPositionConflict);
   }
 
   async reorder(

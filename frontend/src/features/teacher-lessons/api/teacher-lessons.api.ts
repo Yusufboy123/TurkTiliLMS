@@ -21,6 +21,7 @@ import type {
   UpdateTeacherQuizQuestionInput,
   TeacherQuizResult,
   TeacherMediaFile,
+  InteractivePracticeItem,
 } from '../types/teacher-lessons.types';
 
 export const teacherLessonsApi = {
@@ -95,6 +96,17 @@ export const teacherLessonsApi = {
     const response = await apiClient.patch<SuccessEnvelope<TeacherContentBlock>>(
       `/courses/${courseId}/lessons/${lessonId}/blocks/${blockId}`,
       input,
+    );
+    return response.data.data;
+  },
+  async upsertPracticeHolder(
+    courseId: string,
+    lessonId: string,
+    interactivePractice: InteractivePracticeItem[],
+  ): Promise<TeacherContentBlock> {
+    const response = await apiClient.put<SuccessEnvelope<TeacherContentBlock>>(
+      `/courses/${courseId}/lessons/${lessonId}/blocks/practice`,
+      { interactivePractice },
     );
     return response.data.data;
   },

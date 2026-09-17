@@ -13,6 +13,7 @@ import {
   lessonContentBlockVisibilitySchema,
   restoreLessonContentBlockSchema,
   updateLessonContentBlockSchema,
+  upsertPracticeHolderSchema,
 } from './lesson-content-block.schemas.js';
 import type { LessonContentBlockService } from './lesson-content-block.service.js';
 import type { LessonBlockActor, LessonBlockAuditContext } from './lesson-content-block.types.js';
@@ -135,6 +136,23 @@ export class LessonContentBlockController {
         lessonId,
         blockId,
         position,
+        actor(principal),
+        auditContext(request, principal, courseId),
+      ),
+    });
+  };
+
+  upsertPracticeHolder = async (request: Request, response: Response): Promise<void> => {
+    const principal = authenticatedPrincipal(request);
+    const { courseId, lessonId } = lessonBlockParentParamsSchema.parse(request.params);
+    const input = upsertPracticeHolderSchema.parse(request.body);
+    response.status(200).json({
+      success: true,
+      message: 'Amaliy mashqlar saqlandi.',
+      data: await this.service.upsertPracticeHolder(
+        courseId,
+        lessonId,
+        input,
         actor(principal),
         auditContext(request, principal, courseId),
       ),

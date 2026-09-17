@@ -20,6 +20,12 @@ const intentClasses: Record<ToastIntent, string> = {
   info: 'border-info-border bg-info-bg text-info-text',
 };
 
+function createToastId(): string {
+  const randomUUID = globalThis.crypto?.randomUUID;
+  if (typeof randomUUID === 'function') return randomUUID();
+  return `toast-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export interface ToastProviderProps {
   children: ReactNode;
   maxVisible?: number;
@@ -108,7 +114,7 @@ export function ToastProvider({ children, maxVisible = 3 }: ToastProviderProps) 
 
   const show = useCallback(
     (input: ToastInput) => {
-      const id = crypto.randomUUID();
+      const id = createToastId();
       const record: ToastRecord = {
         ...input,
         durationMs: input.durationMs ?? 5000,

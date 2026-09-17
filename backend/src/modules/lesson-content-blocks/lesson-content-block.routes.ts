@@ -32,6 +32,11 @@ export function createLessonContentBlockRouter(
     dependencies.permission('lesson_blocks.read'),
     asyncHandler(dependencies.controller.detail),
   );
+  router.put(
+    '/practice',
+    dependencies.permission('lesson_blocks.update'),
+    asyncHandler(dependencies.controller.upsertPracticeHolder),
+  );
   router.post(
     '/',
     dependencies.permission('lesson_blocks.create'),

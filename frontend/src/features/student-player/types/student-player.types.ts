@@ -45,6 +45,7 @@ export interface StudentLessonBlock {
   durationSeconds: number | null;
   thumbnailUrl: string | null;
   interactivePractice?: InteractivePracticeItem[] | undefined;
+  isPracticeHolder?: boolean | undefined;
 }
 
 export type InteractivePracticeItemType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD' | 'CLASSIFY';

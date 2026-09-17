@@ -69,14 +69,36 @@ const fileSizeSchema = z
   .nullable()
   .optional();
 
+const interactivePracticeItemSchema = z.object({
+  id: z.string().trim().min(1),
+  type: z.enum(['MULTIPLE_CHOICE', 'TRUE_FALSE', 'MISSING_WORD', 'CLASSIFY']),
+  prompt: z.string().trim().min(1),
+  options: z.array(z.string().trim()).optional(),
+  answer: z.string().trim().min(1),
+  explanation: z.string().trim().optional(),
+  stage: z.number().int().min(1),
+}).strict();
+
+const interactivePracticeSchema = z.array(interactivePracticeItemSchema).max(50);
+
 const metadataSchema = z
-  .record(z.string().min(1).max(100), z.json())
+  .record(z.string().min(1).max(100), z.any())
   .refine(
     (value) =>
       !Object.keys(value).some((key) => ['__proto__', 'constructor', 'prototype'].includes(key)),
     'Metadata kalitlaridan biri xavfsiz emas.',
   )
-  .refine((value) => JSON.stringify(value).length <= 20_000, 'Metadata hajmi juda katta.')
+  .refine(
+    (value) => {
+      if (value.interactivePractice !== undefined) {
+        const result = interactivePracticeSchema.safeParse(value.interactivePractice);
+        return result.success;
+      }
+      return true;
+    },
+    'interactivePractice noto‘g‘ri formatda.',
+  )
+  .refine((value) => JSON.stringify(value).length <= 50_000, 'Metadata hajmi juda katta.')
   .nullable()
   .optional();
 
@@ -270,3 +292,10 @@ export const deleteLessonContentBlockSchema = z
 
 export type CreateLessonContentBlockInput = z.infer<typeof createLessonContentBlockSchema>;
 export type UpdateLessonContentBlockInput = z.infer<typeof updateLessonContentBlockSchema>;
+
+export const upsertPracticeHolderSchema = z
+  .object({
+    interactivePractice: interactivePracticeSchema.default([]),
+  })
+  .strict();
+export type UpsertPracticeHolderInput = z.infer<typeof upsertPracticeHolderSchema>;

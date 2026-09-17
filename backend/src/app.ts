@@ -12,7 +12,7 @@ import {
 import { apiV1Router } from './routes/index.js';
 
 export const app = express();
-const trustedFrontendOrigins = new Set([environment.FRONTEND_URL]);
+const trustedFrontendOrigins = environment.FRONTEND_ORIGINS;
 
 app.disable('x-powered-by');
 app.use(helmet());

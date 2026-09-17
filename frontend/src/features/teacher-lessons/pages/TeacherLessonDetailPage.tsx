@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Badge, Button, Card, FormField, Input, Select, Textarea } from '../../../components';
+import { Badge, Button, Card, FormField, Input, Select } from '../../../components';
 import { useAuth } from '../../auth';
 import { teacherLessonsMessages as messages } from '../teacher-lessons.messages';
 import { teacherLessonPaths } from '../teacher-lessons.routes';
@@ -17,7 +17,9 @@ import type {
   TeacherLessonStatus,
 } from '../types/teacher-lessons.types';
 import TeacherLessonEditorPage from './TeacherLessonEditorPage';
+import { TeacherPracticePanel } from '../components/TeacherPracticePanel';
 import { TeacherQuizPanel, TeacherQuizResultsPanel, TeacherVocabularyPanel } from './TeacherLessonLearningSections';
+import { RichMarkdownEditor } from '../components/RichMarkdownEditor';
 import { TeacherMediaUploadField } from '../components/TeacherMediaUploadField';
 import type { TeacherMediaFile } from '../types/teacher-lessons.types';
 
@@ -94,7 +96,7 @@ function BlockCard({
           </FormField>
           {isText ? (
             <FormField label={messages.textContent} required>
-              <Textarea onChange={(event) => setTextContent(event.target.value)} required value={textContent} />
+              <RichMarkdownEditor onChange={setTextContent} required value={textContent} />
             </FormField>
           ) : (
             <>
@@ -161,7 +163,7 @@ function NewBlockForm({ courseId, lessonId, canCreate, canUpload }: { courseId: 
           </FormField>
           {blockType === 'TEXT' ? (
             <FormField label={messages.textContent} required>
-              <Textarea onChange={(event) => setTextContent(event.target.value)} required value={textContent} />
+              <RichMarkdownEditor onChange={setTextContent} required value={textContent} />
             </FormField>
           ) : canUpload ? <TeacherMediaUploadField kind={blockType as 'AUDIO' | 'VIDEO' | 'IMAGE'} onUploaded={(media: TeacherMediaFile) => setMediaFileId(media.id)} /> : <p className="text-body-sm text-warning-text" role="alert">Fayl yuklash uchun ruxsat mavjud emas.</p>}
           <label className="flex min-h-target items-center gap-3 text-label-md">
@@ -185,7 +187,7 @@ export default function TeacherLessonDetailPage() {
   const lesson = useTeacherLesson(courseId, lessonId);
   const blocks = useTeacherLessonBlocks(courseId, lessonId);
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState<'content' | 'vocabulary' | 'quiz' | 'results'>('content');
+  const [tab, setTab] = useState<'content' | 'practice' | 'vocabulary' | 'quiz' | 'results'>('content');
   const canUpdate = auth.status === 'authenticated' && auth.permissions.includes('lessons.update');
   const canCreateBlock = auth.status === 'authenticated' && auth.permissions.includes('lesson_blocks.create');
   const canUpload = auth.status === 'authenticated' && auth.permissions.includes('media.upload');
@@ -219,8 +221,8 @@ export default function TeacherLessonDetailPage() {
       </header>
 
       <div aria-label="Dars bo‘limlari" className="flex gap-1 overflow-x-auto border-b border-border-decorative pb-px" role="tablist">
-        {([['content', 'Kontent'], ['vocabulary', 'Lug‘atlar'], ['quiz', 'Test'], ['results', 'Natijalar']] as const).map(([value, label]) => (
-          <button aria-selected={tab === value} className={`min-h-target shrink-0 rounded-t-lg border-b-2 px-4 py-3 text-button transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${tab === value ? 'border-action-primary-bg bg-nav-selected-bg text-nav-selected-text' : 'border-transparent text-text-secondary hover:bg-subtle hover:text-text-primary'}`} key={value} onClick={() => setTab(value)} role="tab" type="button">{label}</button>
+        {([['content', 'Kontent'], ['practice', 'Mashqlar'], ['vocabulary', 'Lug‘atlar'], ['quiz', 'Test'], ['results', 'Natijalar']] as const).map(([value, label]) => (
+          <button aria-selected={tab === value} className={`min-h-target shrink-0 rounded-t-lg border-b-2 px-4 py-3 text-button transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${tab === value ? 'border-action-primary-bg bg-nav-selected-bg text-nav-selected-text' : 'border-transparent text-text-secondary hover:bg-subtle hover:text-text-primary'}`} key={value} onClick={() => setTab(value as 'content' | 'practice' | 'vocabulary' | 'quiz' | 'results')} role="tab" type="button">{label}</button>
         ))}
       </div>
 
@@ -245,6 +247,7 @@ export default function TeacherLessonDetailPage() {
           <NewBlockForm canCreate={canCreateBlock} canUpload={canUpload} courseId={courseId} lessonId={lessonId} />
       </Card>
       </> : null}
+      {tab === 'practice' ? <TeacherPracticePanel canUpdate={canUpdate} courseId={courseId} lessonId={lessonId} /> : null}
       {tab === 'vocabulary' ? <TeacherVocabularyPanel canUpdate={canUpdate} courseId={courseId} lessonId={lessonId} /> : null}
       {tab === 'quiz' ? <TeacherQuizPanel canUpdate={canUpdate} courseId={courseId} lessonId={lessonId} /> : null}
       {tab === 'results' ? <TeacherQuizResultsPanel courseId={courseId} lessonId={lessonId} /> : null}

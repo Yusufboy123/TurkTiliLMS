@@ -12,6 +12,7 @@ import type {
   UpdateTeacherVocabularyInput,
   CreateTeacherQuizQuestionInput,
   UpdateTeacherQuizQuestionInput,
+  InteractivePracticeItem,
 } from '../types/teacher-lessons.types';
 import { teacherLessonsQueryKeys } from './teacher-lessons-query-keys';
 
@@ -187,5 +188,17 @@ export function useTeacherLessonQuizResults(courseId: string, lessonId: string, 
     queryKey: teacherLessonsQueryKeys.quizResults(courseId, lessonId),
     queryFn: () => teacherLessonsApi.listQuizResults(courseId, lessonId),
     enabled: enabled && Boolean(courseId && lessonId),
+  });
+}
+
+export function useUpsertTeacherPracticeHolder(courseId: string, lessonId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (interactivePractice: InteractivePracticeItem[]) =>
+      teacherLessonsApi.upsertPracticeHolder(courseId, lessonId, interactivePractice),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.blocks(courseId, lessonId) });
+      void client.invalidateQueries({ queryKey: teacherLessonsQueryKeys.detail(courseId, lessonId) });
+    },
   });
 }

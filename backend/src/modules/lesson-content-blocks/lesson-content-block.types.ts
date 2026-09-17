@@ -54,6 +54,7 @@ export interface PublicLessonContentBlock {
   durationSeconds: number | null;
   thumbnailUrl: string | null;
   interactivePractice?: PublicInteractivePracticeItem[] | undefined;
+  isPracticeHolder?: boolean | undefined;
 }
 
 export type StoredInteractivePracticeItem = {

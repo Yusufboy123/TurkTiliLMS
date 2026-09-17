@@ -93,7 +93,7 @@ export const authRouter = createAuthRouter({
   generalRateLimiter: authRateLimiter,
   credentialRateLimiter,
   browserCsrfProtection: createRequireTrustedBrowserOrigin(
-    new Set([environment.FRONTEND_URL]),
+    environment.FRONTEND_ORIGINS,
     isBrowserCookieRequest,
   ),
 });

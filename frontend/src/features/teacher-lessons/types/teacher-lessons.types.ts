@@ -67,7 +67,19 @@ export interface TeacherContentBlock {
   mimeType: string | null;
   durationSeconds: number | null;
   thumbnailUrl: string | null;
+  interactivePractice?: InteractivePracticeItem[];
+  isPracticeHolder?: boolean;
   deletedAt: string | null;
+}
+
+export interface InteractivePracticeItem {
+  id: string;
+  stage: number;
+  type: string;
+  prompt: string;
+  answer: string;
+  explanation?: string;
+  options?: string[];
 }
 
 export interface TeacherContentBlockPage {

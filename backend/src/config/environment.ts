@@ -8,6 +8,18 @@ const durationSchema = z
 const frontendOriginSchema = z.url().refine((value) => new URL(value).origin === value, {
   message: 'FRONTEND_URL must be an origin without a path, query, or fragment.',
 });
+const frontendOriginsSchema = z.string().trim().optional().superRefine((value, context) => {
+  if (!value) return;
+  for (const origin of value.split(',').map((item) => item.trim()).filter(Boolean)) {
+    const result = frontendOriginSchema.safeParse(origin);
+    if (!result.success) {
+      context.addIssue({
+        code: 'custom',
+        message: `Invalid frontend origin: ${origin}`,
+      });
+    }
+  }
+});
 const refreshCookiePath = '/api/v1/auth' as const;
 const minimumProductionJwtSecretLength = 43;
 
@@ -41,9 +53,11 @@ function isLowEntropyJwtSecret(secret: string): boolean {
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']),
+    HOST: z.string().trim().min(1).default('0.0.0.0'),
     PORT: z.coerce.number().int().positive().max(65_535).default(5000),
     DATABASE_URL: z.string().startsWith('postgresql://'),
     FRONTEND_URL: frontendOriginSchema.default('http://localhost:5173'),
+    FRONTEND_URLS: frontendOriginsSchema,
     JWT_ACCESS_SECRET: z
       .string()
       .min(32)
@@ -103,11 +117,27 @@ const environmentSchema = z
       });
     }
 
+    const additionalFrontendOrigins = (value.FRONTEND_URLS ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+
     if (value.NODE_ENV === 'production' && new URL(value.FRONTEND_URL).protocol !== 'https:') {
       context.addIssue({
         code: 'custom',
         path: ['FRONTEND_URL'],
         message: 'FRONTEND_URL must use HTTPS in production.',
+      });
+    }
+
+    if (
+      value.NODE_ENV === 'production' &&
+      additionalFrontendOrigins.some((origin) => new URL(origin).protocol !== 'https:')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['FRONTEND_URLS'],
+        message: 'FRONTEND_URLS must use HTTPS in production.',
       });
     }
 
@@ -141,6 +171,13 @@ export function parseEnvironment(input: Record<string, string | undefined>) {
 
   return {
     ...result.data,
+    FRONTEND_ORIGINS: new Set([
+      result.data.FRONTEND_URL,
+      ...(result.data.FRONTEND_URLS ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ]),
     AUTH_REFRESH_COOKIE_SECURE:
       result.data.AUTH_REFRESH_COOKIE_SECURE === undefined
         ? result.data.NODE_ENV === 'production'

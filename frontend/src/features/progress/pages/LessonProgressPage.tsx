@@ -303,7 +303,7 @@ export default function LessonProgressPage() {
           <div className="max-w-reading">
             {currentMode === 'LEARN' && (
               <LearnModeView
-                blocks={blocksData}
+                blocks={blocksData.filter(b => !b.isPracticeHolder)}
                 canAccess={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)}
                 content={content.lesson.data?.content ?? null}
                 enrollmentId={enrollmentId}

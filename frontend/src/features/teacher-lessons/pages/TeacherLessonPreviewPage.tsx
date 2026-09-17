@@ -7,6 +7,8 @@ import {
   useTeacherLessonVocabulary,
 } from '../hooks/use-teacher-lessons';
 import { teacherLessonPaths } from '../teacher-lessons.routes';
+import { PracticeModeView } from '../../student-player/components/PracticeModeView';
+import type { StudentLessonBlock } from '../../student-player/types/student-player.types';
 
 function mediaUrl(block: { media?: { previewUrl: string | null } | null; fileUrl: string | null; sourceUrl: string | null }) {
   return block.media?.previewUrl ?? block.fileUrl ?? block.sourceUrl ?? undefined;
@@ -47,7 +49,7 @@ export default function TeacherLessonPreviewPage() {
           {blocks.isError ? <p className="mt-4 text-danger-text" role="alert">Kontentni yuklab bo‘lmadi.</p> : null}
           {blocks.data?.items.length === 0 && !lesson.data.content ? <p className="mt-4 text-body-md text-text-secondary">Hozircha kontent mavjud emas.</p> : null}
           <div className="mt-5 grid gap-5">
-            {blocks.data?.items.filter((block) => block.isVisible).map((block) => {
+            {blocks.data?.items.filter((block) => block.isVisible && !(block as { isPracticeHolder?: boolean }).isPracticeHolder).map((block) => {
               const url = mediaUrl(block);
               return (
                 <article className="rounded-lg border border-border-decorative p-4" key={block.id}>
@@ -61,6 +63,22 @@ export default function TeacherLessonPreviewPage() {
               );
             })}
           </div>
+        </Card>
+      </section>
+
+      <section aria-labelledby="preview-practice-title">
+        <Card>
+          <h2 className="type-heading-3" id="preview-practice-title">Mashqlar (Preview)</h2>
+          <p className="mt-2 mb-4 text-body-sm text-text-secondary">Bu faqat ko‘rish rejimi. Javoblar saqlanmaydi.</p>
+          {blocks.data && (
+            <PracticeModeView
+              blocks={blocks.data.items as unknown as StudentLessonBlock[]}
+              enrollmentId="preview"
+              lessonId={lessonId}
+              onReturnToLearn={() => {}}
+              onStartTest={() => {}}
+            />
+          )}
         </Card>
       </section>
 
