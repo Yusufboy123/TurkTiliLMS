@@ -377,6 +377,135 @@ enum MediaStorageProvider {
   @@map("media_storage_provider")
 }
 
+enum DemoMappingStatus {
+  DRAFT
+  ENABLED
+  DISABLED
+
+  @@map("demo_mapping_status")
+}
+
+enum ExerciseAggregateStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("exercise_aggregate_status")
+}
+
+enum ExerciseRevisionStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+
+  @@map("exercise_revision_status")
+}
+
+enum ExerciseType {
+  LETTER_CHOICE
+  AUDIO_TO_LETTER
+  AUDIO_TO_WORD
+  MISSING_LETTER
+  MATCHING
+  WORD_ASSEMBLY
+  MULTIPLE_CHOICE
+  QUICK_ROUND
+
+  @@map("exercise_type")
+}
+
+enum ExerciseDeliveryVariant {
+  STANDARD
+  AUDIO_ENABLED
+  TEXT_ALTERNATIVE
+
+  @@map("exercise_delivery_variant")
+}
+
+enum ExerciseSkillTag {
+  ALPHABET_RECOGNITION @map("alphabet-recognition")
+  SPECIAL_LETTERS      @map("special-letters")
+  PRONUNCIATION        @map("pronunciation")
+  LETTER_CASE          @map("letter-case")
+  WORD_RECOGNITION     @map("word-recognition")
+
+  @@map("exercise_skill_tag")
+}
+
+enum LessonExercisePlacementStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+
+  @@map("lesson_exercise_placement_status")
+}
+
+enum ExerciseMediaRole {
+  PROMPT_AUDIO
+  TERMINAL_FEEDBACK_AUDIO
+  TEXT_ALTERNATIVE_MEDIA
+
+  @@map("exercise_media_role")
+}
+
+enum DemoAttemptStatus {
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+  ABANDONED
+  REVOKED
+
+  @@map("demo_attempt_status")
+}
+
+enum DemoAttemptCreationKind {
+  STANDARD
+  RETRY
+  RESET
+
+  @@map("demo_attempt_creation_kind")
+}
+
+enum DemoRetryMode {
+  ALL
+  INCORRECT_ONLY
+
+  @@map("demo_retry_mode")
+}
+
+enum DemoAudioMode {
+  AUDIO_ENABLED
+  TEXT_ALTERNATIVE
+
+  @@map("demo_audio_mode")
+}
+
+enum DemoExerciseOutcome {
+  UNANSWERED
+  INCORRECT_RETRY_ALLOWED
+  CORRECT
+  INCORRECT_FINAL
+
+  @@map("demo_exercise_outcome")
+}
+
+enum DemoSubPromptOutcome {
+  UNANSWERED
+  CORRECT
+  INCORRECT
+
+  @@map("demo_sub_prompt_outcome")
+}
+
+enum DemoIdempotencyOperation {
+  CREATE_ATTEMPT
+  SUBMIT_ANSWER
+  CREATE_RETRY
+  RESET_ATTEMPT
+
+  @@map("demo_idempotency_operation")
+}
+
 model User {
   id                         String                             @id @default(uuid(7)) @db.Uuid
   email                      String                             @unique(map: "users_email_key") @db.Citext
@@ -420,8 +549,8 @@ model User {
   groupsTaught               Group[]                            @relation("GroupTeacher")
   groupMemberships           GroupStudent[]
   studentProfile             StudentProfile?
-  studentQuestionThreads     QuestionThread[]                    @relation("QuestionThreadStudent")
-  teacherQuestionThreads     QuestionThread[]                    @relation("QuestionThreadTeacher")
+  studentQuestionThreads     QuestionThread[]                   @relation("QuestionThreadStudent")
+  teacherQuestionThreads     QuestionThread[]                   @relation("QuestionThreadTeacher")
   questionMessages           QuestionMessage[]
 
   @@index([status, createdAt], map: "users_status_created_at_idx")
@@ -431,32 +560,32 @@ model User {
 }
 
 model StudentProfile {
-  userId                 String                  @id @map("user_id") @db.Uuid
-  currentLevel           StudentOnboardingLevel   @map("current_level")
-  learningGoal           StudentLearningGoal      @map("learning_goal")
-  ageRange               StudentAgeRange?         @map("age_range")
-  gender                 StudentGender?           @map("gender")
-  weeklyStudyBand        StudentWeeklyStudyBand? @map("weekly_study_band")
-  preferredSkillFocus    StudentSkillFocus?      @map("preferred_skill_focus")
-  onboardingCompletedAt  DateTime?               @map("onboarding_completed_at") @db.Timestamptz(3)
-  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId                String                  @id @map("user_id") @db.Uuid
+  currentLevel          StudentOnboardingLevel  @map("current_level")
+  learningGoal          StudentLearningGoal     @map("learning_goal")
+  ageRange              StudentAgeRange?        @map("age_range")
+  gender                StudentGender?          @map("gender")
+  weeklyStudyBand       StudentWeeklyStudyBand? @map("weekly_study_band")
+  preferredSkillFocus   StudentSkillFocus?      @map("preferred_skill_focus")
+  onboardingCompletedAt DateTime?               @map("onboarding_completed_at") @db.Timestamptz(3)
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@map("student_profiles")
 }
 
 model Group {
-  id          String        @id @default(uuid(7)) @db.Uuid
-  name        String        @db.VarChar(160)
+  id          String         @id @default(uuid(7)) @db.Uuid
+  name        String         @db.VarChar(160)
   level       CourseLevel
-  teacherId   String        @map("teacher_id") @db.Uuid
-  createdById String        @map("created_by_id") @db.Uuid
-  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(3)
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  teacher     User          @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdBy   User          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacherId   String         @map("teacher_id") @db.Uuid
+  createdById String         @map("created_by_id") @db.Uuid
+  deletedAt   DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  teacher     User           @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User           @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   memberships GroupStudent[]
 
   @@index([teacherId, updatedAt], map: "groups_teacher_id_updated_at_idx")
@@ -1131,44 +1260,48 @@ model CourseSection {
 }
 
 model Lesson {
-  id                       String                   @id @default(uuid(7)) @db.Uuid
-  courseId                 String                   @map("course_id") @db.Uuid
-  sectionId                String                   @map("section_id") @db.Uuid
-  title                    String                   @db.VarChar(200)
-  slug                     String                   @db.VarChar(180)
-  summary                  String?                  @db.Text
-  content                  String?                  @db.Text
-  lessonType               LessonType               @map("lesson_type")
+  id                         String                    @id @default(uuid(7)) @db.Uuid
+  courseId                   String                    @map("course_id") @db.Uuid
+  sectionId                  String                    @map("section_id") @db.Uuid
+  title                      String                    @db.VarChar(200)
+  slug                       String                    @db.VarChar(180)
+  summary                    String?                   @db.Text
+  content                    String?                   @db.Text
+  lessonType                 LessonType                @map("lesson_type")
   /// Active sibling uniqueness is enforced by a PostgreSQL partial index in
   /// the migration so soft-deleted rows can retain their historical position.
-  position                 Int
-  durationMinutes          Int?                     @map("duration_minutes")
-  isPreview                Boolean                  @default(false) @map("is_preview")
-  masteryEnabled           Boolean                  @default(false) @map("mastery_enabled")
-  masteryPassingPercentage Int                      @default(75) @map("mastery_passing_percentage")
-  status                   LessonStatus             @default(DRAFT)
-  createdById              String                   @map("created_by_id") @db.Uuid
-  teacherId                String?                  @map("teacher_id") @db.Uuid
-  publishedAt              DateTime?                @map("published_at") @db.Timestamptz(3)
-  archivedAt               DateTime?                @map("archived_at") @db.Timestamptz(3)
-  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt                DateTime?                @map("deleted_at") @db.Timestamptz(3)
-  course                   Course                   @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  section                  CourseSection            @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
-  createdBy                User                     @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  teacher                  User?                    @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  contentBlocks            LessonContentBlock[]
-  lastVisitedProgressRoots EnrollmentProgressRoot[] @relation("EnrollmentProgressLastVisitedLesson")
-  progress                 LessonProgress[]
-  progressEvents           ProgressEvent[]
-  vocabulary               LessonVocabulary[]
-  bookmarks                StudentBookmark[]
-  studentNotes             StudentLessonNote[]
-  quizQuestions            LessonQuizQuestion[]
-  quizAttempts             LessonQuizAttempt[]
-  vocabularyTestAttempts  VocabularyTestAttempt[]
-  questionThreads          QuestionThread[]
+  position                   Int
+  durationMinutes            Int?                      @map("duration_minutes")
+  isPreview                  Boolean                   @default(false) @map("is_preview")
+  exerciseCurriculumRevision Int                       @default(1) @map("exercise_curriculum_revision")
+  masteryEnabled             Boolean                   @default(false) @map("mastery_enabled")
+  masteryPassingPercentage   Int                       @default(75) @map("mastery_passing_percentage")
+  status                     LessonStatus              @default(DRAFT)
+  createdById                String                    @map("created_by_id") @db.Uuid
+  teacherId                  String?                   @map("teacher_id") @db.Uuid
+  publishedAt                DateTime?                 @map("published_at") @db.Timestamptz(3)
+  archivedAt                 DateTime?                 @map("archived_at") @db.Timestamptz(3)
+  createdAt                  DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                  DateTime?                 @map("deleted_at") @db.Timestamptz(3)
+  course                     Course                    @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  section                    CourseSection             @relation(fields: [sectionId, courseId], references: [id, courseId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy                  User                      @relation("LessonCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher                    User?                     @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  contentBlocks              LessonContentBlock[]
+  lastVisitedProgressRoots   EnrollmentProgressRoot[]  @relation("EnrollmentProgressLastVisitedLesson")
+  progress                   LessonProgress[]
+  progressEvents             ProgressEvent[]
+  vocabulary                 LessonVocabulary[]
+  bookmarks                  StudentBookmark[]
+  studentNotes               StudentLessonNote[]
+  quizQuestions              LessonQuizQuestion[]
+  quizAttempts               LessonQuizAttempt[]
+  vocabularyTestAttempts     VocabularyTestAttempt[]
+  questionThreads            QuestionThread[]
+  demoMappings               DemoLessonMapping[]
+  exercisePlacements         LessonExercisePlacement[]
+  demoAttempts               DemoAttempt[]
 
   @@unique([courseId, slug], map: "lessons_course_id_slug_key")
   @@index([courseId, status, deletedAt], map: "lessons_course_id_status_deleted_at_idx")
@@ -1183,16 +1316,16 @@ model Lesson {
 /// In-app notifications are private, recipient-owned records. dedupeKey makes
 /// scheduled/due generation idempotent without introducing a scheduler.
 model Notification {
-  id         String    @id @default(uuid(7)) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  type       String    @db.VarChar(100)
-  title      String    @db.VarChar(200)
-  message    String    @db.VarChar(1000)
-  targetUrl  String?   @map("target_url") @db.VarChar(500)
-  readAt     DateTime? @map("read_at") @db.Timestamptz(3)
-  dedupeKey  String?   @map("dedupe_key") @db.VarChar(200)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  user       User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String    @db.VarChar(100)
+  title     String    @db.VarChar(200)
+  message   String    @db.VarChar(1000)
+  targetUrl String?   @map("target_url") @db.VarChar(500)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(3)
+  dedupeKey String?   @map("dedupe_key") @db.VarChar(200)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([userId, dedupeKey], map: "notifications_user_id_dedupe_key_key")
   @@index([userId, readAt, createdAt], map: "notifications_user_id_read_at_created_at_idx")
@@ -1201,19 +1334,19 @@ model Notification {
 }
 
 model QuestionThread {
-  id        String              @id @default(uuid(7)) @db.Uuid
-  studentId String              @map("student_id") @db.Uuid
-  teacherId String              @map("teacher_id") @db.Uuid
-  courseId  String              @map("course_id") @db.Uuid
-  lessonId  String?             @map("lesson_id") @db.Uuid
-  subject   String?             @db.VarChar(200)
+  id        String               @id @default(uuid(7)) @db.Uuid
+  studentId String               @map("student_id") @db.Uuid
+  teacherId String               @map("teacher_id") @db.Uuid
+  courseId  String               @map("course_id") @db.Uuid
+  lessonId  String?              @map("lesson_id") @db.Uuid
+  subject   String?              @db.VarChar(200)
   status    QuestionThreadStatus @default(OPEN)
-  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  student   User                @relation("QuestionThreadStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  teacher   User                @relation("QuestionThreadTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  course    Course              @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  lesson    Lesson?             @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  student   User                 @relation("QuestionThreadStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher   User                 @relation("QuestionThreadTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  course    Course               @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lesson    Lesson?              @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   messages  QuestionMessage[]
 
   @@index([studentId, updatedAt], map: "question_threads_student_id_updated_at_idx")
@@ -1223,13 +1356,13 @@ model QuestionThread {
 }
 
 model QuestionMessage {
-  id        String          @id @default(uuid(7)) @db.Uuid
-  threadId  String          @map("thread_id") @db.Uuid
-  senderId  String          @map("sender_id") @db.Uuid
-  body      String          @db.VarChar(5000)
-  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  thread    QuestionThread  @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  sender    User            @relation(fields: [senderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id        String         @id @default(uuid(7)) @db.Uuid
+  threadId  String         @map("thread_id") @db.Uuid
+  senderId  String         @map("sender_id") @db.Uuid
+  body      String         @db.VarChar(5000)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  thread    QuestionThread @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sender    User           @relation(fields: [senderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([threadId, createdAt, id], map: "question_messages_thread_id_created_at_idx")
   @@index([senderId, createdAt], map: "question_messages_sender_id_created_at_idx")
@@ -1237,38 +1370,38 @@ model QuestionMessage {
 }
 
 model LessonVocabulary {
-  id              String   @id @default(uuid(7)) @db.Uuid
-  lessonId        String   @map("lesson_id") @db.Uuid
-  turkishWord     String   @map("turkish_word") @db.VarChar(200)
-  uzbekMeaning    String   @map("uzbek_meaning") @db.VarChar(500)
-  exampleSentence String?  @map("example_sentence") @db.Text
-  position        Int
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
-  sourceId        String?  @map("source_id") @db.VarChar(120)
-  sourceStatus    VocabularySourceStatus @default(NEW) @map("source_status")
-  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  bookmarks       StudentBookmark[]
-  learnerProgress StudentVocabularyProgress[]
+  id                    String                      @id @default(uuid(7)) @db.Uuid
+  lessonId              String                      @map("lesson_id") @db.Uuid
+  turkishWord           String                      @map("turkish_word") @db.VarChar(200)
+  uzbekMeaning          String                      @map("uzbek_meaning") @db.VarChar(500)
+  exampleSentence       String?                     @map("example_sentence") @db.Text
+  position              Int
+  createdAt             DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt             DateTime?                   @map("deleted_at") @db.Timestamptz(3)
+  sourceId              String?                     @map("source_id") @db.VarChar(120)
+  sourceStatus          VocabularySourceStatus      @default(NEW) @map("source_status")
+  lesson                Lesson                      @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bookmarks             StudentBookmark[]
+  learnerProgress       StudentVocabularyProgress[]
   vocabularyTestAnswers VocabularyTestAnswer[]
 
+  @@unique([lessonId, sourceId], map: "lesson_vocabulary_lesson_source_key")
   @@index([lessonId, deletedAt, position], map: "lesson_vocabulary_lesson_id_deleted_at_position_idx")
   @@index([sourceId, sourceStatus], map: "lesson_vocabulary_source_id_status_idx")
-  @@unique([lessonId, sourceId], map: "lesson_vocabulary_lesson_source_key")
   @@map("lesson_vocabulary")
 }
 
 model StudentVocabularyProgress {
-  id            String                  @id @default(uuid(7)) @db.Uuid
-  userId        String                  @map("user_id") @db.Uuid
-  vocabularyId  String                  @map("vocabulary_id") @db.Uuid
-  status        StudentVocabularyStatus @default(NEW)
-  firstSeenAt   DateTime?               @map("first_seen_at") @db.Timestamptz(3)
-  lastReviewedAt DateTime?              @map("last_reviewed_at") @db.Timestamptz(3)
-  reviewCount   Int                     @default(0) @map("review_count")
-  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  vocabulary    LessonVocabulary        @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  userId         String                  @map("user_id") @db.Uuid
+  vocabularyId   String                  @map("vocabulary_id") @db.Uuid
+  status         StudentVocabularyStatus @default(NEW)
+  firstSeenAt    DateTime?               @map("first_seen_at") @db.Timestamptz(3)
+  lastReviewedAt DateTime?               @map("last_reviewed_at") @db.Timestamptz(3)
+  reviewCount    Int                     @default(0) @map("review_count")
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  vocabulary     LessonVocabulary        @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([userId, vocabularyId], map: "student_vocabulary_progress_user_vocabulary_key")
   @@index([userId, status, lastReviewedAt], map: "student_vocabulary_progress_user_status_reviewed_idx")
@@ -1276,19 +1409,19 @@ model StudentVocabularyProgress {
 }
 
 model VocabularyTestAttempt {
-  id             String                     @id @default(uuid(7)) @db.Uuid
-  enrollmentId   String                     @map("enrollment_id") @db.Uuid
-  lessonId       String                     @map("lesson_id") @db.Uuid
-  startedAt      DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
-  submittedAt    DateTime?                  @map("submitted_at") @db.Timestamptz(3)
-  score          Int                        @default(0)
-  maxScore      Int                        @map("max_score")
-  percentage     Int                        @default(0)
-  correctCount   Int                        @default(0) @map("correct_count")
-  incorrectCount Int                        @default(0) @map("incorrect_count")
+  id             String                      @id @default(uuid(7)) @db.Uuid
+  enrollmentId   String                      @map("enrollment_id") @db.Uuid
+  lessonId       String                      @map("lesson_id") @db.Uuid
+  startedAt      DateTime                    @default(now()) @map("started_at") @db.Timestamptz(3)
+  submittedAt    DateTime?                   @map("submitted_at") @db.Timestamptz(3)
+  score          Int                         @default(0)
+  maxScore       Int                         @map("max_score")
+  percentage     Int                         @default(0)
+  correctCount   Int                         @default(0) @map("correct_count")
+  incorrectCount Int                         @default(0) @map("incorrect_count")
   status         VocabularyTestAttemptStatus @default(IN_PROGRESS)
   enrollment     CourseEnrollment            @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  lesson         Lesson                     @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lesson         Lesson                      @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   answers        VocabularyTestAnswer[]
 
   @@index([enrollmentId, lessonId, status, startedAt], map: "vocabulary_test_attempts_enrollment_lesson_status_idx")
@@ -1297,14 +1430,14 @@ model VocabularyTestAttempt {
 }
 
 model VocabularyTestAnswer {
-  id            String               @id @default(uuid(7)) @db.Uuid
-  attemptId     String               @map("attempt_id") @db.Uuid
-  vocabularyId  String               @map("vocabulary_id") @db.Uuid
-  submittedAnswer String             @map("submitted_answer") @db.Text
-  isCorrect     Boolean              @default(false) @map("is_correct")
-  awardedPoints Int                  @default(0) @map("awarded_points")
-  attempt       VocabularyTestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  vocabulary    LessonVocabulary     @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id              String                @id @default(uuid(7)) @db.Uuid
+  attemptId       String                @map("attempt_id") @db.Uuid
+  vocabularyId    String                @map("vocabulary_id") @db.Uuid
+  submittedAnswer String                @map("submitted_answer") @db.Text
+  isCorrect       Boolean               @default(false) @map("is_correct")
+  awardedPoints   Int                   @default(0) @map("awarded_points")
+  attempt         VocabularyTestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  vocabulary      LessonVocabulary      @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([attemptId, vocabularyId], map: "vocabulary_test_answers_attempt_vocabulary_key")
   @@index([attemptId], map: "vocabulary_test_answers_attempt_id_idx")
@@ -1312,13 +1445,13 @@ model VocabularyTestAnswer {
 }
 
 model StudentBookmark {
-  id           String           @id @default(uuid(7)) @db.Uuid
-  userId       String           @map("user_id") @db.Uuid
-  lessonId     String?          @map("lesson_id") @db.Uuid
-  vocabularyId String?          @map("vocabulary_id") @db.Uuid
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  lesson       Lesson?          @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id           String            @id @default(uuid(7)) @db.Uuid
+  userId       String            @map("user_id") @db.Uuid
+  lessonId     String?           @map("lesson_id") @db.Uuid
+  vocabularyId String?           @map("vocabulary_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  lesson       Lesson?           @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   vocabulary   LessonVocabulary? @relation(fields: [vocabularyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([userId, lessonId], map: "student_bookmarks_user_id_lesson_id_idx")
@@ -1343,19 +1476,19 @@ model StudentLessonNote {
 }
 
 model LessonQuizQuestion {
-  id            String                    @id @default(uuid(7)) @db.Uuid
-  lessonId      String                    @map("lesson_id") @db.Uuid
-  type          LessonQuizQuestionType
-  prompt        String                    @db.Text
-  explanation   String?                   @db.Text
-  points        Int
-  position      Int
-  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamptz(3)
-  lesson        Lesson                    @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  options       LessonQuizOption[]
-  answers       LessonQuizAnswer[]
+  id                 String                   @id @default(uuid(7)) @db.Uuid
+  lessonId           String                   @map("lesson_id") @db.Uuid
+  type               LessonQuizQuestionType
+  prompt             String                   @db.Text
+  explanation        String?                  @db.Text
+  points             Int
+  position           Int
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  lesson             Lesson                   @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  options            LessonQuizOption[]
+  answers            LessonQuizAnswer[]
   finalExamQuestions LevelFinalExamQuestion[]
 
   @@index([lessonId, deletedAt, position], map: "lesson_quiz_questions_lesson_id_deleted_at_position_idx")
@@ -1396,14 +1529,14 @@ model LessonQuizAttempt {
 }
 
 model LessonQuizAnswer {
-  id             String            @id @default(uuid(7)) @db.Uuid
-  attemptId      String            @map("attempt_id") @db.Uuid
-  questionId     String            @map("question_id") @db.Uuid
-  submittedAnswer String           @map("submitted_answer") @db.Text
-  isCorrect      Boolean           @map("is_correct")
-  awardedPoints  Int               @map("awarded_points")
-  attempt        LessonQuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  question       LessonQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id              String             @id @default(uuid(7)) @db.Uuid
+  attemptId       String             @map("attempt_id") @db.Uuid
+  questionId      String             @map("question_id") @db.Uuid
+  submittedAnswer String             @map("submitted_answer") @db.Text
+  isCorrect       Boolean            @map("is_correct")
+  awardedPoints   Int                @map("awarded_points")
+  attempt         LessonQuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  question        LessonQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([attemptId, questionId], map: "lesson_quiz_answers_attempt_id_question_id_key")
   @@index([questionId], map: "lesson_quiz_answers_question_id_idx")
@@ -1414,27 +1547,27 @@ model LessonQuizAnswer {
 /// authoritative lesson question bank; no answer keys are copied into the
 /// public exam projection.
 model LevelFinalExam {
-  id                 String         @id @default(uuid(7)) @db.Uuid
-  level              CourseLevel    @unique(map: "level_final_exams_level_key")
-  title              String         @db.VarChar(200)
-  passingPercentage  Int            @default(75) @map("passing_percentage")
-  questionCount     Int            @map("question_count")
-  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  questions          LevelFinalExamQuestion[]
-  attempts           LevelFinalExamAttempt[]
+  id                String                   @id @default(uuid(7)) @db.Uuid
+  level             CourseLevel              @unique(map: "level_final_exams_level_key")
+  title             String                   @db.VarChar(200)
+  passingPercentage Int                      @default(75) @map("passing_percentage")
+  questionCount     Int                      @map("question_count")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  questions         LevelFinalExamQuestion[]
+  attempts          LevelFinalExamAttempt[]
 
   @@map("level_final_exams")
 }
 
 model LevelFinalExamQuestion {
-  id               String             @id @default(uuid(7)) @db.Uuid
-  examId           String             @map("exam_id") @db.Uuid
-  sourceQuestionId String             @map("source_question_id") @db.Uuid
+  id               String                 @id @default(uuid(7)) @db.Uuid
+  examId           String                 @map("exam_id") @db.Uuid
+  sourceQuestionId String                 @map("source_question_id") @db.Uuid
   position         Int
-  deletedAt        DateTime?          @map("deleted_at") @db.Timestamptz(3)
-  exam             LevelFinalExam     @relation(fields: [examId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  sourceQuestion   LessonQuizQuestion @relation(fields: [sourceQuestionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(3)
+  exam             LevelFinalExam         @relation(fields: [examId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceQuestion   LessonQuizQuestion     @relation(fields: [sourceQuestionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   answers          LevelFinalExamAnswer[]
 
   @@index([examId, deletedAt, position], map: "level_final_exam_questions_exam_deleted_position_idx")
@@ -1443,18 +1576,18 @@ model LevelFinalExamQuestion {
 }
 
 model LevelFinalExamAttempt {
-  id             String                     @id @default(uuid(7)) @db.Uuid
-  examId         String                     @map("exam_id") @db.Uuid
-  enrollmentId   String                     @map("enrollment_id") @db.Uuid
-  startedAt      DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
-  submittedAt    DateTime?                  @map("submitted_at") @db.Timestamptz(3)
-  score          Int                        @default(0)
-  maxScore       Int                        @map("max_score")
-  percentage     Int                        @default(0)
-  correctCount   Int                        @default(0) @map("correct_count")
-  incorrectCount Int                        @default(0) @map("incorrect_count")
+  id             String                      @id @default(uuid(7)) @db.Uuid
+  examId         String                      @map("exam_id") @db.Uuid
+  enrollmentId   String                      @map("enrollment_id") @db.Uuid
+  startedAt      DateTime                    @default(now()) @map("started_at") @db.Timestamptz(3)
+  submittedAt    DateTime?                   @map("submitted_at") @db.Timestamptz(3)
+  score          Int                         @default(0)
+  maxScore       Int                         @map("max_score")
+  percentage     Int                         @default(0)
+  correctCount   Int                         @default(0) @map("correct_count")
+  incorrectCount Int                         @default(0) @map("incorrect_count")
   status         LevelFinalExamAttemptStatus @default(IN_PROGRESS)
-  exam           LevelFinalExam             @relation(fields: [examId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  exam           LevelFinalExam              @relation(fields: [examId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   enrollment     CourseEnrollment            @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   answers        LevelFinalExamAnswer[]
 
@@ -1464,14 +1597,14 @@ model LevelFinalExamAttempt {
 }
 
 model LevelFinalExamAnswer {
-  id             String                 @id @default(uuid(7)) @db.Uuid
-  attemptId      String                 @map("attempt_id") @db.Uuid
-  questionId     String                 @map("question_id") @db.Uuid
-  submittedAnswer String                @map("submitted_answer") @db.Text
-  isCorrect      Boolean                @map("is_correct")
-  awardedPoints  Int                    @map("awarded_points")
-  attempt        LevelFinalExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  question       LevelFinalExamQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id              String                 @id @default(uuid(7)) @db.Uuid
+  attemptId       String                 @map("attempt_id") @db.Uuid
+  questionId      String                 @map("question_id") @db.Uuid
+  submittedAnswer String                 @map("submitted_answer") @db.Text
+  isCorrect       Boolean                @map("is_correct")
+  awardedPoints   Int                    @map("awarded_points")
+  attempt         LevelFinalExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  question        LevelFinalExamQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([attemptId, questionId], map: "level_final_exam_answers_attempt_question_key")
   @@index([questionId], map: "level_final_exam_answers_question_idx")
@@ -1527,27 +1660,359 @@ model LessonContentBlock {
 /// Binary payloads are stored behind a MediaStorage interface. This table keeps
 /// only trusted metadata and an opaque provider-relative storage path.
 model MediaFile {
-  id                  String               @id @default(uuid(7)) @db.Uuid
-  originalFileName    String               @map("original_file_name") @db.VarChar(255)
-  storedFileName      String               @unique(map: "media_files_stored_file_name_key") @map("stored_file_name") @db.VarChar(255)
-  mimeType            String               @map("mime_type") @db.VarChar(160)
-  extension           String               @db.VarChar(16)
-  category            MediaCategory
-  sizeBytes           BigInt               @map("size_bytes") @db.BigInt
+  id                     String                          @id @default(uuid(7)) @db.Uuid
+  originalFileName       String                          @map("original_file_name") @db.VarChar(255)
+  storedFileName         String                          @unique(map: "media_files_stored_file_name_key") @map("stored_file_name") @db.VarChar(255)
+  mimeType               String                          @map("mime_type") @db.VarChar(160)
+  extension              String                          @db.VarChar(16)
+  category               MediaCategory
+  sizeBytes              BigInt                          @map("size_bytes") @db.BigInt
   /// Never expose this provider-relative path directly to API consumers.
-  storagePath         String               @unique(map: "media_files_storage_path_key") @map("storage_path") @db.VarChar(512)
-  storageProvider     MediaStorageProvider @default(LOCAL) @map("storage_provider")
-  checksum            String?              @db.Char(64)
-  uploadedById        String               @map("uploaded_by_id") @db.Uuid
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  uploadedBy          User                 @relation("MediaFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  lessonContentBlocks LessonContentBlock[]
+  storagePath            String                          @unique(map: "media_files_storage_path_key") @map("storage_path") @db.VarChar(512)
+  storageProvider        MediaStorageProvider            @default(LOCAL) @map("storage_provider")
+  checksum               String?                         @db.Char(64)
+  uploadedById           String                          @map("uploaded_by_id") @db.Uuid
+  createdAt              DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt              DateTime?                       @map("deleted_at") @db.Timestamptz(3)
+  uploadedBy             User                            @relation("MediaFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lessonContentBlocks    LessonContentBlock[]
+  exerciseRevisionUsages ExerciseRevisionMediaUsage[]
+  demoSnapshotUsages     DemoAttemptSnapshotMediaUsage[]
 
   @@index([uploadedById, deletedAt, createdAt], map: "media_files_uploaded_by_id_deleted_at_created_at_idx")
   @@index([category, deletedAt, createdAt], map: "media_files_category_deleted_at_created_at_idx")
   @@index([checksum], map: "media_files_checksum_idx")
   @@index([deletedAt], map: "media_files_deleted_at_idx")
   @@map("media_files")
+}
+
+/// Retained owner-managed authority for one normalized public demo slug.
+model DemoLessonMapping {
+  id         String            @id @default(uuid(7)) @db.Uuid
+  slug       String            @unique(map: "demo_lesson_mappings_slug_key") @db.Citext
+  lessonId   String            @map("lesson_id") @db.Uuid
+  status     DemoMappingStatus @default(DRAFT)
+  enabledAt  DateTime?         @map("enabled_at") @db.Timestamptz(3)
+  disabledAt DateTime?         @map("disabled_at") @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lesson     Lesson            @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attempts   DemoAttempt[]
+
+  @@index([status, slug], map: "demo_lesson_mappings_status_slug_idx")
+  @@index([lessonId, status], map: "demo_lesson_mappings_lesson_id_status_idx")
+  @@map("demo_lesson_mappings")
+}
+
+/// Stable learning-activity identity. Authenticated Course Player adapters must
+/// reuse this aggregate rather than introduce a second exercise system.
+model Exercise {
+  id         String                    @id @default(uuid(7)) @db.Uuid
+  status     ExerciseAggregateStatus   @default(ACTIVE)
+  archivedAt DateTime?                 @map("archived_at") @db.Timestamptz(3)
+  createdAt  DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  revisions  ExerciseRevision[]
+  placements LessonExercisePlacement[]
+  snapshots  DemoAttemptSnapshotItem[]
+
+  @@index([status, createdAt], map: "exercises_status_created_at_idx")
+  @@map("exercises")
+}
+
+/// One immutable numbered definition. Public and private JSON are distinct
+/// columns in the same atomic row; public projections must explicitly select
+/// only the public column.
+model ExerciseRevision {
+  id                       String                       @id @default(uuid(7)) @db.Uuid
+  exerciseId               String                       @map("exercise_id") @db.Uuid
+  revisionNumber           Int                          @map("revision_number")
+  type                     ExerciseType
+  deliveryVariant          ExerciseDeliveryVariant      @default(STANDARD) @map("delivery_variant")
+  status                   ExerciseRevisionStatus       @default(DRAFT)
+  publicDefinition         Json                         @map("public_definition")
+  privateGradingDefinition Json                         @map("private_grading_definition")
+  skillTags                ExerciseSkillTag[]           @map("skill_tags")
+  maxPoints                Int                          @map("max_points")
+  maxSubmissions           Int                          @map("max_submissions")
+  submittedForReviewAt     DateTime?                    @map("submitted_for_review_at") @db.Timestamptz(3)
+  publishedAt              DateTime?                    @map("published_at") @db.Timestamptz(3)
+  archivedAt               DateTime?                    @map("archived_at") @db.Timestamptz(3)
+  securityWithdrawnAt      DateTime?                    @map("security_withdrawn_at") @db.Timestamptz(3)
+  securityWithdrawalReason String?                      @map("security_withdrawal_reason") @db.VarChar(500)
+  createdAt                DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  exercise                 Exercise                     @relation(fields: [exerciseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  subPrompts               ExerciseRevisionSubPrompt[]
+  mediaUsages              ExerciseRevisionMediaUsage[]
+  primaryPlacements        LessonExercisePlacement[]    @relation("PlacementPrimaryRevision")
+  alternativePlacements    LessonExercisePlacement[]    @relation("PlacementAlternativeRevision")
+  snapshots                DemoAttemptSnapshotItem[]
+
+  @@unique([exerciseId, revisionNumber], map: "exercise_revisions_exercise_id_revision_number_key")
+  @@unique([id, exerciseId], map: "exercise_revisions_id_exercise_id_key")
+  @@index([exerciseId, status, revisionNumber], map: "exercise_revisions_exercise_id_status_revision_number_idx")
+  @@index([status, securityWithdrawnAt], map: "exercise_revisions_status_security_withdrawn_at_idx")
+  @@map("exercise_revisions")
+}
+
+/// Stable revision-local QUICK_ROUND identity. Non-quick-round revisions have
+/// no rows. Per-sub-prompt private grading remains outside the public JSON.
+model ExerciseRevisionSubPrompt {
+  id                       String                       @id @default(uuid(7)) @db.Uuid
+  revisionId               String                       @map("revision_id") @db.Uuid
+  position                 Int
+  type                     ExerciseType
+  skillTag                 ExerciseSkillTag             @map("skill_tag")
+  maxPoints                Int                          @map("max_points")
+  publicDefinition         Json                         @map("public_definition")
+  privateGradingDefinition Json                         @map("private_grading_definition")
+  createdAt                DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  revision                 ExerciseRevision             @relation(fields: [revisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  mediaUsages              ExerciseRevisionMediaUsage[]
+
+  @@unique([revisionId, position], map: "exercise_revision_sub_prompts_revision_id_position_key")
+  @@unique([id, revisionId], map: "exercise_revision_sub_prompts_id_revision_id_key")
+  @@index([revisionId, type], map: "exercise_revision_sub_prompts_revision_id_type_idx")
+  @@map("exercise_revision_sub_prompts")
+}
+
+/// Separate placement identity binds a real lesson to an exact published
+/// revision or reviewed audio/text-equivalent pair in deterministic order.
+model LessonExercisePlacement {
+  id                        String                        @id @default(uuid(7)) @db.Uuid
+  lessonId                  String                        @map("lesson_id") @db.Uuid
+  exerciseId                String                        @map("exercise_id") @db.Uuid
+  primaryRevisionId         String                        @map("primary_revision_id") @db.Uuid
+  textAlternativeRevisionId String?                       @map("text_alternative_revision_id") @db.Uuid
+  stageKey                  String                        @map("stage_key") @db.VarChar(64)
+  position                  Int
+  status                    LessonExercisePlacementStatus @default(DRAFT)
+  activatedAt               DateTime?                     @map("activated_at") @db.Timestamptz(3)
+  archivedAt                DateTime?                     @map("archived_at") @db.Timestamptz(3)
+  createdAt                 DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lesson                    Lesson                        @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  exercise                  Exercise                      @relation(fields: [exerciseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  primaryRevision           ExerciseRevision              @relation("PlacementPrimaryRevision", fields: [primaryRevisionId, exerciseId], references: [id, exerciseId], onDelete: Restrict, onUpdate: Cascade)
+  textAlternativeRevision   ExerciseRevision?             @relation("PlacementAlternativeRevision", fields: [textAlternativeRevisionId, exerciseId], references: [id, exerciseId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([lessonId, status, stageKey, position], map: "lesson_exercise_placements_lesson_status_stage_position_idx")
+  @@index([exerciseId, status], map: "lesson_exercise_placements_exercise_id_status_idx")
+  @@index([primaryRevisionId], map: "lesson_exercise_placements_primary_revision_id_idx")
+  @@index([textAlternativeRevisionId], map: "lesson_exercise_placements_text_alternative_revision_id_idx")
+  @@map("lesson_exercise_placements")
+}
+
+/// First-class managed media reference. No URL, storage path, or copied provider
+/// key is stored in the exercise domain.
+model ExerciseRevisionMediaUsage {
+  id          String                     @id @default(uuid(7)) @db.Uuid
+  revisionId  String                     @map("revision_id") @db.Uuid
+  subPromptId String?                    @map("sub_prompt_id") @db.Uuid
+  mediaFileId String                     @map("media_file_id") @db.Uuid
+  role        ExerciseMediaRole
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  revision    ExerciseRevision           @relation(fields: [revisionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  subPrompt   ExerciseRevisionSubPrompt? @relation(fields: [subPromptId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  mediaFile   MediaFile                  @relation(fields: [mediaFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([revisionId, subPromptId, mediaFileId, role], map: "exercise_revision_media_usages_context_key")
+  @@index([mediaFileId, role], map: "exercise_revision_media_usages_media_file_id_role_idx")
+  @@index([revisionId, role], map: "exercise_revision_media_usages_revision_id_role_idx")
+  @@index([subPromptId], map: "exercise_revision_media_usages_sub_prompt_id_idx")
+  @@map("exercise_revision_media_usages")
+}
+
+/// Random opaque retry lineage identity. It contains no capability or answer
+/// material and is cleaned after the last terminal attempt in the lineage.
+model DemoAttemptLineage {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  lastTerminalAt DateTime?     @map("last_terminal_at") @db.Timestamptz(3)
+  deleteBy       DateTime?     @map("delete_by") @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  attempts       DemoAttempt[]
+
+  @@index([deleteBy], map: "demo_attempt_lineages_delete_by_idx")
+  @@map("demo_attempt_lineages")
+}
+
+/// Anonymous capability-owned state, deliberately isolated from enrollment and
+/// authenticated progress. The raw token is never persisted.
+model DemoAttempt {
+  id                       String                    @id @default(uuid(7)) @db.Uuid
+  demoMappingId            String                    @map("demo_mapping_id") @db.Uuid
+  lessonId                 String                    @map("lesson_id") @db.Uuid
+  lineageId                String                    @map("lineage_id") @db.Uuid
+  sourceAttemptId          String?                   @map("source_attempt_id") @db.Uuid
+  creationKind             DemoAttemptCreationKind   @default(STANDARD) @map("creation_kind")
+  retryMode                DemoRetryMode?            @map("retry_mode")
+  status                   DemoAttemptStatus         @default(IN_PROGRESS)
+  version                  Int                       @default(1)
+  tokenNonce               String                    @unique(map: "demo_attempts_token_nonce_key") @map("token_nonce") @db.Char(43)
+  tokenKeyVersion          Int                       @map("token_key_version") @db.SmallInt
+  tokenDigest              String                    @unique(map: "demo_attempts_token_digest_key") @map("token_digest") @db.Char(64)
+  requestedLocale          String                    @map("requested_locale") @db.VarChar(35)
+  resolvedLocale           String                    @map("resolved_locale") @db.VarChar(35)
+  audioMode                DemoAudioMode             @map("audio_mode")
+  lessonCurriculumRevision Int                       @map("lesson_curriculum_revision")
+  lastAcceptedMutationAt   DateTime                  @map("last_accepted_mutation_at") @db.Timestamptz(3)
+  idleExpiresAt            DateTime                  @map("idle_expires_at") @db.Timestamptz(3)
+  absoluteExpiresAt        DateTime                  @map("absolute_expires_at") @db.Timestamptz(3)
+  completedAt              DateTime?                 @map("completed_at") @db.Timestamptz(3)
+  expiredAt                DateTime?                 @map("expired_at") @db.Timestamptz(3)
+  abandonedAt              DateTime?                 @map("abandoned_at") @db.Timestamptz(3)
+  revokedAt                DateTime?                 @map("revoked_at") @db.Timestamptz(3)
+  evidenceDeleteBy         DateTime?                 @map("evidence_delete_by") @db.Timestamptz(3)
+  createdAt                DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  demoMapping              DemoLessonMapping         @relation(fields: [demoMappingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lesson                   Lesson                    @relation(fields: [lessonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lineage                  DemoAttemptLineage        @relation(fields: [lineageId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceAttempt            DemoAttempt?              @relation("DemoAttemptSource", fields: [sourceAttemptId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  derivedAttempts          DemoAttempt[]             @relation("DemoAttemptSource")
+  snapshotItems            DemoAttemptSnapshotItem[]
+  idempotencyRecords       DemoIdempotencyRecord[]   @relation("DemoIdempotencyOwner")
+  resultingRecords         DemoIdempotencyRecord[]   @relation("DemoIdempotencyResult")
+
+  @@unique([id, lineageId], map: "demo_attempts_id_lineage_id_key")
+  @@index([demoMappingId, status], map: "demo_attempts_demo_mapping_id_status_idx")
+  @@index([lessonId, status], map: "demo_attempts_lesson_id_status_idx")
+  @@index([lineageId, createdAt], map: "demo_attempts_lineage_id_created_at_idx")
+  @@index([sourceAttemptId], map: "demo_attempts_source_attempt_id_idx")
+  @@index([status, idleExpiresAt, absoluteExpiresAt], map: "demo_attempts_active_expiry_idx")
+  @@index([evidenceDeleteBy], map: "demo_attempts_evidence_delete_by_idx")
+  @@map("demo_attempts")
+}
+
+/// Immutable deep copy of one ordered exercise. Current revision references are
+/// traceability only; both public replay and private grading use copied columns.
+model DemoAttemptSnapshotItem {
+  id                       String                          @id @default(uuid(7)) @db.Uuid
+  attemptId                String                          @map("attempt_id") @db.Uuid
+  placementId              String                          @map("placement_id") @db.Uuid
+  exerciseId               String                          @map("exercise_id") @db.Uuid
+  sourceRevisionId         String                          @map("source_revision_id") @db.Uuid
+  revisionNumber           Int                             @map("revision_number")
+  position                 Int
+  type                     ExerciseType
+  deliveryVariant          ExerciseDeliveryVariant         @map("delivery_variant")
+  publicDefinition         Json                            @map("public_definition")
+  privateGradingDefinition Json                            @map("private_grading_definition")
+  skillTags                ExerciseSkillTag[]              @map("skill_tags")
+  maxPoints                Int                             @map("max_points")
+  maxSubmissions           Int                             @map("max_submissions")
+  createdAt                DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  attempt                  DemoAttempt                     @relation(fields: [attemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  exercise                 Exercise                        @relation(fields: [exerciseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceRevision           ExerciseRevision                @relation(fields: [sourceRevisionId, exerciseId], references: [id, exerciseId], onDelete: Restrict, onUpdate: Cascade)
+  subPrompts               DemoAttemptSnapshotSubPrompt[]
+  mediaUsages              DemoAttemptSnapshotMediaUsage[]
+  state                    DemoAttemptExerciseState?
+
+  @@unique([attemptId, position], map: "demo_attempt_snapshot_items_attempt_id_position_key")
+  @@unique([attemptId, exerciseId], map: "demo_attempt_snapshot_items_attempt_id_exercise_id_key")
+  @@unique([id, attemptId], map: "demo_attempt_snapshot_items_id_attempt_id_key")
+  @@index([attemptId, sourceRevisionId], map: "demo_attempt_snapshot_items_attempt_id_source_revision_id_idx")
+  @@index([exerciseId], map: "demo_attempt_snapshot_items_exercise_id_idx")
+  @@map("demo_attempt_snapshot_items")
+}
+
+model DemoAttemptSnapshotSubPrompt {
+  id                       String                          @id @default(uuid(7)) @db.Uuid
+  snapshotItemId           String                          @map("snapshot_item_id") @db.Uuid
+  sourceSubPromptId        String                          @map("source_sub_prompt_id") @db.Uuid
+  position                 Int
+  type                     ExerciseType
+  skillTag                 ExerciseSkillTag                @map("skill_tag")
+  maxPoints                Int                             @map("max_points")
+  publicDefinition         Json                            @map("public_definition")
+  privateGradingDefinition Json                            @map("private_grading_definition")
+  createdAt                DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+  snapshotItem             DemoAttemptSnapshotItem         @relation(fields: [snapshotItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaUsages              DemoAttemptSnapshotMediaUsage[]
+  state                    DemoAttemptSubPromptState?
+
+  @@unique([snapshotItemId, position], map: "demo_snapshot_sub_prompts_snapshot_item_id_position_key")
+  @@unique([snapshotItemId, sourceSubPromptId], map: "demo_snapshot_sub_prompts_snapshot_item_id_source_id_key")
+  @@index([snapshotItemId, type], map: "demo_snapshot_sub_prompts_snapshot_item_id_type_idx")
+  @@map("demo_attempt_snapshot_sub_prompts")
+}
+
+model DemoAttemptSnapshotMediaUsage {
+  id             String                        @id @default(uuid(7)) @db.Uuid
+  snapshotItemId String                        @map("snapshot_item_id") @db.Uuid
+  subPromptId    String?                       @map("sub_prompt_id") @db.Uuid
+  mediaFileId    String                        @map("media_file_id") @db.Uuid
+  role           ExerciseMediaRole
+  createdAt      DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  snapshotItem   DemoAttemptSnapshotItem       @relation(fields: [snapshotItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  subPrompt      DemoAttemptSnapshotSubPrompt? @relation(fields: [subPromptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaFile      MediaFile                     @relation(fields: [mediaFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([snapshotItemId, subPromptId, mediaFileId, role], map: "demo_snapshot_media_usages_context_key")
+  @@index([mediaFileId, role], map: "demo_snapshot_media_usages_media_file_id_role_idx")
+  @@index([snapshotItemId, role], map: "demo_snapshot_media_usages_snapshot_item_id_role_idx")
+  @@index([subPromptId], map: "demo_snapshot_media_usages_sub_prompt_id_idx")
+  @@map("demo_attempt_snapshot_media_usages")
+}
+
+/// Mutable attempt evidence is separated from immutable snapshot content.
+model DemoAttemptExerciseState {
+  id              String                      @id @default(uuid(7)) @db.Uuid
+  attemptId       String                      @map("attempt_id") @db.Uuid
+  snapshotItemId  String                      @unique(map: "demo_attempt_exercise_states_snapshot_item_id_key") @map("snapshot_item_id") @db.Uuid
+  outcome         DemoExerciseOutcome         @default(UNANSWERED)
+  submissionsUsed Int                         @default(0) @map("submissions_used")
+  earnedPoints    Int                         @default(0) @map("earned_points")
+  terminalAt      DateTime?                   @map("terminal_at") @db.Timestamptz(3)
+  createdAt       DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  snapshotItem    DemoAttemptSnapshotItem     @relation(fields: [snapshotItemId, attemptId], references: [id, attemptId], onDelete: Cascade, onUpdate: Cascade)
+  subPromptStates DemoAttemptSubPromptState[]
+
+  @@unique([snapshotItemId, attemptId], map: "demo_attempt_exercise_states_item_attempt_key")
+  @@index([attemptId, outcome], map: "demo_attempt_exercise_states_attempt_id_outcome_idx")
+  @@map("demo_attempt_exercise_states")
+}
+
+model DemoAttemptSubPromptState {
+  id                  String                       @id @default(uuid(7)) @db.Uuid
+  exerciseStateId     String                       @map("exercise_state_id") @db.Uuid
+  snapshotSubPromptId String                       @unique(map: "demo_sub_prompt_states_snapshot_sub_prompt_id_key") @map("snapshot_sub_prompt_id") @db.Uuid
+  outcome             DemoSubPromptOutcome         @default(UNANSWERED)
+  earnedPoints        Int                          @default(0) @map("earned_points")
+  createdAt           DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  exerciseState       DemoAttemptExerciseState     @relation(fields: [exerciseStateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  snapshotSubPrompt   DemoAttemptSnapshotSubPrompt @relation(fields: [snapshotSubPromptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([exerciseStateId, outcome], map: "demo_sub_prompt_states_exercise_state_id_outcome_idx")
+  @@map("demo_attempt_sub_prompt_states")
+}
+
+/// Demo-scoped 15-minute replay receipt. Scope digests are one-way derived
+/// identifiers; response JSON must never contain grading data or raw tokens.
+model DemoIdempotencyRecord {
+  id                     String                   @id @default(uuid(7)) @db.Uuid
+  ownerAttemptId         String                   @map("owner_attempt_id") @db.Uuid
+  operation              DemoIdempotencyOperation
+  scopeDigest            String                   @map("scope_digest") @db.Char(64)
+  key                    String                   @db.Uuid
+  requestFingerprint     String                   @map("request_fingerprint") @db.Char(64)
+  responseStatus         Int                      @map("response_status") @db.SmallInt
+  responseEnvelope       Json                     @map("response_envelope")
+  resultingAttemptId     String?                  @map("resulting_attempt_id") @db.Uuid
+  resetReplayTokenDigest String?                  @map("reset_replay_token_digest") @db.Char(64)
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt              DateTime                 @map("expires_at") @db.Timestamptz(3)
+  ownerAttempt           DemoAttempt              @relation("DemoIdempotencyOwner", fields: [ownerAttemptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  resultingAttempt       DemoAttempt?             @relation("DemoIdempotencyResult", fields: [resultingAttemptId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([operation, scopeDigest, key], map: "demo_idempotency_records_operation_scope_key_key")
+  @@index([ownerAttemptId, createdAt], map: "demo_idempotency_records_owner_attempt_id_created_at_idx")
+  @@index([expiresAt], map: "demo_idempotency_records_expires_at_idx")
+  @@index([resultingAttemptId], map: "demo_idempotency_records_resulting_attempt_id_idx")
+  @@map("demo_idempotency_records")
 }
