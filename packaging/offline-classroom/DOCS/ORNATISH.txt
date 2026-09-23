@@ -1,0 +1,15 @@
+TURKTILILMS — BIR MARTALIK O‘RNATISH
+
+1. Butun DTurkTiliLMS-TRANSFER papkasini kompyuterning C: diskiga ko‘chiring.
+2. PostgreSQL 17 o‘rnatilmagan bo‘lsa, RUNTIME\installers ichidagi PostgreSQL installerni oching.
+3. PostgreSQL o‘rnatishda kiritgan administrator parolini eslab qoling.
+4. SETUP\FIRST-TIME-SETUP.cmd ni oching.
+5. PostgreSQL administrator nomi va parolini kiriting.
+6. So‘ralgan 2 yoki 3 ta o‘qituvchi hisobini kiriting. Parollar ekranda ko‘rinmaydi va matn faylga yozilmaydi.
+7. Sozlash tugagach, SETUP\ALLOW-PRIVATE-FIREWALL.ps1 faylini Administrator sifatida oching.
+8. SETUP\INSTALL-AUTOSTART.ps1 ni bir marta oching.
+9. SETUP\START-TURKTILILMS.cmd ni oching.
+10. SETUP\STATUS-TURKTILILMS.cmd orqali talabalar manzilini ko‘ring.
+
+Muhim: APP\.env fayli maxfiy. Uni boshqa odamlarga yubormang.
+Mavjud baza topilsa, setup xavfsizlik uchun to‘xtaydi va hech narsani o‘chirmaydi.

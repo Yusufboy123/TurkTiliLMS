@@ -1,0 +1,5 @@
+TurkTiliLMS Classroom sozlamalari FIRST-TIME-SETUP.cmd tomonidan APP\.env fayliga yoziladi.
+Bu fayl maxfiy: nusxasini internetga, GitHub'ga yoki umumiy chatga yubormang.
+CLASSROOM_SELF_REGISTRATION=true bo‘lsa talabalar o‘zlari ro‘yxatdan o‘tadi.
+false qilinsa yangi ro‘yxatdan o‘tish yopiladi, mavjud hisoblar ishlashda davom etadi.
+LAN manzili START skripti tomonidan har ishga tushishda avtomatik yangilanadi.

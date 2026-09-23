@@ -18,6 +18,7 @@ interface AuthRouterDependencies {
   generalRateLimiter?: RequestHandler;
   credentialRateLimiter?: RequestHandler;
   browserCsrfProtection?: RequestHandler;
+  registrationEnabled?: boolean;
 }
 
 export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
@@ -39,12 +40,14 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     ...(dependencies.browserCsrfProtection ? [dependencies.browserCsrfProtection] : []),
     asyncHandler(dependencies.controller.login),
   );
-  router.post(
-    '/register',
-    ...(dependencies.credentialRateLimiter ? [dependencies.credentialRateLimiter] : []),
-    ...(dependencies.browserCsrfProtection ? [dependencies.browserCsrfProtection] : []),
-    asyncHandler(dependencies.controller.register),
-  );
+  if (dependencies.registrationEnabled !== false) {
+    router.post(
+      '/register',
+      ...(dependencies.credentialRateLimiter ? [dependencies.credentialRateLimiter] : []),
+      ...(dependencies.browserCsrfProtection ? [dependencies.browserCsrfProtection] : []),
+      asyncHandler(dependencies.controller.register),
+    );
+  }
   router.post(
     '/refresh',
     ...(dependencies.credentialRateLimiter ? [dependencies.credentialRateLimiter] : []),
@@ -96,4 +99,5 @@ export const authRouter = createAuthRouter({
     environment.FRONTEND_ORIGINS,
     isBrowserCookieRequest,
   ),
+  registrationEnabled: environment.CLASSROOM_SELF_REGISTRATION,
 });

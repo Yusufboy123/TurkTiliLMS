@@ -6,6 +6,13 @@ export type RegistrationField = keyof RegistrationInput;
 export type RegistrationFieldErrors = Partial<Record<RegistrationField, string>>;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const classroomUsernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+export const classroomMode = import.meta.env.VITE_CLASSROOM_MODE === 'true';
+
+export function normalizeRegistrationIdentifier(value: string): string {
+  const normalized = value.trim().toLocaleLowerCase('en-US');
+  return classroomMode ? `${normalized}@classroom.local` : normalized;
+}
 
 export function validateRegistrationForm(values: RegistrationInput): RegistrationFieldErrors {
   const errors: RegistrationFieldErrors = {};
@@ -16,9 +23,9 @@ export function validateRegistrationForm(values: RegistrationInput): Registratio
   else if (values.lastName.trim().length > 100)
     errors.lastName = authMessages.validation.nameTooLong;
   const email = values.email.trim();
-  if (!email) errors.email = authMessages.validation.emailRequired;
-  else if (email.length > 254 || !emailPattern.test(email))
-    errors.email = authMessages.validation.emailInvalid;
+  if (!email) errors.email = classroomMode ? authMessages.validation.usernameRequired : authMessages.validation.emailRequired;
+  else if (classroomMode ? !classroomUsernamePattern.test(email.toLocaleLowerCase('en-US')) : email.length > 254 || !emailPattern.test(email))
+    errors.email = classroomMode ? authMessages.validation.usernameInvalid : authMessages.validation.emailInvalid;
   if (!values.password) errors.password = authMessages.validation.passwordRequired;
   else if (
     values.password.length < 12 ||

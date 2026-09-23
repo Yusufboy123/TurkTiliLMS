@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import { resolve } from 'node:path';
 import { environment } from './config/environment.js';
 import { errorHandler } from './middlewares/error-handler.middleware.js';
 import { notFoundHandler } from './middlewares/not-found.middleware.js';
@@ -22,6 +23,18 @@ app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
 
 app.use('/api/v1', apiV1Router);
+
+if (environment.FRONTEND_STATIC_ROOT) {
+  const frontendRoot = resolve(environment.FRONTEND_STATIC_ROOT);
+  app.use(express.static(frontendRoot, { index: false }));
+  app.use((request, response, next) => {
+    if (request.method !== 'GET' || request.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+    response.sendFile('index.html', { root: frontendRoot });
+  });
+}
 
 app.use(notFoundHandler);
 app.use(errorHandler);

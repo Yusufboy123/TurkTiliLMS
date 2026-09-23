@@ -2,6 +2,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent, RefObject } from 'react';
 import { Button, ErrorSummary, FormField, Input } from '../../../components';
 import { authMessages } from '../../../locales/uz-Latn/auth';
 import type { LoginFailure, LoginFieldErrors, LoginFormValues } from './login-form.model';
+import { classroomMode } from './login-form.model';
 
 export interface LoginFormViewProps {
   capsLockEnabled: boolean;
@@ -50,19 +51,19 @@ export function LoginFormView({
       <FormField
         controlId="login-email"
         error={errors.email}
-        label={authMessages.login.email}
+        label={classroomMode ? authMessages.login.username : authMessages.login.email}
         required
       >
         <Input
           autoCapitalize="none"
-          autoComplete="email"
+          autoComplete={classroomMode ? 'username' : 'email'}
           autoFocus
           disabled={pending}
-          inputMode="email"
+          inputMode={classroomMode ? 'text' : 'email'}
           name="email"
           onChange={change('email')}
           spellCheck={false}
-          type="email"
+          type={classroomMode ? 'text' : 'email'}
           value={values.email}
         />
       </FormField>

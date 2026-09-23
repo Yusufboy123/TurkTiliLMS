@@ -1,0 +1,13 @@
+TURKTILILMS — HAR KUNLIK ISH
+
+1. Kompyuterni yoqing.
+2. Wi-Fi hotspotni yoqing.
+3. TurkTiliLMS avtomatik ishga tushadi.
+4. O‘qituvchi login va paroli bilan kiring.
+5. Talabalar shu Wi-Fi ga ulanadi.
+6. STATUS-TURKTILILMS.cmd ni oching va ko‘rsatilgan manzilni talabalarga ayting.
+7. Talabalar ism, familiya, login va parol bilan ro‘yxatdan o‘tadi.
+8. Talabalar darsni boshlaydi.
+
+Avtomatik ochilmasa, START-TURKTILILMS.cmd ni ikki marta bosing.
+To‘xtatish uchun STOP-TURKTILILMS.cmd ni oching.

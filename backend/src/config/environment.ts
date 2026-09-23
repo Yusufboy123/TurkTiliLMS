@@ -53,6 +53,8 @@ function isLowEntropyJwtSecret(secret: string): boolean {
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']),
+    CLASSROOM_MODE: z.enum(['true', 'false']).default('false'),
+    CLASSROOM_SELF_REGISTRATION: z.enum(['true', 'false']).default('true'),
     HOST: z.string().trim().min(1).default('0.0.0.0'),
     PORT: z.coerce.number().int().positive().max(65_535).default(5000),
     DATABASE_URL: z.string().startsWith('postgresql://'),
@@ -107,9 +109,11 @@ const environmentSchema = z
       .min(100)
       .max(120_000)
       .default(10_000),
+    FRONTEND_STATIC_ROOT: z.string().trim().min(1).optional(),
   })
   .superRefine((value, context) => {
-    if (value.NODE_ENV === 'production' && value.AUTH_REFRESH_COOKIE_SECURE === 'false') {
+    const classroomMode = value.CLASSROOM_MODE === 'true';
+    if (value.NODE_ENV === 'production' && !classroomMode && value.AUTH_REFRESH_COOKIE_SECURE === 'false') {
       context.addIssue({
         code: 'custom',
         path: ['AUTH_REFRESH_COOKIE_SECURE'],
@@ -122,7 +126,7 @@ const environmentSchema = z
       .map((origin) => origin.trim())
       .filter(Boolean);
 
-    if (value.NODE_ENV === 'production' && new URL(value.FRONTEND_URL).protocol !== 'https:') {
+    if (value.NODE_ENV === 'production' && !classroomMode && new URL(value.FRONTEND_URL).protocol !== 'https:') {
       context.addIssue({
         code: 'custom',
         path: ['FRONTEND_URL'],
@@ -132,6 +136,7 @@ const environmentSchema = z
 
     if (
       value.NODE_ENV === 'production' &&
+      !classroomMode &&
       additionalFrontendOrigins.some((origin) => new URL(origin).protocol !== 'https:')
     ) {
       context.addIssue({
@@ -180,8 +185,10 @@ export function parseEnvironment(input: Record<string, string | undefined>) {
     ]),
     AUTH_REFRESH_COOKIE_SECURE:
       result.data.AUTH_REFRESH_COOKIE_SECURE === undefined
-        ? result.data.NODE_ENV === 'production'
+        ? result.data.NODE_ENV === 'production' && result.data.CLASSROOM_MODE !== 'true'
         : result.data.AUTH_REFRESH_COOKIE_SECURE === 'true',
+    CLASSROOM_MODE: result.data.CLASSROOM_MODE === 'true',
+    CLASSROOM_SELF_REGISTRATION: result.data.CLASSROOM_SELF_REGISTRATION === 'true',
   };
 }
 

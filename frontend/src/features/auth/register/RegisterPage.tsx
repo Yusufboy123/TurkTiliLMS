@@ -5,7 +5,9 @@ import { authMessages } from '../../../locales/uz-Latn/auth';
 import { registrationApi, type RegistrationInput } from './registration.api';
 import {
   hasRegistrationErrors,
+  classroomMode,
   mapRegistrationFailure,
+  normalizeRegistrationIdentifier,
   validateRegistrationForm,
   type RegistrationFieldErrors,
 } from './registration-form.model';
@@ -50,7 +52,7 @@ export default function RegisterPage() {
         ...values,
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
-        email: values.email.trim().toLocaleLowerCase('en-US'),
+        email: normalizeRegistrationIdentifier(values.email),
       });
       setSuccess(true);
       window.setTimeout(() => navigate('/login?registered=1', { replace: true }), 900);
@@ -135,18 +137,18 @@ export default function RegisterPage() {
             <FormField
               controlId="register-email"
               error={errors.email}
-              label={authMessages.registration.email}
+              label={classroomMode ? authMessages.registration.username : authMessages.registration.email}
               required
             >
               <Input
                 autoCapitalize="none"
-                autoComplete="email"
+                autoComplete={classroomMode ? 'username' : 'email'}
                 disabled={pending}
                 id="register-email"
-                inputMode="email"
+                inputMode={classroomMode ? 'text' : 'email'}
                 onChange={(event) => update('email', event.target.value)}
                 spellCheck={false}
-                type="email"
+                type={classroomMode ? 'text' : 'email'}
                 value={values.email}
               />
             </FormField>

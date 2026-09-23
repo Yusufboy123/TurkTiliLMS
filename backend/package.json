@@ -24,6 +24,7 @@
     "prisma:seed:b2-vocabulary": "tsx prisma/seed-b2-vocabulary.ts",
     "prisma:seed:b1-vocabulary": "tsx prisma/seed-b1-vocabulary.ts",
     "bootstrap:admin": "tsx prisma/bootstrap-admin.ts",
+    "bootstrap:teacher": "tsx prisma/bootstrap-teacher.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

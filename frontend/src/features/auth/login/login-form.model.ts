@@ -22,14 +22,16 @@ interface ApiErrorEnvelope {
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const classroomUsernamePattern = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+export const classroomMode = import.meta.env.VITE_CLASSROOM_MODE === 'true';
 
 export function validateLoginForm(values: LoginFormValues): LoginFieldErrors {
   const errors: LoginFieldErrors = {};
   const email = values.email.trim();
 
-  if (!email) errors.email = authMessages.validation.emailRequired;
-  else if (email.length > 254 || !emailPattern.test(email)) {
-    errors.email = authMessages.validation.emailInvalid;
+  if (!email) errors.email = classroomMode ? authMessages.validation.usernameRequired : authMessages.validation.emailRequired;
+  else if (classroomMode ? !classroomUsernamePattern.test(email.toLocaleLowerCase('en-US')) : email.length > 254 || !emailPattern.test(email)) {
+    errors.email = classroomMode ? authMessages.validation.usernameInvalid : authMessages.validation.emailInvalid;
   }
 
   if (!values.password) errors.password = authMessages.validation.passwordRequired;
@@ -45,7 +47,8 @@ export function hasLoginFieldErrors(errors: LoginFieldErrors): boolean {
 }
 
 export function normalizeLoginEmail(email: string): string {
-  return email.trim().toLocaleLowerCase('en-US');
+  const normalized = email.trim().toLocaleLowerCase('en-US');
+  return classroomMode ? `${normalized}@classroom.local` : normalized;
 }
 
 export function mapLoginFailure(error: unknown): LoginFailure {
