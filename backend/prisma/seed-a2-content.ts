@@ -45,11 +45,12 @@ async function seedLesson(tx: Prisma.TransactionClient, courseId: string, sectio
       blockType: content.blockType as LessonContentBlockType,
       title: content.title,
       position: content.position,
-      isRequired: true,
+      isRequired: content.isRequired ?? true,
       isVisible: true,
       textContent: content.textContent ?? null,
       metadata: {
         sourceKey: content.key,
+        isPracticeHolder: Boolean(content.practiceItems?.length),
         ...(content.practiceItems ? { interactivePractice: content.practiceItems } : {}),
       } as unknown as Prisma.InputJsonObject,
       deletedAt: null,

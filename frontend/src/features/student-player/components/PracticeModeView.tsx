@@ -21,12 +21,12 @@ function normalize(value: string): string {
 
 function stageLabel(stage: number): string {
   const stages: Record<number, string> = {
-    1: '1-Bosqich: Juda oson — Tasniflash',
-    2: '2-Bosqich: Oson — Kichik harf shakli',
-    3: '3-Bosqich: Yo‘naltirilgan — So‘zdagi maxsus harflar',
-    4: '4-Bosqich: Mustaqil — Oxirgi unlini aniqlash',
-    5: '5-Bosqich: Kontekstual — Talaffuz va izoh',
-    6: '6-Bosqich: Aralash takror — Undoshlar guruhi',
+    1: '1-Bosqich: Tanish va tushunish',
+    2: '2-Bosqich: Qoidani qo‘llash',
+    3: '3-Bosqich: Kontekstda tanlash',
+    4: '4-Bosqich: Shaklni mustahkamlash',
+    5: '5-Bosqich: Xatoni aniqlash',
+    6: '6-Bosqich: Aralash takror',
   };
   return stages[stage] ?? `${stage}-Bosqich`;
 }
