@@ -153,6 +153,25 @@ export class LessonLearningRepository {
     return null;
   }
 
+  async isPracticeCompleted(enrollmentId: string, lessonId: string): Promise<boolean> {
+    const blocks = await this.client.lessonContentBlock.findMany({
+      where: { lessonId, deletedAt: null, isVisible: true },
+      select: { id: true, metadata: true },
+    });
+    const practiceBlockIds = blocks
+      .filter((block) => {
+        if (!block.metadata || typeof block.metadata !== 'object' || Array.isArray(block.metadata)) return false;
+        const metadata = block.metadata as Record<string, Prisma.JsonValue>;
+        return metadata.isPracticeHolder === true || storedInteractivePracticeFromMetadata(block.metadata) !== undefined;
+      })
+      .map((block) => block.id);
+    if (practiceBlockIds.length === 0) return true;
+    const completed = await this.client.blockProgress.count({
+      where: { enrollmentId, blockId: { in: practiceBlockIds }, state: 'COMPLETED' },
+    });
+    return completed === practiceBlockIds.length;
+  }
+
   findAttempt(attemptId: string, enrollmentId: string, lessonId: string) {
     return this.client.lessonQuizAttempt.findFirst({ where: { id: attemptId, enrollmentId, lessonId }, select: { ...attemptSelect, answers: { select: { questionId: true } } } });
   }

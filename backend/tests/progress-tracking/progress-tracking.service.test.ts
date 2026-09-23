@@ -149,6 +149,67 @@ describe('ProgressTrackingService', () => {
     expect(repository.events[0]?.eventType).toBe(ProgressEventType.BLOCK_COMPLETED);
   });
 
+  it('requires every practice-holder answer to be correct before persistent completion', async () => {
+    const repository = new FakeProgressTrackingRepository();
+    const block = repository.enrollment.course.sections[0]?.lessons[0]?.blocks[0];
+    if (!block) throw new Error('Practice block fixture is missing.');
+    block.metadata = {
+      isPracticeHolder: true,
+      interactivePractice: [
+        {
+          id: 'a1-v2-l1-p1',
+          type: 'MULTIPLE_CHOICE',
+          prompt: 'To‘g‘ri javobni tanlang.',
+          options: ['A', 'B'],
+          answer: 'B',
+          explanation: 'B to‘g‘ri.',
+          stage: 1,
+        },
+      ],
+    };
+    const service = new ProgressTrackingService(repository);
+
+    await expect(
+      service.completeBlock(
+        ENROLLMENT_ID,
+        BLOCK_ID,
+        { expectedCompletionVersion: 0, curriculumVersion: 1 },
+        actor(),
+        { idempotencyKey: COMPLETE_KEY },
+      ),
+    ).rejects.toSatisfy((error: unknown) =>
+      expectAppError(error, 'PRACTICE_NOT_COMPLETED', 409),
+    );
+    await expect(
+      service.completeBlock(
+        ENROLLMENT_ID,
+        BLOCK_ID,
+        {
+          expectedCompletionVersion: 0,
+          curriculumVersion: 1,
+          practiceAnswers: [{ practiceId: 'a1-v2-l1-p1', answer: 'A' }],
+        },
+        actor(),
+        { idempotencyKey: '019d0000-0000-7000-8000-000000000111' },
+      ),
+    ).rejects.toSatisfy((error: unknown) =>
+      expectAppError(error, 'PRACTICE_NOT_COMPLETED', 409),
+    );
+
+    const result = await service.completeBlock(
+      ENROLLMENT_ID,
+      BLOCK_ID,
+      {
+        expectedCompletionVersion: 0,
+        curriculumVersion: 1,
+        practiceAnswers: [{ practiceId: 'a1-v2-l1-p1', answer: 'B' }],
+      },
+      actor(),
+      { idempotencyKey: '019d0000-0000-7000-8000-000000000112' },
+    );
+    expect(result.envelope.data.affectedLesson.blocks[0]?.status).toBe('COMPLETED');
+  });
+
   it('replays an identical idempotency key and rejects a changed fingerprint', async () => {
     const repository = new FakeProgressTrackingRepository();
     const service = new ProgressTrackingService(repository);

@@ -24,6 +24,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     deleteQuestion: vi.fn().mockResolvedValue(true),
     findActiveStudentEnrollment: vi.fn().mockResolvedValue({ id: 'enrollment-1', courseId: 'course-1', studentId: 'student-1' }),
     findStudentQuestions: vi.fn().mockResolvedValue([]),
+    isPracticeCompleted: vi.fn().mockResolvedValue(true),
     createAttempt: vi.fn().mockResolvedValue({ id: 'attempt-1', status: 'IN_PROGRESS' }),
     findOpenAttempt: vi.fn().mockResolvedValue(null),
     countFailedAttemptsToday: vi.fn().mockResolvedValue(0),
@@ -82,6 +83,17 @@ describe('authenticated lesson learning foundation', () => {
     expect(quiz.questions[0]?.options[0]).not.toHaveProperty('isCorrect');
     await service.submitAttempt('enrollment-1', 'lesson-1', 'attempt-1', { answers: [{ questionId: 'q1', submittedAnswer: 'o1' }] }, student);
     expect(repository.submitAttempt).toHaveBeenCalledOnce();
+  });
+
+  it('requires persistent practice completion before quiz read, start or submit', async () => {
+    const { service, repository } = setup({ isPracticeCompleted: vi.fn().mockResolvedValue(false) });
+
+    await expect(service.studentQuiz('enrollment-1', 'lesson-1', student)).rejects.toMatchObject({ code: 'PRACTICE_REQUIRED', statusCode: 409 });
+    await expect(service.startAttempt('enrollment-1', 'lesson-1', student)).rejects.toMatchObject({ code: 'PRACTICE_REQUIRED', statusCode: 409 });
+    await expect(service.submitAttempt('enrollment-1', 'lesson-1', 'attempt-1', { answers: [] }, student)).rejects.toMatchObject({ code: 'PRACTICE_REQUIRED', statusCode: 409 });
+    expect(repository.findStudentQuestions).not.toHaveBeenCalled();
+    expect(repository.createAttempt).not.toHaveBeenCalled();
+    expect(repository.submitAttempt).not.toHaveBeenCalled();
   });
 
   it('starts a student attempt and allows a later retry after submission', async () => {

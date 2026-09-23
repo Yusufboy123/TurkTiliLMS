@@ -41,16 +41,13 @@ export function LearnModeView({
       {blocks.length > 0 && (
         <section aria-labelledby="lesson-blocks-heading" className="space-y-6">
           <h2 className="sr-only" id="lesson-blocks-heading">Dars nazariyasi va materiallar</h2>
-          {blocks.map((block, idx) => {
+          {blocks.map((block) => {
             const mediaUrl = (block.mediaFileId ? mediaUrls[block.mediaFileId] : undefined) ?? block.sourceUrl ?? block.fileUrl;
             return (
-              <article key={block.id} className="rounded-xl border border-border-decorative bg-surface p-6 shadow-subtle transition-shadow hover:shadow-card">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-action-primary-bg/10 text-caption font-bold text-action-primary-text">
-                    {idx + 1}
-                  </span>
-                  <h3 className="type-heading-3 text-text-primary">{block.title ?? `Material ${idx + 1}`}</h3>
-                </div>
+              <article key={block.id} className="rounded-xl border border-border-decorative bg-surface p-5 shadow-subtle sm:p-8">
+                {(block.blockType !== 'TEXT' || blocks.length > 1) && block.title ? (
+                  <h3 className="mb-4 type-heading-3 text-text-primary">{block.title}</h3>
+                ) : null}
 
                 {block.description && (
                   <p className="mb-4 text-body-md text-text-secondary">{block.description}</p>

@@ -118,14 +118,22 @@ export class LessonLearningService {
     return this.repository.listVocabulary(lessonId);
   }
 
+  private async assertPracticeCompleted(enrollmentId: string, lessonId: string): Promise<void> {
+    if (!(await this.repository.isPracticeCompleted(enrollmentId, lessonId))) {
+      throw new AppError('Yakuniy testdan oldin barcha interaktiv mashqlarni to‘g‘ri bajaring.', 409, 'PRACTICE_REQUIRED');
+    }
+  }
+
   async studentQuiz(enrollmentId: string, lessonId: string, actor: LearningActor) {
     await this.studentEnrollment(enrollmentId, lessonId, actor);
+    await this.assertPracticeCompleted(enrollmentId, lessonId);
     const questions = await this.repository.findStudentQuestions(lessonId);
     return { lessonId, questions: questions.map((question) => ({ ...question, options: question.type === 'MISSING_WORD' ? [] : question.options })) } satisfies { lessonId: string; questions: StudentQuizQuestion[] };
   }
 
   async startAttempt(enrollmentId: string, lessonId: string, actor: LearningActor) {
     await this.studentEnrollment(enrollmentId, lessonId, actor);
+    await this.assertPracticeCompleted(enrollmentId, lessonId);
     const lesson = await this.repository.findLesson('', lessonId);
     if (lesson?.masteryEnabled && (await this.repository.countFailedAttemptsToday(enrollmentId, lessonId, lesson.masteryPassingPercentage)) >= 3) {
       throw new AppError('Bugungi yakuniy test urinishlari tugadi. Darsni qayta ko‘rib chiqing va ertaga yana urinib ko‘ring.', 429, 'QUIZ_DAILY_LIMIT_REACHED');
@@ -148,6 +156,7 @@ export class LessonLearningService {
 
   async submitAttempt(enrollmentId: string, lessonId: string, attemptId: string, input: SubmitQuizInput, actor: LearningActor) {
     await this.studentEnrollment(enrollmentId, lessonId, actor);
+    await this.assertPracticeCompleted(enrollmentId, lessonId);
     const attempt = await this.repository.findAttempt(attemptId, enrollmentId, lessonId);
     if (!attempt) throw new AppError('Test urinishi topilmadi.', 404, 'QUIZ_ATTEMPT_NOT_FOUND');
     if (attempt.status !== 'IN_PROGRESS') throw new AppError('Bu test urinishi allaqachon yuborilgan.', 409, 'QUIZ_ATTEMPT_SUBMITTED');

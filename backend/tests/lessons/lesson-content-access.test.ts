@@ -8,7 +8,10 @@ describe('student course content access', () => {
       .mockResolvedValueOnce({ id: 'active-enrollment' })
       .mockResolvedValueOnce({ id: 'completed-enrollment' })
       .mockResolvedValueOnce(null);
-    const client = { courseEnrollment: { findFirst } } as unknown as PrismaClient;
+    const client = {
+      course: { findUnique: vi.fn().mockResolvedValue({ level: 'A1' }) },
+      courseEnrollment: { findFirst },
+    } as unknown as PrismaClient;
     const access = new PrismaStudentCourseContentAccess(client);
 
     await expect(access.hasAccess('course-1', 'student-1')).resolves.toBe(true);

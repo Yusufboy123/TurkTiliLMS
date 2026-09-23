@@ -35,19 +35,30 @@ export function PlayerModeStepper({
         {visibleSteps.map((step, index) => {
           const isActive = currentMode === step.mode;
           const isLast = index === visibleSteps.length - 1;
+          const isAvailable =
+            step.mode === 'LEARN' ||
+            step.mode === 'PRACTICE' ||
+            (step.mode === 'TEST' && practiceCompleted) ||
+            (step.mode === 'RESULT' && hasAttemptedQuiz);
 
           return (
             <li className="flex min-w-0 flex-col sm:flex-1 sm:flex-row sm:items-center" key={step.mode}>
               <button
                 aria-current={isActive ? 'step' : undefined}
+                aria-disabled={!isAvailable}
                 className={`group relative flex min-h-target w-full min-w-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:flex-1 ${
                   isActive
                     ? 'bg-nav-selected font-semibold text-nav-selected-text ring-1 ring-nav-indicator/30'
                     : step.isCompleted
                       ? 'border border-success-border bg-success-bg text-success-text hover:bg-success-bg/70'
-                      : 'border border-border-control bg-subtle text-text-secondary hover:bg-nav-hover hover:text-text-primary'
+                      : isAvailable
+                        ? 'border border-border-control bg-subtle text-text-secondary hover:bg-nav-hover hover:text-text-primary'
+                        : 'cursor-not-allowed border border-border-control bg-subtle text-text-muted opacity-60'
                 }`}
-                onClick={() => onSelectMode(step.mode)}
+                disabled={!isAvailable}
+                onClick={() => {
+                  if (isAvailable) onSelectMode(step.mode);
+                }}
                 type="button"
               >
                 <span

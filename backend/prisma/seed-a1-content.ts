@@ -19,6 +19,7 @@ import {
 
 const prisma = new PrismaClient();
 const temporaryVocabularyTerms = ['alfabe', 'harf', 'ünlü', 'ünsüz', 'kalın', 'ince', 'ses', 'şeker', 'gün', 'dağ', 'merhaba', 'selam', 'ad', 'tanışmak', 'memnun', 'yaş', 'milliyet', 'Özbekistanlı', 'gözlük', 'ne', 'kim', 'çoğul', 'değil'];
+const shouldSeedVocabulary = process.env.A1_SEED_VOCABULARY === 'true';
 
 async function findContentTeacher() {
   const configuredEmail = process.env.A1_CONTENT_TEACHER_EMAIL?.trim();
@@ -99,33 +100,21 @@ async function seedLesson(tx: Prisma.TransactionClient, courseId: string, sectio
   const findExistingBlock = (content: (typeof definition.contentBlocks)[number]) => {
     const unused = activeBlocks.filter((candidate) => !matchedBlockIds.has(candidate.id));
     return unused.find((candidate) => sourceKeyFromMetadata(candidate.metadata) === content.key)
-      ?? unused.find((candidate) => normalizeTitle(candidate.title ?? '') === normalizeTitle(content.title))
-      ?? unused.find((candidate) => candidate.position === content.position);
+      ?? unused.find((candidate) => sourceKeyFromMetadata(candidate.metadata) === null
+        && normalizeTitle(candidate.title ?? '') === normalizeTitle(content.title));
   };
 
-  for (const content of definition.contentBlocks) {
-    const existing = findExistingBlock(content);
-    const data = {
-      blockType: content.blockType as LessonContentBlockType,
-      title: content.title,
-      position: content.position,
-      isRequired: content.isRequired ?? content.blockType === 'TEXT',
-      isVisible: content.isVisible ?? true,
-      ...(content.textContent !== undefined ? { textContent: content.textContent } : {}),
-      metadata: {
-        sourceKey: content.key,
-        ...(content.practiceItems ? { interactivePractice: content.practiceItems } : {}),
-      } as unknown as Prisma.InputJsonObject,
-      deletedAt: null,
-    };
-    if (existing) {
-      matchedBlockIds.add(existing.id);
-      await tx.lessonContentBlock.update({ where: { id: existing.id }, data });
-    } else {
-      await tx.lessonContentBlock.create({ data: { ...data, lessonId: lesson.id, createdById: teacherId } });
-    }
+  const desiredBlocks = definition.contentBlocks.map((content) => ({
+    content,
+    existing: findExistingBlock(content),
+  }));
+  for (const desired of desiredBlocks) {
+    if (desired.existing) matchedBlockIds.add(desired.existing.id);
   }
 
+  // A different sourceKey represents different educational semantics. Archive
+  // stale blocks before assigning the new positions so their historical
+  // progress remains attached to the old block instead of being reinterpreted.
   const staleBlockIds = activeBlocks
     .filter((block) => !matchedBlockIds.has(block.id))
     .map((block) => block.id);
@@ -136,22 +125,61 @@ async function seedLesson(tx: Prisma.TransactionClient, courseId: string, sectio
     });
   }
 
-  for (const vocabulary of definition.vocabulary) {
-    const existing = await tx.lessonVocabulary.findFirst({ where: { lessonId: lesson.id, turkishWord: vocabulary.turkishWord, deletedAt: null }, select: { id: true } });
-    if (existing) {
-      await tx.lessonVocabulary.update({ where: { id: existing.id }, data: { uzbekMeaning: vocabulary.uzbekMeaning, ...(vocabulary.exampleSentence !== undefined ? { exampleSentence: vocabulary.exampleSentence } : {}), position: vocabulary.position, deletedAt: null } });
-    } else {
-      await tx.lessonVocabulary.create({ data: { lessonId: lesson.id, ...vocabulary } });
+  // Move matched blocks out of the active position range before reordering.
+  for (const [index, desired] of desiredBlocks.entries()) {
+    if (desired.existing) {
+      await tx.lessonContentBlock.update({
+        where: { id: desired.existing.id },
+        data: { position: 1_000_000 + index },
+      });
     }
   }
 
-  // Reconcile only entries owned by the first temporary batch. Soft deletion
-  // keeps historical references and student data intact while removing stale
-  // words from the active student vocabulary projection.
-  await tx.lessonVocabulary.updateMany({
-    where: { lessonId: lesson.id, deletedAt: null, turkishWord: { in: temporaryVocabularyTerms.filter((word) => !definition.vocabulary.some((item) => item.turkishWord === word)) } },
-    data: { deletedAt: new Date() },
+  for (const { content, existing } of desiredBlocks) {
+    const data = {
+      blockType: content.blockType as LessonContentBlockType,
+      title: content.title,
+      position: content.position,
+      isRequired: content.isRequired ?? content.blockType === 'TEXT',
+      isVisible: content.isVisible ?? true,
+      ...(content.textContent !== undefined ? { textContent: content.textContent } : {}),
+      metadata: {
+        sourceKey: content.key,
+        isPracticeHolder: Boolean(content.practiceItems),
+        ...(content.practiceItems ? { interactivePractice: content.practiceItems } : {}),
+      } as unknown as Prisma.InputJsonObject,
+      deletedAt: null,
+    };
+    if (existing) {
+      await tx.lessonContentBlock.update({ where: { id: existing.id }, data });
+    } else {
+      await tx.lessonContentBlock.create({ data: { ...data, lessonId: lesson.id, createdById: teacherId } });
+    }
+  }
+
+  if (shouldSeedVocabulary) {
+    for (const vocabulary of definition.vocabulary) {
+      const existing = await tx.lessonVocabulary.findFirst({ where: { lessonId: lesson.id, turkishWord: vocabulary.turkishWord, deletedAt: null }, select: { id: true } });
+      if (existing) {
+        await tx.lessonVocabulary.update({ where: { id: existing.id }, data: { uzbekMeaning: vocabulary.uzbekMeaning, ...(vocabulary.exampleSentence !== undefined ? { exampleSentence: vocabulary.exampleSentence } : {}), position: vocabulary.position, deletedAt: null } });
+      } else {
+        await tx.lessonVocabulary.create({ data: { lessonId: lesson.id, ...vocabulary } });
+      }
+    }
+
+    // Legacy vocabulary reconciliation is explicitly opt-in. A1 V2 content
+    // seeding leaves all vocabulary rows and learner mastery data untouched.
+    await tx.lessonVocabulary.updateMany({
+      where: { lessonId: lesson.id, deletedAt: null, turkishWord: { in: temporaryVocabularyTerms.filter((word) => !definition.vocabulary.some((item) => item.turkishWord === word)) } },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  const activeQuestions = await tx.lessonQuizQuestion.findMany({
+    where: { lessonId: lesson.id, deletedAt: null },
+    select: { id: true, prompt: true },
   });
+  const matchedQuestionIds = new Set<string>();
 
   for (const question of definition.questions) {
     const existing = await tx.lessonQuizQuestion.findFirst({ where: { lessonId: lesson.id, prompt: question.prompt, deletedAt: null }, select: { id: true } });
@@ -159,8 +187,19 @@ async function seedLesson(tx: Prisma.TransactionClient, courseId: string, sectio
     const questionId = existing
       ? (await tx.lessonQuizQuestion.update({ where: { id: existing.id }, data: questionData, select: { id: true } })).id
       : (await tx.lessonQuizQuestion.create({ data: { lessonId: lesson.id, ...questionData }, select: { id: true } })).id;
+    matchedQuestionIds.add(questionId);
     await tx.lessonQuizOption.deleteMany({ where: { questionId } });
     await tx.lessonQuizOption.createMany({ data: question.options.map((option) => ({ questionId, ...option })) });
+  }
+
+  const staleQuestionIds = activeQuestions
+    .filter((question) => !matchedQuestionIds.has(question.id))
+    .map((question) => question.id);
+  if (staleQuestionIds.length > 0) {
+    await tx.lessonQuizQuestion.updateMany({
+      where: { id: { in: staleQuestionIds }, lessonId: lesson.id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
   }
 }
 

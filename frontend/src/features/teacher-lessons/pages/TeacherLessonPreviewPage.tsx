@@ -73,10 +73,13 @@ export default function TeacherLessonPreviewPage() {
           {blocks.data && (
             <PracticeModeView
               blocks={blocks.data.items as unknown as StudentLessonBlock[]}
+              completionPending={false}
               enrollmentId="preview"
               lessonId={lessonId}
+              onCompletePractice={() => {}}
               onReturnToLearn={() => {}}
               onStartTest={() => {}}
+              practiceCompleted
             />
           )}
         </Card>

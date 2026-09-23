@@ -384,8 +384,8 @@ describe('Module 9.4C Admin Dashboard presentation', () => {
     expect(markup).toContain('<dl');
     expect(markup).toContain('<dt');
     expect(markup).toContain('<dd');
-    expect(markup).toContain('grid-cols-1');
-    expect(markup).toContain('sm:grid-cols-2');
+    expect(markup).toContain('grid-cols-2');
+    expect(markup).toContain('sm:grid-cols-3');
     expect(markup).toContain('xl:grid-cols-4');
     expect(markup).toContain('overflow-wrap-anywhere');
     expect(markup).toContain('break-all');

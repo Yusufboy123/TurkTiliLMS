@@ -42,6 +42,10 @@ export interface CompletionMutationInput {
   curriculumVersion: number;
 }
 
+export interface BlockCompletionMutationInput extends CompletionMutationInput {
+  practiceAnswers?: Array<{ practiceId: string; answer: string }> | undefined;
+}
+
 export interface LastVisitedMutationInput {
   lessonId: string;
   curriculumVersion: number;
@@ -72,6 +76,7 @@ export interface ProgressBlockRecord {
   title: string | null;
   position: number;
   isRequired: boolean;
+  metadata?: unknown;
   progress: {
     state: BlockProgressState;
     completedAt: Date | null;

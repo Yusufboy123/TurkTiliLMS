@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { AppError } from '../../utils/app-error.js';
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
 import {
+  blockCompletionMutationSchema,
   blockProgressParamsSchema,
   completedCoursesQuerySchema,
   completionMutationSchema,
@@ -97,7 +98,7 @@ export class ProgressTrackingController {
   completeBlock = async (request: Request, response: Response): Promise<void> => {
     const principal = principalFrom(request);
     const { enrollmentId, blockId } = blockProgressParamsSchema.parse(request.params);
-    const input = completionMutationSchema.parse(request.body);
+    const input = blockCompletionMutationSchema.parse(request.body);
     const result = await this.progress.completeBlock(
       enrollmentId,
       blockId,

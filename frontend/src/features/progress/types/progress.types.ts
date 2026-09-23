@@ -170,6 +170,7 @@ export interface CompletedCoursePage {
 export interface CompletionMutationInput {
   expectedCompletionVersion: number;
   curriculumVersion: number;
+  practiceAnswers?: Array<{ practiceId: string; answer: string }>;
 }
 
 export interface LastVisitedMutationInput {

@@ -8,6 +8,9 @@ interface PracticeModeViewProps {
   blocks: StudentLessonBlock[];
   enrollmentId: string;
   lessonId: string;
+  practiceCompleted: boolean;
+  completionPending: boolean;
+  onCompletePractice: (answers: Array<{ practiceId: string; answer: string }>) => void;
   onReturnToLearn: () => void;
   onStartTest: () => void;
 }
@@ -46,6 +49,9 @@ export function PracticeModeView({
   blocks,
   enrollmentId,
   lessonId,
+  practiceCompleted,
+  completionPending,
+  onCompletePractice,
   onReturnToLearn,
   onStartTest,
 }: PracticeModeViewProps) {
@@ -64,7 +70,7 @@ export function PracticeModeView({
   const currentResult = currentItem ? submitted[currentItem.id] : undefined;
   const isSubmitted = Boolean(currentResult);
   const isCorrect = currentResult?.correct === true;
-  const isAllSubmitted = items.length > 0 && items.every((item) => Boolean(submitted[item.id]));
+  const allCorrect = items.length > 0 && items.every((item) => submitted[item.id]?.correct === true);
   const currentItemId = currentItem?.id;
   const currentItemOptions = currentItem?.options;
   const currentItemType = currentItem?.type;
@@ -252,11 +258,7 @@ export function PracticeModeView({
                 <Button onClick={() => setCurrentIndex((prev) => prev + 1)}>
                   Keyingi mashq →
                 </Button>
-              ) : (
-                <Button onClick={() => setCurrentIndex(items.length)}>
-                  Natijalarni ko‘rish →
-                </Button>
-              )}
+              ) : <span />}
             </div>
           </div>
         )}
@@ -283,26 +285,39 @@ export function PracticeModeView({
           >
             Keyingi mashq →
           </Button>
-        ) : (
-          <Button onClick={onStartTest}>
-            Yakuniy testga o‘tish ▶
-          </Button>
-        )}
+        ) : <span />}
       </div>
 
-      {/* Completion Banner if all exercises answered */}
-      {isAllSubmitted && (
+      {/* Persistent completion is recorded only after every item is correct. */}
+      {(allCorrect || practiceCompleted) && (
         <Card padding="lg" className="border-success-border bg-success-bg/30 text-center my-8">
           <h3 className="type-heading-3 text-success-text mb-2">🎉 Barcha amaliy mashqlar bajarildi!</h3>
           <p className="text-body-md text-text-primary mb-4">
-            Natijangiz: <strong>{correctCount} / {items.length}</strong> to‘g‘ri javob.
+            {practiceCompleted
+              ? 'Amaliyot yakunlangani saqlandi.'
+              : <>Natijangiz: <strong>{correctCount} / {items.length}</strong> to‘g‘ri javob.</>}
           </p>
           <p className="text-body-sm text-text-secondary mb-6">
-            Endi o‘zlashtirish darajasini aniqlash uchun Mustaqil Yakuniy Testni topshirishingiz mumkin.
+            {practiceCompleted
+              ? 'Endi mavzu bo‘yicha yakuniy testni boshlashingiz mumkin.'
+              : 'Natijani saqlang. Shundan keyin yakuniy test ochiladi.'}
           </p>
-          <Button size="lg" onClick={onStartTest}>
-            Yakuniy testni boshlash ▶
-          </Button>
+          {practiceCompleted ? (
+            <Button size="lg" onClick={onStartTest}>Yakuniy testni boshlash ▶</Button>
+          ) : (
+            <Button
+              disabled={completionPending}
+              loading={completionPending}
+              size="lg"
+              onClick={() =>
+                onCompletePractice(
+                  items.map((item) => ({ practiceId: item.id, answer: answers[item.id] ?? '' })),
+                )
+              }
+            >
+              Amaliyotni yakunlash
+            </Button>
+          )}
         </Card>
       )}
     </div>

@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { AppError } from '../../utils/app-error.js';
 import { CertificateEligibilityCompletionEvaluator } from '../certificate-eligibility/certificate-eligibility.completion.js';
+import { storedInteractivePracticeFromMetadata } from '../lesson-content-blocks/lesson-content-block.repository.js';
 import {
   calculateProgressAggregate,
   isCourseAvailable,
@@ -27,6 +28,7 @@ import {
 } from './progress-tracking.repository.js';
 import type {
   ActivityMutationResultDto,
+  BlockCompletionMutationInput,
   CompletedCoursePageDto,
   CompletedCourseQuery,
   CompletionMutationInput,
@@ -233,7 +235,7 @@ export interface ProgressTrackingUseCases {
   completeBlock(
     enrollmentId: string,
     blockId: string,
-    input: CompletionMutationInput,
+    input: BlockCompletionMutationInput,
     actor: ProgressActor,
     context: ProgressRequestContext,
   ): Promise<MutationExecution<ProgressMutationResultDto>>;
@@ -353,7 +355,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
   async completeBlock(
     enrollmentId: string,
     blockId: string,
-    input: CompletionMutationInput,
+    input: BlockCompletionMutationInput,
     actor: ProgressActor,
     context: ProgressRequestContext,
   ): Promise<MutationExecution<ProgressMutationResultDto>> {
@@ -507,7 +509,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
       typeof IdempotencyOperation.COMPLETE_BLOCK | typeof IdempotencyOperation.REOPEN_BLOCK,
     enrollmentId: string,
     blockId: string,
-    input: CompletionMutationInput,
+    input: BlockCompletionMutationInput,
     actor: ProgressActor,
     context: ProgressRequestContext,
   ): Promise<MutationExecution<ProgressMutationResultDto>> {
@@ -519,6 +521,7 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
       blockId,
       expectedCompletionVersion: input.expectedCompletionVersion,
       curriculumVersion: input.curriculumVersion,
+      practiceAnswers: input.practiceAnswers ?? null,
     });
     return this.runTransaction(async (transaction) => {
       const loaded = await this.loadForMutation(transaction, enrollmentId, actor);
@@ -537,6 +540,29 @@ export class ProgressTrackingService implements ProgressTrackingUseCases {
       const block = lesson?.blocks.find((candidate) => candidate.id === blockId);
       if (!lesson || !block) throw blockNotFound();
       assertLessonAccessible(loaded.enrollment, lesson.id);
+
+      if (operation === IdempotencyOperation.COMPLETE_BLOCK) {
+        const practice = storedInteractivePracticeFromMetadata(block.metadata ?? null);
+        if (practice) {
+          const submitted = input.practiceAnswers ?? [];
+          const answerMap = new Map(submitted.map((answer) => [answer.practiceId, answer.answer]));
+          const allCorrect =
+            answerMap.size === submitted.length &&
+            submitted.length === practice.length &&
+            practice.every(
+              (item) =>
+                answerMap.get(item.id)?.trim().toLocaleLowerCase('tr-TR') ===
+                item.answer.trim().toLocaleLowerCase('tr-TR'),
+            );
+          if (!allCorrect) {
+            throw new AppError(
+              'Amaliyotni yakunlash uchun barcha mashqlarni to‘g‘ri bajaring.',
+              409,
+              'PRACTICE_NOT_COMPLETED',
+            );
+          }
+        }
+      }
 
       await transaction.lockLessonProgress(enrollmentId, lesson.id);
       await transaction.lockBlockProgress(enrollmentId, block.id);

@@ -17,6 +17,7 @@ interface CompletionVariables {
   resourceId: string;
   curriculumVersion: number;
   expectedCompletionVersion: number;
+  practiceAnswers?: Array<{ practiceId: string; answer: string }>;
   idempotencyKey?: string;
 }
 
@@ -64,6 +65,7 @@ function completionRequest(variables: CompletionVariables) {
   const input = {
     curriculumVersion: variables.curriculumVersion,
     expectedCompletionVersion: variables.expectedCompletionVersion,
+    ...(variables.practiceAnswers ? { practiceAnswers: variables.practiceAnswers } : {}),
   };
   const key = variables.idempotencyKey ?? createIdempotencyKey();
 

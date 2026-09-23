@@ -9,6 +9,15 @@ const levels = [
   { level: CourseLevel.B2, title: 'B2 yakuniy imtihoni', perLesson: 5 },
 ] as const;
 
+const requestedLevel = process.env.LEVEL_FINAL_EXAM_LEVEL?.trim().toUpperCase();
+const selectedLevels = requestedLevel
+  ? levels.filter((entry) => entry.level === requestedLevel)
+  : levels;
+
+if (requestedLevel && selectedLevels.length === 0) {
+  throw new Error(`Unsupported level final exam filter: ${requestedLevel}.`);
+}
+
 async function seedLevel(level: (typeof levels)[number]) {
   const courses = await prisma.course.findMany({
     where: { level: level.level, deletedAt: null },
@@ -77,7 +86,7 @@ async function seedLevel(level: (typeof levels)[number]) {
 
 async function main() {
   const results = [];
-  for (const level of levels) results.push(await seedLevel(level));
+  for (const level of selectedLevels) results.push(await seedLevel(level));
   console.log(JSON.stringify(results));
 }
 

@@ -42,6 +42,7 @@ export default function LessonProgressPage() {
   const { enrollmentId = '', lessonId = '' } = useParams();
   const progress = useEnrollmentProgress(enrollmentId);
   const {
+    completeBlock,
     completeLesson,
     completionMutation,
     reopenLesson,
@@ -156,6 +157,11 @@ export default function LessonProgressPage() {
       completionMutation.data.affectedLesson.status === 'COMPLETED');
 
   const blocksData = content.blocks.data ?? [];
+  const practiceHolder = blocksData.find((block) => block.isPracticeHolder);
+  const practiceProgress = practiceHolder
+    ? lesson.blocks.find((block) => block.id === practiceHolder.id)
+    : undefined;
+  const practiceCompleted = practiceProgress?.status === 'COMPLETED';
 
   return (
     <div className="min-h-screen bg-canvas pb-32 text-text-primary md:pb-12">
@@ -292,7 +298,7 @@ export default function LessonProgressPage() {
               currentMode={currentMode}
               hasAttemptedQuiz={hasAttemptedQuiz}
               onSelectMode={setCurrentMode}
-              practiceCompleted={blocksData.length > 0}
+              practiceCompleted={practiceCompleted}
               quizPassed={quizPassed}
             />
           </div>
@@ -317,16 +323,23 @@ export default function LessonProgressPage() {
             {currentMode === 'PRACTICE' && (
               <PracticeModeView
                 blocks={blocksData}
+                completionPending={completionMutation.isPending && completionMutation.variables?.action === 'completeBlock'}
                 enrollmentId={enrollmentId}
                 lessonId={lessonId}
+                onCompletePractice={(practiceAnswers) => {
+                  if (practiceHolder) {
+                    completeBlock({ ...completionInput, resourceId: practiceHolder.id, practiceAnswers });
+                  }
+                }}
                 onReturnToLearn={() => setCurrentMode('LEARN')}
                 onStartTest={() => setCurrentMode('TEST')}
+                practiceCompleted={practiceCompleted}
               />
             )}
 
             {currentMode === 'TEST' && (
               <TestModeView
-                enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)}
+                enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible && practiceCompleted)}
                 enrollmentId={enrollmentId}
                 lessonId={lessonId}
                 passingPercentage={passingPercentage}
@@ -339,12 +352,20 @@ export default function LessonProgressPage() {
               <ResultModeView
                 enabled={Boolean(progress.data?.capabilities.canAccessCourseContent && lessonAccessible)}
                 enrollmentId={enrollmentId}
+                lessonTitle={lesson.title}
                 lessonId={lessonId}
                 passingPercentage={passingPercentage}
                 nextLessonPath={nextLesson ? progressPaths.lesson(enrollmentId, nextLesson.id) : null}
                 onGoToLearn={() => setCurrentMode('LEARN')}
                 onGoToPractice={() => setCurrentMode('PRACTICE')}
+                onGoToVocabulary={() => {
+                  setCurrentMode('LEARN');
+                  window.requestAnimationFrame(() => document.getElementById('vocabulary-heading')?.scrollIntoView({ behavior: 'smooth' }));
+                }}
                 onRetakeTest={() => setCurrentMode('TEST')}
+                vocabularyPassed={lesson.mastery?.vocabularyPassed ?? true}
+                vocabularyPercentage={lesson.mastery?.latestVocabularyPercentage ?? null}
+                vocabularyRequired={lesson.mastery?.vocabularyRequired ?? false}
               />
             )}
           </div>

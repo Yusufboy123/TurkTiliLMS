@@ -46,6 +46,23 @@ export const completionMutationSchema = z
   })
   .strict();
 
+export const blockCompletionMutationSchema = completionMutationSchema
+  .extend({
+    practiceAnswers: z
+      .array(
+        z
+          .object({
+            practiceId: z.string().trim().min(1).max(100),
+            answer: z.string().trim().min(1).max(1_000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(250)
+      .optional(),
+  })
+  .strict();
+
 export const lastVisitedMutationSchema = z
   .object({
     lessonId: uuid('Dars identifikatori noto‘g‘ri.'),

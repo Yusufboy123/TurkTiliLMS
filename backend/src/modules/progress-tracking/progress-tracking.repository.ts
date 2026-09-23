@@ -334,6 +334,7 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
                         title: true,
                         position: true,
                         isRequired: true,
+                        metadata: true,
                         progress: {
                           where: { enrollmentId },
                           take: 1,
@@ -395,6 +396,7 @@ class PrismaProgressTransactionRepository implements ProgressTransactionReposito
               title: block.title,
               position: block.position,
               isRequired: block.isRequired,
+              metadata: block.metadata,
               progress: block.progress[0] ?? null,
             })),
           })),

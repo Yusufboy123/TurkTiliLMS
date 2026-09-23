@@ -1,3 +1,6 @@
+import { a1V2PracticeByDay, a1V2QuestionsByDay } from './a1-v2-assessment.generated.js';
+import { a1V2TheoryByDay } from './a1-v2-theory.generated.js';
+
 export type A1QuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'MISSING_WORD';
 
 export interface A1ContentBlockDefinition {
@@ -691,7 +694,7 @@ const day12Questions: A1QuestionDefinition[] = [
   tf('“A1 Entegrasyon” A1 darajasining barcha bilimlari takrorini o‘z ichiga oladi.', 'To‘g‘ri.', 2, true),
 ];
 
-export const a1LessonDefinitions: A1LessonDefinition[] = [
+const a1LessonMetadata: A1LessonDefinition[] = [
   { day: 1, slug: 'a1-01-turk-alfabesi-va-tovushlar', title: '1-kun: Türk Alfabesi ve Sesler', summary: 'Turk alifbosi, maxsus harflar, talaffuz va katta unli uyg‘unligi asoslari.', durationMinutes: 45, contentBlocks: day1Blocks, vocabulary: day1Vocabulary, questions: day1Questions, masteryPassingPercentage: 75 },
   { day: 2, slug: 'a1-02-tanishuv-va-ozini-tanishtirish', title: '2-kun: Tanışma ve Kendini Tanıtma', summary: 'Salomlashish, ism, yosh, kasb, millat va hobbi haqida tanishtirish.', durationMinutes: 45, contentBlocks: day2Blocks, vocabulary: day2Vocabulary, questions: day2Questions, masteryPassingPercentage: 75 },
   { day: 3, slug: 'a1-03-koplik-ishorat-va-savol', title: '3-kun: Çoğul + İşaret + Soru', summary: '-lar/-ler, bu/şu/o, onlar va mı/mi/mu/mü.', durationMinutes: 50, contentBlocks: day3Blocks, vocabulary: day3Vocabulary, questions: day3Questions, masteryPassingPercentage: 75 },
@@ -705,6 +708,39 @@ export const a1LessonDefinitions: A1LessonDefinition[] = [
   { day: 11, slug: 'a1-11-saatler', title: '11-kun: Saatler', summary: 'Vaqtni aytish (buçuk, çeyrek, geçiyor, var), gece/gündüz ifodalari.', durationMinutes: 50, contentBlocks: day11Blocks, vocabulary: day11Vocabulary, questions: day11Questions, masteryPassingPercentage: 75 },
   { day: 12, slug: 'a1-12-isim-tamlamalari-ve-a1-entegrasyon', title: '12-kun: İsim Tamlamaları + A1 Entegrasyon', summary: 'Belirtili isim tamlaması va A1 bosqichining umumiy integratsiyasi.', durationMinutes: 60, contentBlocks: day12Blocks, vocabulary: day12Vocabulary, questions: day12Questions, masteryPassingPercentage: 75 },
 ];
+
+function a1V2Blocks(lesson: A1LessonDefinition): A1ContentBlockDefinition[] {
+  const theory = a1V2TheoryByDay[lesson.day];
+  const practiceItems = a1V2PracticeByDay[lesson.day];
+  if (!theory || !practiceItems?.length) {
+    throw new Error(`A1 V2 content is incomplete for lesson ${lesson.day}.`);
+  }
+  return [
+    { ...block('a1-v2-theory', `${lesson.title} — elektron dars`, 1, theory), isRequired: false },
+    {
+      ...block(
+        'a1-v2-practice',
+        'Interaktiv amaliyot',
+        2,
+        'Nazariyadan keyin barcha mashqlarni bajaring. Har bir xatoni izoh orqali tuzating va amaliyotni yakunlang.',
+        practiceItems,
+      ),
+      isRequired: true,
+    },
+  ];
+}
+
+export const a1LessonDefinitions: A1LessonDefinition[] = a1LessonMetadata.map((lesson) => {
+  const questions = a1V2QuestionsByDay[lesson.day];
+  if (!questions?.length) {
+    throw new Error(`A1 V2 topic test is incomplete for lesson ${lesson.day}.`);
+  }
+  return {
+    ...lesson,
+    contentBlocks: a1V2Blocks(lesson),
+    questions,
+  };
+});
 
 export const a1CourseDefinition = {
   title: 'Turk tili A1',

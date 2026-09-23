@@ -110,6 +110,11 @@ function publicInteractivePractice(metadata: Prisma.JsonValue | null): PublicInt
   return storedInteractivePracticeFromMetadata(metadata)?.map(({ answer: _answer, ...item }) => item);
 }
 
+function isPracticeHolder(metadata: Prisma.JsonValue | null): boolean {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
+  return (metadata as Record<string, Prisma.JsonValue>).isPracticeHolder === true;
+}
+
 export class LessonBlockPositionConflictError extends Error {}
 export class LessonBlockPositionCapacityError extends Error {}
 
@@ -150,6 +155,7 @@ function mapPublicBlock(block: PublicBlockPayload): PublicLessonContentBlock {
     fileSizeBytes: block.fileSizeBytes?.toString() ?? null,
     durationSeconds: block.durationSeconds,
     thumbnailUrl: block.thumbnailUrl,
+    ...(isPracticeHolder(block.metadata) ? { isPracticeHolder: true } : {}),
     ...(publicInteractivePractice(block.metadata) ? { interactivePractice: publicInteractivePractice(block.metadata) } : {}),
   };
 }
